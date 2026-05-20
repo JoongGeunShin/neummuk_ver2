@@ -1,0 +1,43 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'auth_provider.dart';
+
+// **************************************************************************
+// RiverpodGenerator
+// **************************************************************************
+
+String _$authRepositoryHash() => r'84efa9f45897da6a7bb060e86ebed7e912fb8a04';
+
+/// See also [authRepository].
+@ProviderFor(authRepository)
+final authRepositoryProvider = Provider<AuthRepository>.internal(
+  authRepository,
+  name: r'authRepositoryProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$authRepositoryHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef AuthRepositoryRef = ProviderRef<AuthRepository>;
+String _$authStateHash() => r'5b0781dc5941ee3d533655dd95e29b5b5d2038ca';
+
+/// See also [AuthState].
+@ProviderFor(AuthState)
+final authStateProvider =
+    NotifierProvider<AuthState, AsyncValue<UserEntity?>>.internal(
+      AuthState.new,
+      name: r'authStateProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$authStateHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$AuthState = Notifier<AsyncValue<UserEntity?>>;
+// ignore_for_file: type=lint
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
