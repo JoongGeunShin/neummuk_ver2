@@ -31,91 +31,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context.go('/record');
       case NavTab.me:
         final user = ref.read(authStateProvider).valueOrNull;
-        setState(() => _activeTab = NavTab.home);
         if (user == null || user.isGuest) {
+          setState(() => _activeTab = NavTab.home);
           _showSignupDialog();
         } else {
-          _showMeSheet(user.displayName ?? '사용자', user.email);
+          context.go('/user');
         }
       case NavTab.home:
         break;
     }
-  }
-
-  void _showMeSheet(String displayName, String email) {
-    final c = context.colors;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: c.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: c.outline,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Container(
-                    width: 48, height: 48,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: c.primarySoft),
-                    child: Icon(Icons.person_rounded, color: c.primary, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(displayName,
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: c.text)),
-                        if (email.isNotEmpty)
-                          Text(email,
-                              style: TextStyle(fontSize: 12, color: c.textMuted)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              GestureDetector(
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await ref.read(authStateProvider.notifier).signOut();
-                  if (mounted) context.go('/login');
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: c.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: c.outline),
-                  ),
-                  child: Center(
-                    child: Text('로그아웃',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.red.shade400)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showSignupDialog() {

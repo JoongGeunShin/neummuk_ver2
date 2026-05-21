@@ -12,6 +12,7 @@ import '../../features/mode_b/presentation/screens/mode_b_search_screen.dart';
 import '../../features/mode_b/presentation/screens/mode_b_route_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_detail_screen.dart';
 import '../../features/record/presentation/screens/my_record_screen.dart';
+import '../../features/user/presentation/screen/user_info_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -61,6 +62,10 @@ final appRouter = GoRouter(
       path: '/record',
       builder: (_, __) => const MyRecordScreen(),
     ),
+    GoRoute(
+      path: '/user',
+      builder: (_, __) => const UserInfoScreen(),
+    )
   ],
   errorBuilder: (context, state) => Scaffold(
     body: Center(
