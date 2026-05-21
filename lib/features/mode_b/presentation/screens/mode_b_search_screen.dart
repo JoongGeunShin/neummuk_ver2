@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_chip.dart';
+import '../../../../core/widgets/double_back_to_exit.dart';
 import '../providers/mode_b_provider.dart';
 
 const _foodCats = ['전체', '한식', '분식', '중식', '경양식', '카페', '디저트'];
@@ -16,7 +17,8 @@ class ModeBSearchScreen extends ConsumerWidget {
     final state = ref.watch(foodSearchProvider);
     final notifier = ref.read(foodSearchProvider.notifier);
 
-    return Scaffold(
+    return DoubleBackToExit(
+      child: Scaffold(
       backgroundColor: c.bg,
       body: Column(
         children: [
@@ -226,6 +228,6 @@ class ModeBSearchScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }

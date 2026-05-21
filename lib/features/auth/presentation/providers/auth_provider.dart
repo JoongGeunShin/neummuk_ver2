@@ -49,4 +49,9 @@ class AuthState extends _$AuthState {
     await ref.read(authRepositoryProvider).signOut();
     state = const AsyncValue.data(null);
   }
+
+  Future<void> deleteAccount() async {
+    await ref.read(authRepositoryProvider).deleteAccount();
+    state = const AsyncValue.data(null);
+  }
 }

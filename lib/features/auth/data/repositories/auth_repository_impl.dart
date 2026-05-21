@@ -96,4 +96,25 @@ class AuthRepositoryImpl implements AuthRepository {
         photoUrl: user.photoURL,
         isGuest: user.isAnonymous,
       );
+
+  @override
+  @override
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('로그인된 사용자가 없습니다.');
+    }
+
+    try {
+      await _userRepo.deleteUser(user.uid, user.email ?? '');
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        throw Exception('보안을 위해 재로그인이 필요합니다. 다시 로그인 후 탈퇴를 시도해주세요.');
+      }
+      rethrow;
+    } catch (e) {
+      throw Exception('회원 탈퇴 중 오류가 발생했습니다: $e');
+    }
+  }
 }

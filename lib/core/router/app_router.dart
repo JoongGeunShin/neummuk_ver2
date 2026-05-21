@@ -13,6 +13,7 @@ import '../../features/mode_b/presentation/screens/mode_b_route_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_detail_screen.dart';
 import '../../features/record/presentation/screens/my_record_screen.dart';
 import '../../features/user/presentation/screen/user_info_screen.dart';
+import '../../features/user/presentation/screen/user_edit_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -65,6 +66,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/user',
       builder: (_, __) => const UserInfoScreen(),
+    ),
+    GoRoute(
+      path: '/user/edit',
+      builder: (_, __) => const UserEditScreen(),
     )
   ],
   errorBuilder: (context, state) => Scaffold(

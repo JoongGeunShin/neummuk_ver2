@@ -6,7 +6,7 @@ part of 'walk_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$walkSessionHash() => r'49f34721b381dab9d80608e04668c7b7ab4ae7eb';
+String _$walkSessionHash() => r'ad9e16761a50d01b2852fdb145224d6d71a48d18';
 
 /// See also [WalkSession].
 @ProviderFor(WalkSession)

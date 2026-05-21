@@ -5,5 +5,6 @@ abstract interface class AuthRepository {
   Future<UserEntity> signInWithEmail(String email, String password);
   Future<UserEntity> passLogin();
   Future<void> signOut();
+  Future<void> deleteAccount();
   UserEntity? get currentUser;
 }

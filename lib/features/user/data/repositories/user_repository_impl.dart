@@ -36,4 +36,14 @@ class UserRepositoryImpl implements UserRepository {
           .collection(_colId(user))
           .doc('user_profile_entity')
           .set(profile.toJson());
+
+  @override
+  Future<void> deleteUser(String uid, String email) async {
+    final colId = email.isNotEmpty ? email : uid;
+    final col = _db.collection(colId);
+    await Future.wait([
+      col.doc('user_entity').delete(),
+      col.doc('user_profile_entity').delete(),
+    ]);
+  }
 }
