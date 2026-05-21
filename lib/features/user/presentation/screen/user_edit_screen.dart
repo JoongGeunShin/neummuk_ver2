@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/region_selector.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../onboarding/domain/entities/user_profile_entity.dart';
 import '../../presentation/providers/user_provider.dart';
@@ -24,6 +25,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
   String _sex = 'male';
   String _transport = 'walk';
   List<String> _categories = ['한식'];
+  List<String> _regions = ['전체'];
 
   static const _transports = [
     ('walk', '도보', Icons.directions_walk_rounded),
@@ -48,6 +50,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     _sex = profile.sex;
     _transport = profile.preferredTransport;
     _categories = List<String>.from(profile.preferredCategories);
+    _regions = List<String>.from(profile.preferredRegions);
   }
 
   Future<void> _save() async {
@@ -63,6 +66,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
               sex: _sex,
               preferredTransport: _transport,
               preferredCategories: List<String>.from(_categories),
+              preferredRegions: List<String>.from(_regions),
             ),
           );
       ref.invalidate(userProfileProvider);
@@ -242,6 +246,16 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                           ),
                         );
                       }).toList(),
+                    ),
+
+                    SizedBox(height: context.hp(3)),
+
+                    // ── 선호 지역 ───────────────────────────────
+                    _SectionLabel(label: '선호 지역', c: c),
+                    SizedBox(height: context.hp(1)),
+                    RegionSelector(
+                      value: _regions,
+                      onChanged: (v) => setState(() => _regions = v),
                     ),
 
                     SizedBox(height: context.hp(3)),

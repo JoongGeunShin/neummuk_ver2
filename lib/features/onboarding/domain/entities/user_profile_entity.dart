@@ -5,6 +5,7 @@ class UserProfileEntity {
     this.sex = 'male',
     this.preferredTransport = 'walk',
     this.preferredCategories = const ['한식'],
+    this.preferredRegions = const ['전체'],
   });
 
   final double heightCm;
@@ -12,6 +13,7 @@ class UserProfileEntity {
   final String sex;
   final String preferredTransport;
   final List<String> preferredCategories;
+  final List<String> preferredRegions;
 
   factory UserProfileEntity.fromJson(Map<String, dynamic> json) =>
       UserProfileEntity(
@@ -24,6 +26,11 @@ class UserProfileEntity {
                 ?.map((e) => e as String)
                 .toList() ??
             const ['한식'],
+        preferredRegions:
+            (json['preferredRegions'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            const ['전체'],
       );
 
   Map<String, dynamic> toJson() => {
@@ -32,6 +39,7 @@ class UserProfileEntity {
         'sex': sex,
         'preferredTransport': preferredTransport,
         'preferredCategories': preferredCategories,
+        'preferredRegions': preferredRegions,
       };
 
   UserProfileEntity copyWith({
@@ -40,6 +48,7 @@ class UserProfileEntity {
     String? sex,
     String? preferredTransport,
     List<String>? preferredCategories,
+    List<String>? preferredRegions,
   }) {
     return UserProfileEntity(
       heightCm: heightCm ?? this.heightCm,
@@ -47,6 +56,7 @@ class UserProfileEntity {
       sex: sex ?? this.sex,
       preferredTransport: preferredTransport ?? this.preferredTransport,
       preferredCategories: preferredCategories ?? this.preferredCategories,
+      preferredRegions: preferredRegions ?? this.preferredRegions,
     );
   }
 }

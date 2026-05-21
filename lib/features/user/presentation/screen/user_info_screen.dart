@@ -17,6 +17,17 @@ class UserInfoScreen extends ConsumerStatefulWidget {
 class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
   bool _deleting = false;
 
+  // '전체' → ['전체'], '경기/성남시' → '경기 성남시' 로 표시
+  List<Widget> _buildRegionChips(List<String> regions, dynamic c) {
+    if (regions.contains('전체')) {
+      return [_CategoryChip(label: '전체', c: c)];
+    }
+    return regions.map((r) {
+      final label = r.contains('/') ? r.replaceAll('/', ' ') : r;
+      return _CategoryChip(label: label, c: c);
+    }).toList();
+  }
+
   Future<void> _signOut() async {
     await ref.read(authStateProvider.notifier).signOut();
     if (!mounted) return;
@@ -209,6 +220,20 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                         _TransportChip(transport: profile.preferredTransport, c: c)
                       else
                         Text('-', style: TextStyle(color: c.textMuted)),
+
+                      SizedBox(height: context.hp(3)),
+
+                      // 선호 지역
+                      _SectionLabel(label: '선호 지역', colors: c),
+                      SizedBox(height: context.hp(1)),
+                      if (profile != null && profile.preferredRegions.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _buildRegionChips(profile.preferredRegions, c),
+                        )
+                      else
+                        Text('전체', style: TextStyle(color: c.textMuted)),
 
                       SizedBox(height: context.hp(3)),
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/region_selector.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -16,6 +17,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0;
+  static const int _totalSteps = 3;
 
   Future<void> _markDone() async {
     final uid = ref.read(authStateProvider).valueOrNull?.uid;
@@ -25,8 +27,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _next() async {
-    if (_step == 0) {
-      setState(() => _step = 1);
+    if (_step < _totalSteps - 1) {
+      setState(() => _step++);
     } else {
       await ref.read(userProfileProvider.notifier).saveProfile();
       await _markDone();
@@ -34,9 +36,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  void _back() {
+    if (_step == 0) {
+      context.go('/login');
+    } else {
+      setState(() => _step--);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+
+    final buttonLabel = switch (_step) {
+      0 => '다음',
+      1 => '다음',
+      _ => '내움먹 시작하기',
+    };
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -50,13 +66,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 Row(
                   children: [
                     GestureDetector(
-                      onTap: () {
-                        if (_step == 0) {
-                          context.go('/login');
-                        } else {
-                          setState(() => _step = 0);
-                        }
-                      },
+                      onTap: _back,
                       child: Icon(Icons.arrow_back_rounded, color: c.text, size: 22),
                     ),
                     SizedBox(width: context.wp(4)),
@@ -68,7 +78,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             Container(height: 4, color: c.surfaceHi),
                             AnimatedFractionallySizedBox(
                               duration: const Duration(milliseconds: 320),
-                              widthFactor: (_step + 1) / 2.0,
+                              widthFactor: (_step + 1) / _totalSteps.toDouble(),
                               child: Container(height: 4, color: c.primary),
                             ),
                           ],
@@ -93,16 +103,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
-                    child: _step == 0
-                        ? const _WeightStep(key: ValueKey(0))
-                        : const _PrefsStep(key: ValueKey(1)),
+                    child: switch (_step) {
+                      0 => const _WeightStep(key: ValueKey(0)),
+                      1 => const _RegionStep(key: ValueKey(1)),
+                      _ => const _PrefsStep(key: ValueKey(2)),
+                    },
                   ),
                 ),
                 AppButton(
-                  label: _step == 0 ? '다음' : '내움먹 시작하기',
+                  label: buttonLabel,
                   onPressed: _next,
                   variant: ButtonVariant.primary,
-                  iconRight: Icons.arrow_forward_rounded,
+                  iconRight: _step < _totalSteps - 1
+                      ? Icons.arrow_forward_rounded
+                      : null,
                   fullWidth: true,
                 ),
               ],
@@ -112,6 +126,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 }
+
+// ── Step 0: 신체 정보 ─────────────────────────────────────────────
 
 class _WeightStep extends ConsumerWidget {
   const _WeightStep({super.key});
@@ -228,7 +244,6 @@ class _WeightStep extends ConsumerWidget {
           ),
         ),
         SizedBox(height: context.hp(0.5)),
-        // Slider
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: c.primary,
@@ -337,6 +352,51 @@ class _WeightStep extends ConsumerWidget {
     );
   }
 }
+
+// ── Step 1: 선호 지역 ─────────────────────────────────────────────
+
+class _RegionStep extends ConsumerWidget {
+  const _RegionStep({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final profile = ref.watch(userProfileProvider);
+    final notifier = ref.read(userProfileProvider.notifier);
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '어떤 지역에\n관심이 있으신가요?',
+            style: TextStyle(
+              fontSize: context.wp(6.5),
+              fontWeight: FontWeight.w800,
+              color: c.text,
+              letterSpacing: -0.5,
+              height: 1.2,
+            ),
+          ),
+          SizedBox(height: context.hp(1.2)),
+          Text(
+            '선택한 지역의 관광지와 음식을 우선으로\n추천해 드려요. 여러 지역 선택 가능해요.',
+            style: TextStyle(
+                fontSize: context.wp(3.5), color: c.textMuted, height: 1.5),
+          ),
+          SizedBox(height: context.hp(3.5)),
+          RegionSelector(
+            value: profile.preferredRegions,
+            onChanged: notifier.setRegions,
+          ),
+          SizedBox(height: context.hp(2)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 2: 선호 음식 ─────────────────────────────────────────────
 
 class _PrefsStep extends ConsumerWidget {
   const _PrefsStep({super.key});

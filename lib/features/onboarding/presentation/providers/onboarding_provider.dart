@@ -27,6 +27,10 @@ class UserProfile extends _$UserProfile {
     state = state.copyWith(preferredTransport: transport);
   }
 
+  void setRegions(List<String> regions) {
+    state = state.copyWith(preferredRegions: regions);
+  }
+
   void toggleCategory(String category) {
     final cats = List<String>.from(state.preferredCategories);
     if (cats.contains(category)) {
