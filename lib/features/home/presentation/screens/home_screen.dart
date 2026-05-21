@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/bottom_nav.dart';
+import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../../core/widgets/brand_logo.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/segmented_control.dart';
@@ -103,8 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final c = context.colors;
     final walk = ref.watch(walkSessionProvider);
 
-    return PopScope(
-      canPop: false,
+    return DoubleBackToExit(
       child: Scaffold(
       backgroundColor: c.bg,
       body: Column(

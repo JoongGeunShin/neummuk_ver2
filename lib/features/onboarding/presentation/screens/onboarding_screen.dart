@@ -159,7 +159,7 @@ class _WeightStep extends ConsumerWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                profile.heightCm.round().toString(),
+                profile.heightCm.toStringAsFixed(1),
                 style: TextStyle(
                   fontSize: context.wp(18),
                   fontWeight: FontWeight.w800,
@@ -190,7 +190,7 @@ class _WeightStep extends ConsumerWidget {
             value: profile.heightCm,
             min: 100,
             max: 200,
-            divisions: 85,
+            divisions: 1000,
             onChanged: (v) => notifier.setHeight(v),
           ),
         ),
@@ -209,7 +209,7 @@ class _WeightStep extends ConsumerWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                profile.weightKg.round().toString(),
+                profile.weightKg.toStringAsFixed(1),
                 style: TextStyle(
                   fontSize: context.wp(18),
                   fontWeight: FontWeight.w800,
@@ -242,7 +242,7 @@ class _WeightStep extends ConsumerWidget {
             value: profile.weightKg,
             min: 35,
             max: 120,
-            divisions: 85,
+            divisions: 850,
             onChanged: (v) => notifier.setWeight(v),
           ),
         ),

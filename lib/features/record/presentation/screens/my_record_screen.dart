@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/bottom_nav.dart';
+import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../../core/widgets/weekly_chart.dart';
 import '../../../record/domain/entities/badge_entity.dart';
 import '../providers/record_provider.dart';
@@ -36,7 +37,8 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
     final weeklyAsync = ref.watch(weeklyDataProvider);
     final badgesAsync = ref.watch(badgesProvider);
 
-    return Scaffold(
+    return DoubleBackToExit(
+      child: Scaffold(
       backgroundColor: c.bg,
       body: Column(
         children: [
@@ -280,7 +282,7 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
           ),
         ],
       ),
-    );
+    ));
   }
 }
 
