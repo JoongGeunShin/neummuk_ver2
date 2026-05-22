@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.neummuk_ver2"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
