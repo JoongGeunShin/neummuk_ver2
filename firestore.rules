@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 기본 거부 ──────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── 유저 프로필 컬렉션 (최상위) ────────────────────────────
+    // user_repository_impl.dart 경로:
+    //   /{email}/user_entity             (이메일 로그인)
+    //   /{uid}/user_entity               (익명 로그인)
+    //   /{email}/user_profile_entity
+    //   /{uid}/user_profile_entity
+    // 컬렉션명이 본인의 이메일 또는 UID일 때만 허용.
+    match /{colId}/{document} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == colId
+            || request.auth.token.email == colId);
+    }
+
+    // ── 일별 활동 기록 ───────────────────────────────────────
+    // record_repository_impl.dart 경로:
+    //   /users/{uid}/daily_records/{date}
+    // 저장 허용 필드 화이트리스트 — GPS 좌표 필드 차단 (LAW_RESTRICT 준수).
+    match /users/{uid}/daily_records/{date} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && isValidDailyRecord(request.resource.data);
+    }
+
+    function isValidDailyRecord(data) {
+      let allowed = ['date', 'steps', 'distanceM', 'caloriesKcal', 'updatedAt'];
+      return data.keys().hasOnly(allowed)
+        && data.steps is int
+        && data.distanceM is number
+        && data.caloriesKcal is number
+        && data.steps >= 0
+        && data.distanceM >= 0.0
+        && data.caloriesKcal >= 0.0;
+    }
+  }
+}
