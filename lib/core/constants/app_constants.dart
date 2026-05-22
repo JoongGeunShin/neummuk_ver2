@@ -3,7 +3,7 @@ class AppConstants {
 
   static const double defaultWeightKg = 65.0;
 
-  /// MET 값 (Metabolic Equivalent of Task)
+  /// MET 값 (Metabolic Equivalent of Task) - https://pacompendium.com/
   static const Map<String, double> metValues = {
     'walk': 3.5,
     'walk_fast': 4.8,
@@ -22,13 +22,14 @@ class AppConstants {
     final hours = durationSeconds / 3600.0;
     return met * weightKg * hours;
   }
-
+  // 한국관광공사_국문 관광정보 서비스_GW
   static const String tourApiBaseUrl =
-      'https://apis.data.go.kr/B551011/KorService1';
+      'https://apis.data.go.kr/B551011/KorService2';
   static const String kakaoLocalBaseUrl =
       'https://dapi.kakao.com/v2/local';
+  // 식품의약품안전처_식품영양성분DB정보
   static const String foodApiBaseUrl =
-      'https://apis.data.go.kr/1471000/FoodNtrIrdntInfoService1';
+      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo02';
 
   // Kakao Mobility API (인증: Authorization: KakaoAK {REST_API_KEY})
   static const String kakaoMobilityBaseUrl =
