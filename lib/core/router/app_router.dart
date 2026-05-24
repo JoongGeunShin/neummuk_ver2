@@ -11,6 +11,7 @@ import '../../features/mode_a/presentation/screens/mode_a_main_screen.dart';
 import '../../features/mode_b/presentation/screens/mode_b_search_screen.dart';
 import '../../features/mode_b/presentation/screens/mode_b_route_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_detail_screen.dart';
+import '../../features/explore/presentation/screens/explore_screen.dart';
 import '../../features/record/presentation/screens/my_record_screen.dart';
 import '../../features/user/presentation/screen/user_info_screen.dart';
 import '../../features/user/presentation/screen/user_edit_screen.dart';
@@ -45,6 +46,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/mode-a/result',
       builder: (_, __) => const ModeAMainScreen(),
+    ),
+    GoRoute(
+      path: '/explore',
+      builder: (_, __) => const ExploreScreen(),
     ),
     GoRoute(
       path: '/mode-b',
