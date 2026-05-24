@@ -21,6 +21,26 @@ service cloud.firestore {
             || request.auth.token.email == colId);
     }
 
+    // ── 음식 카탈로그 (탐색 기능) ──────────────────────────────
+    // food_catalog/{canonicalName}
+    // - 읽기: 누구나 (익명 포함)
+    // - 쓰기: 인증된 사용자만 (시드·캐싱·카운트 증가)
+    // - search_count increment는 +1만 허용 (오남용 방지)
+    match /food_catalog/{foodName} {
+      allow read: if true;
+
+      allow create: if request.auth != null;
+
+      allow update: if request.auth != null
+        && (
+          // 일반 필드 업데이트 (시드, API 캐싱)
+          !request.resource.data.keys().hasAny(['search_count'])
+          // 또는 search_count를 정확히 1 증가시키는 경우만 허용
+          || (request.resource.data.search_count ==
+                resource.data.search_count + 1)
+        );
+    }
+
     // ── 일별 활동 기록 ───────────────────────────────────────
     // record_repository_impl.dart 경로:
     //   /users/{uid}/daily_records/{date}
