@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/bottom_nav.dart';
+import '../../../../core/widgets/circular_reveal_route.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
+import '../../../map/presentation/screens/map_screen.dart';
 import '../../../../core/widgets/brand_logo.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/segmented_control.dart';
@@ -23,11 +25,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _mode = 'A';
   NavTab _activeTab = NavTab.home;
 
+  // ── 드래그 가능한 지도 FAB ──────────────────────────────────
+  static const double _fabSize = 56;
+  Offset? _fabPos;          // null → 첫 빌드 시 우하단으로 초기화
+  bool _fabDragging = false;
+  Offset _fabDragOrigin = Offset.zero; // long press 시작 시 FAB 위치 스냅샷
+  final GlobalKey _fabKey = GlobalKey();
+
+  void _openMap() {
+    final box = _fabKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    Navigator.of(context, rootNavigator: true).push(
+      CircularRevealRoute<void>(
+        page: const MapScreen(),
+        sourceCenter: center,
+      ),
+    );
+  }
+
   void _handleTabChange(NavTab tab) {
     setState(() => _activeTab = tab);
     switch (tab) {
       case NavTab.search:
-        context.go('/mode-b');
+        context.go('/explore');
       case NavTab.record:
         context.go('/record');
       case NavTab.me:
@@ -104,10 +125,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final c = context.colors;
     final walk = ref.watch(walkSessionProvider);
 
+    // FAB 초기 위치: 우하단 (바텀 탭 위)
+    final screenSize = MediaQuery.sizeOf(context);
+    final bottomNavH = context.hp(9);
+    _fabPos ??= Offset(
+      screenSize.width - _fabSize - 20,
+      screenSize.height - _fabSize - bottomNavH - 16,
+    );
+
     return DoubleBackToExit(
       child: Scaffold(
       backgroundColor: c.bg,
-      body: Column(
+      body: Stack(
+        children: [
+        // ── 메인 콘텐츠 ──────────────────────────────────────
+        Column(
         children: [
           Expanded(
             child: CustomScrollView(
@@ -482,8 +514,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           AppBottomNav(activeTab: _activeTab, onChanged: _handleTabChange),
         ],
-      ),
-    ));
+        ), // Column
+
+        // ── 드래그 가능한 지도 FAB ───────────────────────────
+        Positioned(
+          left: _fabPos!.dx,
+          top: _fabPos!.dy,
+          child: GestureDetector(
+            onTap: _openMap,
+            onLongPressStart: (d) {
+              setState(() {
+                _fabDragging = true;
+                _fabDragOrigin = _fabPos!;
+              });
+            },
+            onLongPressMoveUpdate: (d) {
+              final newX = (_fabDragOrigin.dx + d.offsetFromOrigin.dx)
+                  .clamp(0.0, screenSize.width - _fabSize);
+              final newY = (_fabDragOrigin.dy + d.offsetFromOrigin.dy)
+                  .clamp(0.0, screenSize.height - _fabSize);
+              setState(() => _fabPos = Offset(newX, newY));
+            },
+            onLongPressEnd: (_) => setState(() => _fabDragging = false),
+            onLongPressCancel: () => setState(() => _fabDragging = false),
+            child: AnimatedScale(
+              scale: _fabDragging ? 1.12 : 1.0,
+              duration: const Duration(milliseconds: 180),
+              child: AnimatedContainer(
+                key: _fabKey,
+                duration: const Duration(milliseconds: 180),
+                width: _fabSize,
+                height: _fabSize,
+                decoration: BoxDecoration(
+                  color: c.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: c.primary.withValues(
+                          alpha: _fabDragging ? 0.55 : 0.35),
+                      blurRadius: _fabDragging ? 20 : 10,
+                      spreadRadius: _fabDragging ? 3 : 0,
+                      offset: const Offset(0, 4),
+                    ),
+                    const BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.map_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+        ),
+        ], // Stack children
+      ), // Stack
+    )); // Scaffold, DoubleBackToExit
   }
 }
 

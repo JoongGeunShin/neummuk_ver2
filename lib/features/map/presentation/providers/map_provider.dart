@@ -65,7 +65,13 @@ class MapSearchNotifier extends _$MapSearchNotifier {
   @override
   MapSearchState build() => const MapSearchState();
 
-  Future<void> loadPlaces(double lat, double lng, {String? keyword}) async {
+  Future<void> loadPlaces(
+    double lat,
+    double lng, {
+    String? keyword,
+    bool isCategory = false,
+    int radiusMeters = 3000,
+  }) async {
     final effectiveKeyword =
         keyword ?? (state.selectedCategory == '전체' ? null : state.selectedCategory);
     state = state.copyWith(
@@ -79,6 +85,8 @@ class MapSearchNotifier extends _$MapSearchNotifier {
             latitude: lat,
             longitude: lng,
             keyword: effectiveKeyword,
+            isCategory: isCategory,
+            radiusMeters: radiusMeters,
           );
       state = state.copyWith(places: places, isLoading: false);
     } catch (e) {
@@ -86,18 +94,23 @@ class MapSearchNotifier extends _$MapSearchNotifier {
     }
   }
 
-  Future<void> selectCategory(String category) async {
+  Future<void> selectCategory(String category, {int radiusMeters = 3000}) async {
     state = state.copyWith(selectedCategory: category);
     final lat = state.centerLat ?? 37.5665;
     final lng = state.centerLng ?? 126.9780;
-    await loadPlaces(lat, lng, keyword: category == '전체' ? null : category);
+    await loadPlaces(lat, lng,
+        keyword: category == '전체' ? null : category,
+        isCategory: true,
+        radiusMeters: radiusMeters);
   }
 
-  Future<void> search(String query) async {
+  Future<void> search(String query, {int radiusMeters = 3000}) async {
     state = state.copyWith(searchQuery: query);
     final lat = state.centerLat ?? 37.5665;
     final lng = state.centerLng ?? 126.9780;
-    await loadPlaces(lat, lng, keyword: query.isNotEmpty ? query : null);
+    await loadPlaces(lat, lng,
+        keyword: query.isNotEmpty ? query : null,
+        radiusMeters: radiusMeters);
   }
 
   void selectPlace(PlaceEntity? place) {

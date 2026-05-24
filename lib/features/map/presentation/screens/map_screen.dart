@@ -90,7 +90,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     _lastSearchLat = lat;
     _lastSearchLng = lng;
-    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng);
+    final radius = await _getVisibleRadiusMeters();
+    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
   }
 
   Future<void> _goToCurrentLocation() async {
@@ -219,11 +220,34 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   // ── Search ───────────────────────────────────────────────────
 
+  Future<int> _getVisibleRadiusMeters() async {
+    if (_mapController == null) return 3000;
+    try {
+      final results = await Future.wait([
+        _mapController!.getCameraPosition(),
+        _mapController!.getContentBounds(),
+      ]);
+      final cam = results[0] as NCameraPosition;
+      final bounds = results[1] as NLatLngBounds;
+      final r = _distM(
+        cam.target.latitude,
+        cam.target.longitude,
+        bounds.northEast.latitude,
+        bounds.northEast.longitude,
+      );
+      return r.clamp(300, 20000).toInt();
+    } catch (_) {
+      return 3000;
+    }
+  }
+
   void _onSearchChanged(String value) {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 600), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 600), () async {
       if (!mounted) return;
-      ref.read(mapSearchNotifierProvider.notifier).search(value);
+      final radius = await _getVisibleRadiusMeters();
+      if (!mounted) return;
+      ref.read(mapSearchNotifierProvider.notifier).search(value, radiusMeters: radius);
     });
   }
 
@@ -232,10 +256,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (cam == null) return;
     final lat = cam.target.latitude;
     final lng = cam.target.longitude;
+    final radius = await _getVisibleRadiusMeters();
     _lastSearchLat = lat;
     _lastSearchLng = lng;
     setState(() => _showReSearchButton = false);
-    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng);
+    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
   }
 
   // ── Build ─────────────────────────────────────────────────────
@@ -295,8 +320,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 selectedCategory: state.selectedCategory,
                 onClose: () => Navigator.of(context).pop(),
                 onSearchChanged: _onSearchChanged,
-                onCategoryTap: (cat) =>
-                    ref.read(mapSearchNotifierProvider.notifier).selectCategory(cat),
+                onCategoryTap: (cat) async {
+                  final radius = await _getVisibleRadiusMeters();
+                  if (!mounted) return;
+                  ref.read(mapSearchNotifierProvider.notifier).selectCategory(cat, radiusMeters: radius);
+                },
               ),
             ),
 

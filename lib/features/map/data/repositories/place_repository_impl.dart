@@ -4,13 +4,11 @@ import 'dart:math';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../../core/constants/app_constants.dart';
 import '../../domain/entities/place_entity.dart';
 import '../../domain/repositories/place_repository.dart';
 
 class PlaceRepositoryImpl implements PlaceRepository {
-  static const _tourBaseUrl = 'apis.data.go.kr';
-  static const _kakaoBaseUrl = 'dapi.kakao.com';
-
   String get _tourKey => dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
   String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
 
@@ -21,9 +19,10 @@ class PlaceRepositoryImpl implements PlaceRepository {
     required double longitude,
     int radiusMeters = 3000,
     String? keyword,
+    bool isCategory = false,
   }) async {
     final results = await Future.wait([
-      _fetchTourApi(latitude, longitude, radiusMeters, keyword).catchError((_) => <PlaceEntity>[]),
+      _fetchTourApi(latitude, longitude, radiusMeters, keyword, isCategory).catchError((_) => <PlaceEntity>[]),
       _fetchKakaoLocal(latitude, longitude, radiusMeters, keyword).catchError((_) => <PlaceEntity>[]),
     ]);
     return _merge(results[0], results[1], keyword);
@@ -34,12 +33,15 @@ class PlaceRepositoryImpl implements PlaceRepository {
     double lng,
     int radius,
     String? keyword,
+    bool isCategory,
   ) async {
     final String path;
     final Map<String, String> params;
 
-    if (keyword != null && keyword.isNotEmpty) {
-      path = '/B551011/KorService2/searchKeyword2';
+    // 카테고리 태그 선택 시: TourAPI는 위치 기반 검색 유지 (키워드로 식당명 검색 시 결과 없음)
+    // 자유 텍스트 검색 시에만 searchKeyword2 사용
+    if (keyword != null && keyword.isNotEmpty && !isCategory) {
+      path = 'searchKeyword2';
       params = {
         'numOfRows': '30',
         'pageNo': '1',
@@ -54,7 +56,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
         'arrange': 'A',
       };
     } else {
-      path = '/B551011/KorService2/locationBasedList2';
+      path = 'locationBasedList2';
       params = {
         'numOfRows': '30',
         'pageNo': '1',
@@ -72,7 +74,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
     final queryString = params.entries
         .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
         .join('&');
-    final url = 'https://$_tourBaseUrl$path?serviceKey=$_tourKey&$queryString';
+    final url = '${AppConstants.tourApiBaseUrl}/$path?serviceKey=$_tourKey&$queryString';
     final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
 
@@ -118,7 +120,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
     final Map<String, String> params;
 
     if (keyword != null && keyword.isNotEmpty) {
-      path = '/v2/local/search/keyword.json';
+      path = '/search/keyword.json';
       params = {
         'query': keyword,
         'x': lng.toString(),
@@ -128,7 +130,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
         'category_group_code': 'FD6',
       };
     } else {
-      path = '/v2/local/search/category.json';
+      path = '/search/category.json';
       params = {
         'category_group_code': 'FD6',
         'x': lng.toString(),
@@ -139,7 +141,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
     }
 
     final response = await http.get(
-      Uri.https(_kakaoBaseUrl, path, params),
+      Uri.parse('${AppConstants.kakaoLocalBaseUrl}$path').replace(queryParameters: params),
       headers: {'Authorization': 'KakaoAK $_kakaoKey'},
     ).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];

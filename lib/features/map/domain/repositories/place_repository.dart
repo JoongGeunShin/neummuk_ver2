@@ -6,5 +6,6 @@ abstract class PlaceRepository {
     required double longitude,
     int radiusMeters = 3000,
     String? keyword,
+    bool isCategory = false,
   });
 }
