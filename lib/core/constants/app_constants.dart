@@ -33,6 +33,10 @@ class AppConstants {
   static const String foodApiEndpoint = 'getFoodNtrIrdntInfoList';
 
   // Kakao Mobility API (인증: Authorization: KakaoAK {REST_API_KEY})
+  // 한국관광공사_두루누비 정보 서비스 (산책로·자전거길 코스)
+  static const String durunubiBaseUrl =
+      'https://apis.data.go.kr/B551011/Durunubi';
+
   static const String kakaoMobilityBaseUrl =
       'https://apis-navi.kakaomobility.com/v1';
   // 다중 경유지 길찾기: POST $kakaoMobilityBaseUrl/waypoints/directions
