@@ -7,10 +7,10 @@ import '../../../../core/widgets/circular_reveal_route.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../map/presentation/screens/map_screen.dart';
 import '../../../../core/widgets/brand_logo.dart';
-import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/segmented_control.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../mode_a/data/repositories/mode_a_repository_impl.dart' show mockRestaurants;
+import '../../../event/presentation/providers/event_provider.dart';
+import '../../../event/presentation/widgets/event_card.dart';
 import '../../../mode_b/data/repositories/mode_b_repository_impl.dart' show mockRoutes;
 import '../../../walk/presentation/providers/walk_provider.dart';
 
@@ -358,99 +358,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
 
-                // Near restaurants
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(3), context.wp(5), 0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        RichText(
-                          text: TextSpan(
-                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c.text),
-                            children: [
-                              TextSpan(text: '광화문', style: TextStyle(color: c.primary)),
-                              const TextSpan(text: ' 근처 관광 맛집'),
-                            ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => context.go('/explore'),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('더보기', style: TextStyle(fontSize: 12, color: c.textMuted, fontWeight: FontWeight.w700)),
-                              Icon(Icons.chevron_right_rounded, size: 16, color: c.textMuted),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: context.hp(28),
-                    child: ListView.separated(
-                      padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.5), context.wp(5), context.hp(3)),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: mockRestaurants.take(4).length,
-                      separatorBuilder: (_, __) => SizedBox(width: context.wp(3)),
-                      itemBuilder: (ctx, i) {
-                        final r = mockRestaurants.elementAt(i);
-                        return GestureDetector(
-                          onTap: () => context.go('/restaurant/${r.id}'),
-                          child: Container(
-                            width: context.wp(41),
-                            decoration: BoxDecoration(
-                              color: c.surface,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: c.outline),
-                            ),
-                            clipBehavior: Clip.hardEdge,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                FoodImageWidget(
-                                    type: FoodImageWidget.fromString(r.imageType),
-                                    height: context.hp(12)),
-                                Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(r.name,
-                                          style: TextStyle(
-                                              color: c.text, fontWeight: FontWeight.w800,
-                                              fontSize: 13, letterSpacing: -0.1),
-                                          overflow: TextOverflow.ellipsis),
-                                      const SizedBox(height: 2),
-                                      Text(r.menu,
-                                          style: TextStyle(color: c.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Icon(Icons.star_rounded, size: 11, color: c.accent),
-                                          const SizedBox(width: 3),
-                                          Text(r.rating.toString(),
-                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c.text)),
-                                          Text(' · ', style: TextStyle(color: c.textFaint)),
-                                          Text('${r.kcal} kcal',
-                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c.primary)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                // Events section
+                _EventsSection(),
 
                 // Tourist routes section
                 SliverToBoxAdapter(
@@ -576,6 +485,217 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ], // Stack children
       ), // Stack
     )); // Scaffold, DoubleBackToExit
+  }
+}
+
+// ── 행사/공연/축제 섹션 ───────────────────────────────────────
+
+class _EventsSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final eventsState = ref.watch(homeEventsProvider);
+
+    return SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 헤더
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                context.wp(5), context.hp(3), context.wp(5), 0),
+            child: Row(
+              children: [
+                Text(
+                  '행사 · 공연 · 축제',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: c.text,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const Spacer(),
+                // 전국 / 내 주변 토글 칩
+                _EventLocationToggle(),
+              ],
+            ),
+          ),
+
+          // 카드 리스트
+          SizedBox(
+            height: context.hp(30),
+            child: eventsState.isLoading && eventsState.events.isEmpty
+                ? _EventsLoadingShimmer()
+                : eventsState.events.isEmpty
+                    ? _EventsEmpty()
+                    : ListView.separated(
+                        padding: EdgeInsets.fromLTRB(context.wp(5),
+                            context.hp(1.5), context.wp(5), context.hp(3)),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: eventsState.events.length,
+                        separatorBuilder: (_, __) =>
+                            SizedBox(width: context.wp(3)),
+                        itemBuilder: (ctx, i) {
+                          final event = eventsState.events[i];
+                          return EventCard(
+                            event: event,
+                            onTap: event.isEnded
+                                ? () => ScaffoldMessenger.of(ctx).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('종료된 행사입니다'),
+                                        duration: Duration(seconds: 2),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    )
+                                : () => ctx.push(
+                          '/event/${event.contentId}',
+                          extra: event.imageUrl,
+                        ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventsLoadingShimmer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return ListView.separated(
+      padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.5),
+          context.wp(5), context.hp(3)),
+      scrollDirection: Axis.horizontal,
+      itemCount: 3,
+      separatorBuilder: (_, __) => SizedBox(width: context.wp(3)),
+      itemBuilder: (_, __) => Container(
+        width: context.wp(55),
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: c.outline),
+        ),
+      ),
+    );
+  }
+}
+
+class _EventsEmpty extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.festival_rounded, size: 32, color: c.textFaint),
+          const SizedBox(height: 8),
+          Text('근처 행사 정보가 없습니다',
+              style: TextStyle(
+                  color: c.textMuted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+// 전국 / 내 주변 토글 칩 쌍 — provider를 직접 watch해 항상 최신 상태 반영
+class _EventLocationToggle extends ConsumerWidget {
+  const _EventLocationToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(homeEventsProvider);
+    final notifier = ref.read(homeEventsProvider.notifier);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ToggleChip(
+          label: '전국',
+          active: !s.hasLocation,
+          loading: s.isLoading && !s.hasLocation,
+          onTap: s.hasLocation && !s.isLoading ? notifier.resetToUpcoming : null,
+        ),
+        const SizedBox(width: 6),
+        if (s.canRequestLocation)
+          _ToggleChip(
+            label: '내 주변',
+            icon: Icons.near_me_rounded,
+            active: s.hasLocation,
+            loading: s.isLoading && s.hasLocation,
+            onTap: !s.hasLocation && !s.isLoading
+                ? notifier.requestLocationAndRefresh
+                : null,
+          ),
+      ],
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({
+    required this.label,
+    required this.active,
+    this.icon,
+    this.loading = false,
+    this.onTap,
+  });
+  final String label;
+  final bool active;
+  final IconData? icon;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final textColor = active ? Colors.white : c.textMuted;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? c.primary : c.surfaceAlt,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (loading)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: textColor),
+                ),
+              )
+            else if (icon != null) ...[
+              Icon(icon, size: 11, color: textColor),
+              const SizedBox(width: 3),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

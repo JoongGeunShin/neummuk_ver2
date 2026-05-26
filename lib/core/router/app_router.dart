@@ -10,6 +10,7 @@ import '../../features/mode_a/presentation/screens/mode_a_input_screen.dart';
 import '../../features/mode_a/presentation/screens/mode_a_main_screen.dart';
 import '../../features/mode_b/presentation/screens/mode_b_search_screen.dart';
 import '../../features/mode_b/presentation/screens/mode_b_route_screen.dart';
+import '../../features/event/presentation/screens/event_detail_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_detail_screen.dart';
 import '../../features/explore/presentation/screens/explore_screen.dart';
 import '../../features/record/presentation/screens/my_record_screen.dart';
@@ -58,6 +59,13 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/mode-b/route',
       builder: (_, __) => const ModeBRouteScreen(),
+    ),
+    GoRoute(
+      path: '/event/:contentId',
+      builder: (_, state) => EventDetailScreen(
+        contentId: state.pathParameters['contentId']!,
+        fallbackImageUrl: state.extra as String?,
+      ),
     ),
     GoRoute(
       path: '/restaurant/:id',
