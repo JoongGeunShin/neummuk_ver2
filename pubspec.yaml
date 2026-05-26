@@ -39,6 +39,9 @@ dependencies:
   # HTTP
   http: ^1.2.1
 
+  # Image
+  cached_network_image: ^3.4.1
+
   # Utils
   freezed_annotation: ^2.4.1
   json_annotation: ^4.9.0
