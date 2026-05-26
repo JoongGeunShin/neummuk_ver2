@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/context_ext.dart';
+import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../../core/widgets/weekly_chart.dart';
 import '../../../record/domain/entities/badge_entity.dart';
 import '../../../record/domain/entities/daily_record_entity.dart';
@@ -51,7 +52,8 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
     final badgesAsync = ref.watch(badgesProvider);
     final weekRecordsAsync = ref.watch(weekRecordsProvider);
 
-    return Scaffold(
+    return DoubleBackToExit(
+      child: Scaffold(
       backgroundColor: c.bg,
       body: Column(
         children: [
@@ -243,7 +245,7 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
 
         ],
       ),
-    );
+    )); // DoubleBackToExit, Scaffold
   }
 }
 

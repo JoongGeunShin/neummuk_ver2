@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_chip.dart';
+import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/food_catalog_entity.dart';
@@ -49,7 +50,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final state = ref.watch(exploreProvider);
     final notifier = ref.read(exploreProvider.notifier);
 
-    return Scaffold(
+    return DoubleBackToExit(
+      child: Scaffold(
       backgroundColor: c.bg,
       body: Column(
         children: [
@@ -174,7 +176,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           ),
         ],
       ),
-    );
+    )); // DoubleBackToExit, Scaffold
   }
 }
 
