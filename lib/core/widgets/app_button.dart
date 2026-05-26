@@ -17,7 +17,7 @@ class AppButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final ButtonVariant variant;
   final ButtonSize size;
   final IconData? icon;
