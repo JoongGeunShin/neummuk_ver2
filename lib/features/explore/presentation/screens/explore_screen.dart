@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_chip.dart';
+import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import '../providers/explore_provider.dart';
@@ -372,7 +373,8 @@ class _FoodCard extends ConsumerWidget {
         if (selected != null && context.mounted) {
           ref.read(selectedFoodProvider.notifier).set(selected);
           ref.read(routeSearchProvider.notifier).loadRoutes(selected);
-          context.go('/mode-b/route');
+          ref.read(mapModeProvider.notifier).set(MapMode.modeB);
+          context.push('/map');
         }
       },
       child: Container(

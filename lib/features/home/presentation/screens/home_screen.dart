@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/bottom_nav.dart';
-import '../../../../core/widgets/circular_reveal_route.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
-import '../../../map/presentation/screens/map_screen.dart';
+import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../../../../core/widgets/brand_logo.dart';
 import '../../../../core/widgets/segmented_control.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -33,15 +32,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final GlobalKey _fabKey = GlobalKey();
 
   void _openMap() {
-    final box = _fabKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final center = box.localToGlobal(box.size.center(Offset.zero));
-    Navigator.of(context, rootNavigator: true).push(
-      CircularRevealRoute<void>(
-        page: const MapScreen(),
-        sourceCenter: center,
-      ),
-    );
+    ref.read(mapModeProvider.notifier).set(MapMode.explore);
+    context.push('/map');
   }
 
   void _handleTabChange(NavTab tab) {
@@ -230,7 +222,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.8), context.wp(5), 0),
                     child: GestureDetector(
-                      onTap: () => context.go(_mode == 'A' ? '/mode-a' : '/explore'),
+                      onTap: () {
+                        if (_mode == 'A') {
+                          ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                          context.push('/map');
+                        } else {
+                          context.go('/explore');
+                        }
+                      },
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
