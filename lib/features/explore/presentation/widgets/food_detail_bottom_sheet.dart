@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../features/mode_b/domain/entities/food_entity.dart';
-import '../../../../features/mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import '../providers/explore_provider.dart';
 
@@ -15,10 +14,10 @@ class FoodDetailBottomSheet extends ConsumerWidget {
 
   final FoodCatalogEntity food;
 
-  static Future<void> show(
+  static Future<FoodEntity?> show(
       BuildContext context, WidgetRef ref, FoodCatalogEntity food) {
     ref.read(exploreProvider.notifier).onFoodTapped(food);
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<FoodEntity>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -31,6 +30,7 @@ class FoodDetailBottomSheet extends ConsumerWidget {
     final c = context.colors;
     final n = food.nutrition;
     final walkMin = _walkMinutes(n.caloriesKcal);
+    final walkSteps = _walkSteps(n.caloriesKcal);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.65,
@@ -190,10 +190,10 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                               size: 16, color: c.secondary),
                           const SizedBox(width: 4),
                           Text(
-                            '$walkMin분',
+                            '약 ${NumberFormat('#,###').format(walkSteps)}보',
                             style: TextStyle(
                                 color: c.secondary,
-                                fontSize: 18,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w800),
                           ),
                         ],
@@ -251,11 +251,11 @@ class FoodDetailBottomSheet extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // Mode B 연결
+            // Mode B 연결 — FoodEntity를 result로 반환하며 닫음
+            // 이동 처리는 caller(ExploreScreen)에서 수행
             GestureDetector(
-              onTap: () {
-                Navigator.of(context).pop();
-                final fe = FoodEntity(
+              onTap: () => Navigator.of(context).pop(
+                FoodEntity(
                   id: food.canonicalName,
                   name: food.displayName,
                   kcal: n.caloriesKcal.round(),
@@ -263,11 +263,8 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                   emoji: food.emoji,
                   walkMinutes: walkMin,
                   bikeMinutes: _bikeMinutes(n.caloriesKcal),
-                );
-                ref.read(selectedFoodProvider.notifier).set(fe);
-                ref.read(routeSearchProvider.notifier).loadRoutes(fe);
-                context.go('/mode-b/route');
-              },
+                ),
+              ),
               child: Container(
                 height: 52,
                 decoration: BoxDecoration(
@@ -306,8 +303,17 @@ class FoodDetailBottomSheet extends ConsumerWidget {
   }
 
   int _walkMinutes(double kcal) {
-    final hours = kcal / (AppConstants.metValues['walk']! * 65.0);
+    final hours = kcal / (AppConstants.metValues['walk']! * AppConstants.defaultWeightKg);
     return (hours * 60).round().clamp(1, 999);
+  }
+
+  // MET_walk=3.5, 기본 체중 65kg, 속도 4km/h, 보폭 70.6cm (170cm × 0.415)
+  int _walkSteps(double kcal) {
+    final hours = kcal / (AppConstants.metValues['walk']! * AppConstants.defaultWeightKg);
+    final distanceM = 4000.0 * hours;
+    const strideM = 0.706;
+    final raw = (distanceM / strideM).round();
+    return ((raw / 100).round() * 100).clamp(100, 999999);
   }
 
   int _bikeMinutes(double kcal) {

@@ -82,16 +82,15 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
     if (prefs.getBool(_seedKey) == true) return;
 
     final maps = foodSeedData
-        .map((f) => f.toFirestoreMap()..remove('updated_at'))
+        .map((f) => f.toFirestoreMap()
+          ..remove('updated_at')
+          ..remove('search_count')) // update 규칙: search_count는 +1만 허용 → 시드에서 제외
         .toList();
-    // search_count는 merge: true이므로 기존 값이 있으면 덮어쓰지 않음
-    for (final m in maps) {
-      m['search_count'] = 0;
-    }
 
+    // 실패해도 재시도 방지: 실패 시 다음 앱 실행에서 자동 재시도하지 않도록 먼저 저장
+    await prefs.setBool(_seedKey, true);
     try {
       await _firestore.batchUpsert(maps);
-      await prefs.setBool(_seedKey, true);
     } catch (_) {}
   }
 

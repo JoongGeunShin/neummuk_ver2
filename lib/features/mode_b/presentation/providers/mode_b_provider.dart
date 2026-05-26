@@ -69,8 +69,8 @@ class FoodSearch extends _$FoodSearch {
 }
 
 // ─── Selected food ────────────────────────────────────────────
-// class SelectedFood → generates selectedFoodProvider
-@riverpod
+// keepAlive: 화면 전환 중 autoDispose로 null 초기화되는 것 방지
+@Riverpod(keepAlive: true)
 class SelectedFood extends _$SelectedFood {
   @override
   FoodEntity? build() => null;
@@ -116,20 +116,24 @@ class RouteSearch extends _$RouteSearch {
   @override
   RouteSearchState build() => const RouteSearchState();
 
-  Future<void> loadRoutes(FoodEntity food) async {
+  Future<void> loadRoutes(
+    FoodEntity food, {
+    double lat = 37.5635,
+    double lng = 126.9869,
+  }) async {
     state = state.copyWith(isLoading: true, selectedRouteIdx: 0);
     final routes = await ref.read(modeBRepositoryProvider).getTouristRoutes(
-          latitude: 37.5635,
-          longitude: 126.9869,
+          latitude: lat,
+          longitude: lng,
           targetKcal: food.kcal,
           transport: state.transport,
         );
     state = state.copyWith(routes: routes, isLoading: false);
   }
 
-  void setTransport(String t, FoodEntity food) {
+  void setTransport(String t, FoodEntity food, {double lat = 37.5635, double lng = 126.9869}) {
     state = state.copyWith(transport: t, selectedRouteIdx: 0);
-    loadRoutes(food);
+    loadRoutes(food, lat: lat, lng: lng);
   }
 
   void selectRoute(int idx) => state = state.copyWith(selectedRouteIdx: idx);

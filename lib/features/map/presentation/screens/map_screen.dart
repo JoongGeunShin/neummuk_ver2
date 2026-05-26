@@ -21,7 +21,7 @@ const _kWhite87 = Color(0xDEFFFFFF);
 const _kWhite45 = Color(0x73FFFFFF);
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const  MapScreen({super.key});
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();

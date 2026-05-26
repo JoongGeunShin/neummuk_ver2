@@ -49,6 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     switch (tab) {
       case NavTab.search:
         context.go('/explore');
+
       case NavTab.record:
         context.go('/record');
       case NavTab.me:
@@ -158,7 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('좋은 아침이에요',
+                              Text('',
                                   style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -229,7 +230,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.8), context.wp(5), 0),
                     child: GestureDetector(
-                      onTap: () => context.go(_mode == 'A' ? '/mode-a' : '/mode-b'),
+                      onTap: () => context.go(_mode == 'A' ? '/mode-a' : '/explore'),
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
@@ -374,7 +375,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => context.go('/mode-b'),
+                          onPressed: () => context.go('/explore'),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

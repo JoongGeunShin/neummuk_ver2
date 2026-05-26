@@ -39,12 +39,12 @@ final foodSearchProvider =
     );
 
 typedef _$FoodSearch = AutoDisposeNotifier<FoodSearchState>;
-String _$selectedFoodHash() => r'b11e5acfe10368a9755a6c55fc67084e9e7b4487';
+String _$selectedFoodHash() => r'd755a8f87594206cc079e132ca013f87d515ace1';
 
 /// See also [SelectedFood].
 @ProviderFor(SelectedFood)
 final selectedFoodProvider =
-    AutoDisposeNotifierProvider<SelectedFood, FoodEntity?>.internal(
+    NotifierProvider<SelectedFood, FoodEntity?>.internal(
       SelectedFood.new,
       name: r'selectedFoodProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -54,8 +54,8 @@ final selectedFoodProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$SelectedFood = AutoDisposeNotifier<FoodEntity?>;
-String _$routeSearchHash() => r'c629c578f7e86197b126a3d420ee0775373b7f05';
+typedef _$SelectedFood = Notifier<FoodEntity?>;
+String _$routeSearchHash() => r'940b1f81afd06106fc2f3e37cf2fa711b7d333da';
 
 /// See also [RouteSearch].
 @ProviderFor(RouteSearch)
