@@ -8,4 +8,6 @@ abstract class PlaceRepository {
     String? keyword,
     bool isCategory = false,
   });
+
+  Future<String?> reverseGeocode(double latitude, double longitude);
 }
