@@ -10,6 +10,7 @@ import '../../features/map/presentation/screens/map_screen.dart';
 import '../../features/mode_b/presentation/screens/mode_b_search_screen.dart';
 import '../../features/event/presentation/screens/event_detail_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_detail_screen.dart';
+import '../../features/map/presentation/screens/place_detail_screen.dart';
 import '../../features/explore/presentation/screens/explore_screen.dart';
 import '../../features/record/presentation/screens/my_record_screen.dart';
 import '../../features/user/presentation/screen/user_info_screen.dart';
@@ -62,6 +63,11 @@ final appRouter = GoRouter(
       path: '/restaurant/:id',
       builder: (_, state) =>
           RestaurantDetailScreen(restaurantId: state.pathParameters['id']!),
+    ),
+    // 탐색탭·모드A 공용 장소 상세 화면 (PlaceEntity / RestaurantEntity 모두 지원)
+    GoRoute(
+      path: '/place-detail',
+      builder: (_, state) => PlaceDetailScreen(extra: state.extra),
     ),
     GoRoute(
       path: '/record',
