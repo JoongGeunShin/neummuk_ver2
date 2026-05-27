@@ -35,6 +35,7 @@ const _kPanelAlt = kMapPanelAlt;
 const _kHandle   = kMapHandle;
 const _kWhite87  = kMapWhite87;
 const _kWhite45  = kMapWhite45;
+const _kGreen    = kMapGreen;
 
 // ─── MapOverlay ───────────────────────────────────────────────────────────────
 
@@ -74,10 +75,15 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
   // ── Phase 5: cluster state ─────────────────────────────────────
   double _currentZoom = 14.0;
   final Map<int, NOverlayImage> _clusterIconCache = {};
+  List<PlaceEntity>? _clusterPanelPlaces; // 클러스터 탭 시 표시할 장소 목록
 
   // ── Mode B state ──────────────────────────────────────────────
   bool _gpxLoading = false;
   final _sheetBCtrl = DraggableScrollableController();
+
+  // ── Explore list sheet state ────────────────────────────────
+  bool _showExploreList = false;
+  final _sheetExploreCtrl = DraggableScrollableController();
 
   NaverMapController? get _ctrl => widget.controller;
 
@@ -111,6 +117,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
     _positionSub?.cancel();
     _searchCtrl.dispose();
     _sheetBCtrl.dispose();
+    _sheetExploreCtrl.dispose();
     super.dispose();
   }
 
@@ -222,6 +229,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
           ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
         });
       case MapMode.modeA:
+        // 탐색 리스트/클러스터 시트가 열려있으면 닫기
+        if ((_showExploreList || _clusterPanelPlaces != null) && mounted) {
+          setState(() {
+            _showExploreList = false;
+            _clusterPanelPlaces = null;
+          });
+        }
         if (_position != null) _locationOverlay?.setIsVisible(true);
         _clusterIconCache.clear();
         final modeAState = ref.read(modeAProvider);
@@ -529,21 +543,11 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
           position: cluster.center,
           icon: clusterIcon,
         );
-        marker.setOnTapListener((_) async {
-          final clusterPts =
-              cluster.places.map((p) => NLatLng(p.latitude, p.longitude)).toList();
-          final ctrl = _ctrl;
-          if (ctrl == null) return;
-          await MapCameraUtils.fitPoints(
-            ctrl,
-            clusterPts,
-            padding: const EdgeInsets.all(80),
-          );
-          // zoom in one level
-          final newCam = await ctrl.getCameraPosition();
-          await ctrl.updateCamera(
-            NCameraUpdate.withParams(zoom: (newCam.zoom + 1).clamp(1.0, 21.0)),
-          );
+        marker.setOnTapListener((_) {
+          if (!mounted) return;
+          setState(() {
+            _clusterPanelPlaces = cluster.places;
+          });
         });
         markers.add(marker);
       } else {
@@ -564,6 +568,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
           isHideCollidedCaptions: true,
         );
         marker.setOnTapListener((_) {
+          if (_clusterPanelPlaces != null && mounted) {
+            setState(() => _clusterPanelPlaces = null);
+          }
           ref.read(mapSearchNotifierProvider.notifier).selectPlace(place);
         });
         markers.add(marker);
@@ -855,6 +862,29 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
       );
     }
 
+    if (mode == MapMode.explore && _showExploreList) {
+      return AnimatedBuilder(
+        animation: _sheetExploreCtrl,
+        builder: (context, child) {
+          final screenH = MediaQuery.sizeOf(context).height;
+          final sheetH = _sheetExploreCtrl.isAttached
+              ? _sheetExploreCtrl.size * screenH
+              : screenH * 0.42;
+          return Positioned(
+            right: 12,
+            bottom: sheetH + 16,
+            child: child!,
+          );
+        },
+        child: MapZoomControls(
+          onZoomIn: _zoomIn,
+          onZoomOut: _zoomOut,
+          onLocation: _goToCurrentLocation,
+          isLocating: _locating,
+        ),
+      );
+    }
+
     if (mode == MapMode.modeA && modeAState.routeResult != null) {
       return Positioned(
         right: 12,
@@ -989,11 +1019,51 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
             child: _ModeARoutePanel(
               state: modeAState,
               locating: _locating,
-              onTapOrigin: () =>
-                  ref.read(mapModeProvider.notifier).set(MapMode.explore),
+              onTapOrigin: () {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(children: [
+                      Icon(Icons.touch_app_rounded,
+                          color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text('출발지를 설정해주세요',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                    ]),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: kMapPanel,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  ),
+                );
+                ref.read(mapModeProvider.notifier).set(MapMode.explore);
+              },
               onGpsOrigin: _fetchGpsOriginForModeA,
-              onTapDest: () =>
-                  ref.read(mapModeProvider.notifier).set(MapMode.explore),
+              onTapDest: () {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(children: [
+                      Icon(Icons.touch_app_rounded,
+                          color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text('도착지를 설정해주세요',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                    ]),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: kMapPanel,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  ),
+                );
+                ref.read(mapModeProvider.notifier).set(MapMode.explore);
+              },
               onClearDest: () =>
                   ref.read(modeAProvider.notifier).setDestCoords(null, null, ''),
               onSetTransport: (t) =>
@@ -1108,7 +1178,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
                 expanded: _sheetAExpanded,
                 onToggleExpand: () =>
                     setState(() => _sheetAExpanded = !_sheetAExpanded),
-                onRestaurantTap: (id) => context.push('/restaurant/$id'),
+                onRestaurantTap: (r) => context.push('/place-detail', extra: r),
                 onStartNavigation: () => ref.read(modeANavProvider.notifier)
                     .start(modeAState.routeResult!),
                 onLoadCandidates: (extra) =>
@@ -1186,6 +1256,74 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
             ),
           ),
 
+        // ── Explore: 목록보기 버튼 ──────────────────────────────
+        if (mode == MapMode.explore &&
+            exploreState.places.isNotEmpty &&
+            !_showExploreList &&
+            exploreState.selectedPlace == null)
+          Positioned(
+            bottom: bottomPad + 16,
+            left: 0, right: 0,
+            child: IgnorePointer(
+              ignoring: false,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => setState(() => _showExploreList = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: _kPanel,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: Colors.white24),
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Colors.black54,
+                            blurRadius: 10,
+                            offset: Offset(0, 3)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.format_list_bulleted_rounded,
+                            size: 15, color: _kWhite87),
+                        const SizedBox(width: 6),
+                        Text(
+                          '목록보기 ${exploreState.places.length}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _kWhite87),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+        // ── Explore: 리스트 DraggableScrollableSheet ────────────
+        if (mode == MapMode.explore &&
+            _showExploreList &&
+            exploreState.places.isNotEmpty)
+          DraggableScrollableSheet(
+            controller: _sheetExploreCtrl,
+            initialChildSize: 0.42,
+            minChildSize: 0.13,
+            maxChildSize: 0.85,
+            snap: true,
+            snapSizes: const [0.13, 0.42, 0.85],
+            builder: (ctx, scrollController) => _ExploreListSheet(
+              scrollController: scrollController,
+              places: exploreState.places,
+              onClose: () => setState(() => _showExploreList = false),
+              onTapPlace: (place) =>
+                  context.push('/place-detail', extra: place),
+            ),
+          ),
+
         // ── Zoom controls ──────────────────────────────────────
         _buildZoomControls(context, mode, bottomPad, modeAState),
 
@@ -1235,6 +1373,23 @@ class _MapOverlayState extends ConsumerState<MapOverlay> {
                     longitude: place.longitude,
                   ));
               ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+            },
+            onViewDetail: (place) =>
+                context.push('/place-detail', extra: place),
+          ),
+
+        // ── Cluster panel ─────────────────────────────────────
+        if (mode == MapMode.explore &&
+            _clusterPanelPlaces != null &&
+            exploreState.selectedPlace == null)
+          _ClusterPanel(
+            places: _clusterPanelPlaces!,
+            onClose: () => setState(() => _clusterPanelPlaces = null),
+            onTapPlace: (place) {
+              setState(() => _clusterPanelPlaces = null);
+              ref
+                  .read(mapSearchNotifierProvider.notifier)
+                  .selectPlace(place);
             },
           ),
       ],
@@ -1451,6 +1606,7 @@ class _ExplorePlaceSheet extends StatelessWidget {
     required this.onSetOrigin,
     required this.onSetDest,
     required this.onAddWaypoint,
+    required this.onViewDetail,
   });
   final PlaceEntity place;
   final bool canAddWaypoint;
@@ -1458,6 +1614,7 @@ class _ExplorePlaceSheet extends StatelessWidget {
   final ValueChanged<PlaceEntity> onSetOrigin;
   final ValueChanged<PlaceEntity> onSetDest;
   final ValueChanged<PlaceEntity> onAddWaypoint;
+  final ValueChanged<PlaceEntity> onViewDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -1622,6 +1779,33 @@ class _ExplorePlaceSheet extends StatelessWidget {
                         ],
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    // 자세히 보기 버튼
+                    GestureDetector(
+                      onTap: () => onViewDetail(place),
+                      child: Container(
+                        width: double.infinity,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: _kPanelAlt,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.open_in_new_rounded,
+                                size: 13, color: _kWhite45),
+                            SizedBox(width: 6),
+                            Text('자세히 보기',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _kWhite45)),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1660,6 +1844,428 @@ class _PlaceRouteBtn extends StatelessWidget {
                   color: color),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── Cluster panel ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+class _ClusterPanel extends StatelessWidget {
+  const _ClusterPanel({
+    required this.places,
+    required this.onClose,
+    required this.onTapPlace,
+  });
+  final List<PlaceEntity> places;
+  final VoidCallback onClose;
+  final ValueChanged<PlaceEntity> onTapPlace;
+
+  String? _trimCategory(String? cat) {
+    if (cat == null || cat.isEmpty) return null;
+    final parts = cat.split(RegExp(r'[>·,]'));
+    return parts.last.trim().isNotEmpty ? parts.last.trim() : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 0, left: 0, right: 0,
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.42,
+          ),
+          decoration: BoxDecoration(
+            color: _kPanel,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 20,
+                offset: Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 핸들
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _kHandle,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // 헤더
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _kGreen.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${places.length}곳',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: _kGreen,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        '이 지역 장소 목록',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close_rounded,
+                          size: 20, color: Colors.white54),
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(
+                color: Colors.white12, height: 1, thickness: 1),
+              // 목록
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: places.length,
+                  separatorBuilder: (_, __) => const Divider(
+                    color: Colors.white10,
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                  ),
+                  itemBuilder: (context, index) {
+                    final place = places[index];
+                    final isBoth = place.source == PlaceSource.both;
+                    final dotColor =
+                        isBoth ? const Color(0xFFFFAB00) : _kGreen;
+                    final trimmedCat = _trimCategory(place.category);
+                    return InkWell(
+                      onTap: () => onTapPlace(place),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(top: 3),
+                              decoration: BoxDecoration(
+                                color: dotColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    place.name,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      letterSpacing: -0.2,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (trimmedCat != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      trimmedCat,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: _kWhite45,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded,
+                                size: 18, color: Colors.white30),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── Explore list sheet ────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+class _ExploreListSheet extends StatelessWidget {
+  const _ExploreListSheet({
+    required this.scrollController,
+    required this.places,
+    required this.onClose,
+    required this.onTapPlace,
+  });
+  final ScrollController scrollController;
+  final List<PlaceEntity> places;
+  final VoidCallback onClose;
+  final ValueChanged<PlaceEntity> onTapPlace;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 24,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // 핸들 + 헤더
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+            child: Column(
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _kHandle,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.place_rounded,
+                        size: 16, color: _kGreen),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '검색 결과 ${places.length}곳',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close_rounded,
+                          size: 20, color: Colors.white54),
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(
+            color: Colors.white12,
+            height: 1,
+            thickness: 1,
+          ),
+          // 목록
+          Expanded(
+            child: ListView.separated(
+              controller: scrollController,
+              padding: const EdgeInsets.only(bottom: 24),
+              itemCount: places.length,
+              separatorBuilder: (_, __) => const Divider(
+                color: Colors.white10,
+                height: 1,
+                indent: 16,
+                endIndent: 16,
+              ),
+              itemBuilder: (context, index) {
+                final place = places[index];
+                return _ExploreListItem(
+                  place: place,
+                  onTap: () => onTapPlace(place),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExploreListItem extends StatelessWidget {
+  const _ExploreListItem({required this.place, required this.onTap});
+  final PlaceEntity place;
+  final VoidCallback onTap;
+
+  String? _trimCategory(String? cat) {
+    if (cat == null || cat.isEmpty) return null;
+    final parts = cat.split(RegExp(r'[>·,]'));
+    return parts.last.trim().isNotEmpty ? parts.last.trim() : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isBoth = place.source == PlaceSource.both;
+    final dotColor = isBoth
+        ? const Color(0xFFFFAB00)
+        : const Color(0xFF03C75A);
+    final trimmedCat = _trimCategory(place.category);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 소스 색상 도트
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 메인 정보
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          place.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isBoth) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFAB00).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '⭐ 추천',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFFFAB00),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (trimmedCat != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      trimmedCat,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: _kWhite45,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (place.address != null && place.address!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 12, color: _kWhite45),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            place.address!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _kWhite45,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // 오른쪽 화살표
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Icon(Icons.chevron_right_rounded,
+                  size: 20, color: Colors.white30),
+            ),
+          ],
         ),
       ),
     );
@@ -1983,7 +2589,7 @@ class _ModeAResultSheet extends StatelessWidget {
   final ModeAState state;
   final bool expanded;
   final VoidCallback onToggleExpand;
-  final ValueChanged<String> onRestaurantTap;
+  final ValueChanged<RestaurantEntity> onRestaurantTap;
   final VoidCallback onStartNavigation;
   final ValueChanged<int> onLoadCandidates;
   final ValueChanged<WaypointCandidateEntity> onAddWaypointCandidate;
@@ -2144,7 +2750,7 @@ class _ModeAResultSheet extends StatelessWidget {
                           child: _RestaurantCard(
                             restaurant: r,
                             routeKcal: result.kcalBurn,
-                            onTap: () => onRestaurantTap(r.id),
+                            onTap: () => onRestaurantTap(r),
                           ),
                         ),
                       );
@@ -2236,10 +2842,10 @@ class _RestaurantCard extends StatelessWidget {
           children: [
             FoodImageWidget(
               type: FoodImageWidget.fromString(r.imageType),
-              height: 100,
+              height: 80, // overflow 방지: 88 → 80
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2250,28 +2856,28 @@ class _RestaurantCard extends StatelessWidget {
                             style: const TextStyle(
                                 color: kMapWhite87,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 14,
+                                fontSize: 13,
                                 letterSpacing: -0.1),
                             overflow: TextOverflow.ellipsis),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       TinyRing(
                           pct: matchPct,
-                          size: 30,
+                          size: 26,
                           color: matchColor,
                           label: '${matchPct.round()}'),
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text('${r.menu} · ${r.kcal} kcal',
+                  Text('${r.menu} · 약 ${r.kcal} kcal',
                       style: const TextStyle(
                           color: kMapWhite45,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                        horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
                       color: matchColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
@@ -2288,24 +2894,32 @@ class _RestaurantCard extends StatelessWidget {
                           color: matchColor),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.star_rounded,
-                          size: 12, color: Color(0xFFFFC56E)),
-                      const SizedBox(width: 3),
-                      Text(r.rating.toString(),
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: kMapWhite87)),
-                      Text(' · ${r.distanceLabel} · ${r.walkLabel}',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: kMapWhite45,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
+                  const SizedBox(height: 2),
+                  // rating=0이면 별점 숨기고 거리/도보 정보만 표시
+                  if (r.rating > 0)
+                    Row(
+                      children: [
+                        const Icon(Icons.star_rounded,
+                            size: 11, color: Color(0xFFFFC56E)),
+                        const SizedBox(width: 3),
+                        Text(r.rating.toString(),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: kMapWhite87)),
+                        Text(' · ${r.distanceLabel}',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: kMapWhite45,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    )
+                  else
+                    Text('${r.distanceLabel} · ${r.walkLabel}',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: kMapWhite45,
+                            fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
