@@ -1,7 +1,9 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/repositories/mode_a_repository_impl.dart';
 import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
+import '../../domain/entities/waypoint_candidate_entity.dart';
 import '../../domain/repositories/mode_a_repository.dart';
 import '../../../onboarding/presentation/providers/onboarding_provider.dart';
 
@@ -27,6 +29,12 @@ class ModeAState {
     this.restaurants = const [],
     this.isLoading = false,
     this.error,
+    // Phase 3: calorie matching
+    this.destIsRestaurant = false,
+    this.destKcal = 0,
+    // Phase 4: waypoint candidates
+    this.waypointCandidates = const [],
+    this.loadingCandidates = false,
   });
 
   final String from;
@@ -43,6 +51,14 @@ class ModeAState {
   final bool isLoading;
   final String? error;
 
+  // Phase 3: calorie matching (목적지가 음식점/카페인 경우)
+  final bool destIsRestaurant;
+  final int destKcal;
+
+  // Phase 4: waypoint candidates
+  final List<WaypointCandidateEntity> waypointCandidates;
+  final bool loadingCandidates;
+
   ModeAState copyWith({
     String? from,
     String? to,
@@ -57,6 +73,10 @@ class ModeAState {
     List<RestaurantEntity>? restaurants,
     bool? isLoading,
     String? error,
+    bool? destIsRestaurant,
+    int? destKcal,
+    List<WaypointCandidateEntity>? waypointCandidates,
+    bool? loadingCandidates,
   }) {
     return ModeAState(
       from: from ?? this.from,
@@ -72,6 +92,10 @@ class ModeAState {
       restaurants: restaurants ?? this.restaurants,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      destIsRestaurant: destIsRestaurant ?? this.destIsRestaurant,
+      destKcal: destKcal ?? this.destKcal,
+      waypointCandidates: waypointCandidates ?? this.waypointCandidates,
+      loadingCandidates: loadingCandidates ?? this.loadingCandidates,
     );
   }
 }
@@ -79,7 +103,57 @@ class ModeAState {
 @riverpod
 class ModeA extends _$ModeA {
   @override
-  ModeAState build() => const ModeAState();
+  ModeAState build() {
+    _loadFromPrefs();
+    return const ModeAState();
+  }
+
+  Future<void> _loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final from = prefs.getString('mode_a_from');
+    if (from == null) return;
+    final originLat = prefs.getDouble('mode_a_origin_lat');
+    final originLng = prefs.getDouble('mode_a_origin_lng');
+    final to = prefs.getString('mode_a_to') ?? '';
+    final destLat = prefs.getDouble('mode_a_dest_lat');
+    final destLng = prefs.getDouble('mode_a_dest_lng');
+    final wpCount = prefs.getInt('mode_a_wp_count') ?? 0;
+    final wps = <RouteWaypoint>[];
+    for (var i = 0; i < wpCount; i++) {
+      final name = prefs.getString('mode_a_wp_${i}_name') ?? '경유지 ${i + 1}';
+      final lat = prefs.getDouble('mode_a_wp_${i}_lat');
+      final lng = prefs.getDouble('mode_a_wp_${i}_lng');
+      if (lat != null && lng != null) {
+        wps.add(RouteWaypoint(name: name, latitude: lat, longitude: lng));
+      }
+    }
+    state = state.copyWith(
+      from: from,
+      originLat: originLat,
+      originLng: originLng,
+      to: to,
+      destLat: destLat,
+      destLng: destLng,
+      waypoints: wps,
+    );
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('mode_a_from', state.from);
+    if (state.originLat != null) await prefs.setDouble('mode_a_origin_lat', state.originLat!);
+    if (state.originLng != null) await prefs.setDouble('mode_a_origin_lng', state.originLng!);
+    await prefs.setString('mode_a_to', state.to);
+    if (state.destLat != null) await prefs.setDouble('mode_a_dest_lat', state.destLat!);
+    if (state.destLng != null) await prefs.setDouble('mode_a_dest_lng', state.destLng!);
+    await prefs.setInt('mode_a_wp_count', state.waypoints.length);
+    for (var i = 0; i < state.waypoints.length; i++) {
+      final wp = state.waypoints[i];
+      await prefs.setString('mode_a_wp_${i}_name', wp.name);
+      await prefs.setDouble('mode_a_wp_${i}_lat', wp.latitude);
+      await prefs.setDouble('mode_a_wp_${i}_lng', wp.longitude);
+    }
+  }
 
   void setFrom(String v) => state = state.copyWith(from: v);
   void setTo(String v) => state = state.copyWith(to: v);
@@ -91,25 +165,53 @@ class ModeA extends _$ModeA {
       originLng: lng,
       originIsCurrentLocation: true,
     );
+    _save();
   }
 
-  void setDestCoords(double lat, double lng, String label) {
+  /// 도착지 좌표 설정. lat/lng이 null이면 도착지 초기화.
+  void setDestCoords(double? lat, double? lng, String label) {
     state = state.copyWith(
       to: label,
       destLat: lat,
       destLng: lng,
+      routeResult: label.isEmpty ? null : state.routeResult,
+      // 도착지 변경 시 calorie matching 초기화
+      destIsRestaurant: false,
+      destKcal: 0,
+      waypointCandidates: const [],
+    );
+    _save();
+  }
+
+  /// Phase 3: 도착지가 음식점/카페일 때 kcal 설정
+  void setDestRestaurant({required bool isRestaurant, required int kcal}) {
+    state = state.copyWith(
+      destIsRestaurant: isRestaurant,
+      destKcal: kcal,
     );
   }
 
   void addWaypoint(RouteWaypoint wp) {
     if (state.waypoints.length >= 3) return;
     state = state.copyWith(waypoints: [...state.waypoints, wp]);
+    _save();
   }
 
   void removeWaypoint(int index) {
     final list = [...state.waypoints];
     list.removeAt(index);
     state = state.copyWith(waypoints: list);
+    _save();
+  }
+
+  /// ReorderableListView의 onReorderItem 콜백에서 호출.
+  /// onReorderItem은 newIndex가 제거 후 삽입 위치이므로 그대로 사용.
+  void reorderWaypoint(int oldIndex, int newIndex) {
+    final list = [...state.waypoints];
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    state = state.copyWith(waypoints: list);
+    _save();
   }
 
   void setTransport(String t) {
@@ -135,12 +237,19 @@ class ModeA extends _$ModeA {
       final result = await ref.read(modeARepositoryProvider).getRoute(
             from: state.from,
             to: state.to,
+            originLat: state.originLat,
+            originLng: state.originLng,
+            destLat: state.destLat,
+            destLng: state.destLng,
             transport: state.transport,
             weightKg: weightKg,
             waypoints: state.waypoints,
           );
       state = state.copyWith(routeResult: result, isLoading: false);
-      await _loadRestaurants(result.kcalBurn);
+      // 도착지가 음식점/카페가 아닌 경우에만 주변 식당 로드
+      if (!state.destIsRestaurant) {
+        await _loadRestaurants(result.kcalBurn);
+      }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -157,6 +266,42 @@ class ModeA extends _$ModeA {
               targetKcal: targetKcal,
             );
     state = state.copyWith(restaurants: restaurants);
+  }
+
+  /// Phase 4: 경유지 후보 로드
+  Future<void> loadWaypointCandidates(int extraKcalNeeded) async {
+    final origin = (state.originLat, state.originLng);
+    final dest = (state.destLat, state.destLng);
+    if (origin.$1 == null || origin.$2 == null ||
+        dest.$1 == null || dest.$2 == null) {
+      return;
+    }
+
+    // 경로 중간점 계산
+    final midLat = (origin.$1! + dest.$1!) / 2;
+    final midLng = (origin.$2! + dest.$2!) / 2;
+
+    state = state.copyWith(loadingCandidates: true, waypointCandidates: const []);
+    try {
+      final weightKg = ref.read(userProfileProvider).weightKg;
+      final candidates = await ref.read(modeARepositoryProvider).getWaypointCandidates(
+            midLat: midLat,
+            midLng: midLng,
+            originLat: origin.$1!,
+            originLng: origin.$2!,
+            destLat: dest.$1!,
+            destLng: dest.$2!,
+            extraKcalNeeded: extraKcalNeeded,
+            transport: state.transport,
+            weightKg: weightKg,
+          );
+      state = state.copyWith(
+        waypointCandidates: candidates,
+        loadingCandidates: false,
+      );
+    } catch (e) {
+      state = state.copyWith(loadingCandidates: false);
+    }
   }
 
   int _calcKcal(String transport, double weight, int durationSec) {

@@ -23,7 +23,7 @@ final modeARepositoryProvider = Provider<ModeARepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ModeARepositoryRef = ProviderRef<ModeARepository>;
-String _$modeAHash() => r'4b6e1f5a5185ad97c288519620439b1d3ce99f8b';
+String _$modeAHash() => r'23ba7d756bbb93331685c7a09e5f88318438655e';
 
 /// See also [ModeA].
 @ProviderFor(ModeA)

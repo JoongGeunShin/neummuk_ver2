@@ -18,6 +18,36 @@ class LatLng {
   final double longitude;
 }
 
+/// 경로 안내 포인트 (Kakao Mobility sections.guides 원소)
+class RouteGuide {
+  const RouteGuide({
+    required this.latitude,
+    required this.longitude,
+    required this.guidance,
+    required this.type,
+    required this.distanceM,
+  });
+
+  final double latitude;
+  final double longitude;
+  final String guidance;   // e.g. "500m 직진 후 우회전"
+  final int type;          // 0=출발, 11=직진, 12=우회전, 13=좌회전, 14=U턴, 100=도착
+  final int distanceM;     // to next guide
+
+  bool get isArrival => type == 100;
+  bool get isDeparture => type == 0;
+
+  String get turnLabel => switch (type) {
+    0   => '출발',
+    11  => '직진',
+    12  => '우회전',
+    13  => '좌회전',
+    14  => 'U턴',
+    100 => '도착',
+    _   => '직진',
+  };
+}
+
 class RouteResultEntity {
   const RouteResultEntity({
     required this.fromName,
@@ -28,6 +58,7 @@ class RouteResultEntity {
     required this.kcalBurn,
     this.waypoints = const [],
     this.routePoints = const [],
+    this.guides = const [],
   });
 
   final String fromName;
@@ -40,6 +71,8 @@ class RouteResultEntity {
   final List<RouteWaypoint> waypoints;
   /// Kakao Mobility 응답에서 추출한 폴리라인 좌표 (지도 표시용)
   final List<LatLng> routePoints;
+  /// Kakao Mobility 응답에서 추출한 안내 포인트 (내비게이션용)
+  final List<RouteGuide> guides;
 
   int get durationMinutes => (durationSeconds / 60).round();
 
@@ -52,6 +85,7 @@ class RouteResultEntity {
     int? kcalBurn,
     List<RouteWaypoint>? waypoints,
     List<LatLng>? routePoints,
+    List<RouteGuide>? guides,
   }) {
     return RouteResultEntity(
       fromName: fromName ?? this.fromName,
@@ -62,6 +96,7 @@ class RouteResultEntity {
       kcalBurn: kcalBurn ?? this.kcalBurn,
       waypoints: waypoints ?? this.waypoints,
       routePoints: routePoints ?? this.routePoints,
+      guides: guides ?? this.guides,
     );
   }
 }

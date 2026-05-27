@@ -1,10 +1,19 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+
+import '../../../../core/constants/app_constants.dart';
 import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
+import '../../domain/entities/waypoint_candidate_entity.dart';
 import '../../domain/repositories/mode_a_repository.dart';
-import '../../../../core/constants/app_constants.dart';
 
-// Mock data matching the UI reference — public so RestaurantDetailScreen can look up by id
-const mockRestaurants = [
+// ─── Mock fallback data ────────────────────────────────────────────────────────
+// 실 API 실패 시 UI 테스트용 폴백
+const _mockRestaurants = [
   RestaurantEntity(
     id: 'r1', name: '명동교자', menu: '칼국수', category: '한식',
     kcal: 520, distanceM: 120, walkMinutes: 2, rating: 4.6, reviewCount: 1284,
@@ -43,26 +52,134 @@ const mockRestaurants = [
   ),
 ];
 
-// TODO: Replace mock with Kakao Mobility API via Cloud Functions
-//   - getRoute       → POST /v1/waypoints/directions  (KakaoAK REST key)
-//   - getRoutesToDestinations → POST /v1/destinations/directions
-//   - getNearbyRestaurants → Firestore geo-query (geoflutterfire_plus)
+/// Public for RestaurantDetailScreen mock lookup by id.
+const mockRestaurants = _mockRestaurants;
+
 class ModeARepositoryImpl implements ModeARepository {
+  String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+  String get _odsayKey => dotenv.env['ODSAY_API_KEY'] ?? '';
+  String get _tourApiKey => dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // getRoute
+  // ────────────────────────────────────────────────────────────────────────────
+
   @override
   Future<RouteResultEntity> getRoute({
     required String from,
     required String to,
+    double? originLat,
+    double? originLng,
+    double? destLat,
+    double? destLng,
     required String transport,
     required double weightKg,
     List<RouteWaypoint> waypoints = const [],
   }) async {
-    await Future.delayed(const Duration(seconds: 1));
+    // 좌표 없으면 mock 반환 (개발 초기 / GPS 없는 경우)
+    if (originLat == null || originLng == null ||
+        destLat == null || destLng == null) {
+      return _mockRoute(from, to, transport, weightKg, waypoints);
+    }
 
-    // 경유지 추가 시 거리/시간이 늘어나는 mock 처리
-    final extraSec = waypoints.length * 600; // 경유지당 +10분
-    final extraKm = waypoints.length * 0.8;
-    final durationSec = 2520 + extraSec;
-    final distanceKm = 3.2 + extraKm;
+    try {
+      if (transport == 'transit') {
+        return await _getODsayRoute(
+          from: from, to: to,
+          originLat: originLat, originLng: originLng,
+          destLat: destLat, destLng: destLng,
+          weightKg: weightKg, waypoints: waypoints,
+        );
+      } else {
+        return await _getKakaoRoute(
+          from: from, to: to,
+          originLat: originLat, originLng: originLng,
+          destLat: destLat, destLng: destLng,
+          transport: transport, weightKg: weightKg,
+          waypoints: waypoints,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ModeA] getRoute error: $e — falling back to mock');
+      return _mockRoute(from, to, transport, weightKg, waypoints);
+    }
+  }
+
+  // ── 도보 / 자전거: Kakao Mobility POST /v1/waypoints/directions ──────────────
+
+  Future<RouteResultEntity> _getKakaoRoute({
+    required String from,
+    required String to,
+    required double originLat,
+    required double originLng,
+    required double destLat,
+    required double destLng,
+    required String transport,
+    required double weightKg,
+    required List<RouteWaypoint> waypoints,
+  }) async {
+    final requestBody = <String, dynamic>{
+      'origin': {'x': originLng, 'y': originLat},
+      'destination': {'x': destLng, 'y': destLat},
+      'priority': 'RECOMMEND',
+      'car_fuel': 'GASOLINE',
+      'car_hipass': false,
+      'alternatives': false,
+      'road_details': false,
+    };
+    if (waypoints.isNotEmpty) {
+      requestBody['waypoints'] = waypoints
+          .map((w) => {'name': w.name, 'x': w.longitude, 'y': w.latitude})
+          .toList();
+    }
+
+    final response = await http
+        .post(
+          Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions'),
+          headers: {
+            'Authorization': 'KakaoAK $_kakaoKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(requestBody),
+        )
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode != 200) {
+      debugPrint('[ModeA] Kakao Mobility ${response.statusCode}: ${response.body}');
+      return _mockRoute(from, to, transport, weightKg, waypoints);
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final routes = json['routes'] as List? ?? [];
+    if (routes.isEmpty) return _mockRoute(from, to, transport, weightKg, waypoints);
+
+    final route = routes[0] as Map<String, dynamic>;
+    final resultCode = (route['result_code'] as num?)?.toInt() ?? -1;
+    // 0 = 성공, 1 = 경로 없음, 101 = 도보 거리내
+    if (resultCode != 0) {
+      debugPrint('[ModeA] Kakao Mobility result_code=$resultCode');
+      return _mockRoute(from, to, transport, weightKg, waypoints);
+    }
+
+    final summary = route['summary'] as Map<String, dynamic>;
+    final distanceM = (summary['distance'] as num? ?? 0).toInt();
+    final distanceKm = double.parse((distanceM / 1000.0).toStringAsFixed(1));
+
+    // 이동수단별 속도로 소요시간 역산 (Kakao 는 car 기준 duration 반환)
+    // 도보 4.5 km/h = 1.25 m/s, 자전거 15 km/h = 4.17 m/s
+    final int durationSec;
+    if (transport == 'walk') {
+      durationSec = max(60, (distanceM / 1.25).round());
+    } else {
+      // bike
+      durationSec = max(60, (distanceM / 4.17).round());
+    }
+
+    // sections.roads.vertexes → LatLng 폴리라인
+    final routePoints = _extractVertexes(route);
+
+    // sections.guides → RouteGuide 안내 포인트
+    final guides = _extractGuides(route);
 
     final kcalBurn = AppConstants.calculateKcal(
       transport: transport,
@@ -78,8 +195,201 @@ class ModeARepositoryImpl implements ModeARepository {
       transport: transport,
       kcalBurn: kcalBurn,
       waypoints: waypoints,
+      routePoints: routePoints,
+      guides: guides,
     );
   }
+
+  // ── 대중교통: ODsay searchPubTransPathT ──────────────────────────────────────
+
+  Future<RouteResultEntity> _getODsayRoute({
+    required String from,
+    required String to,
+    required double originLat,
+    required double originLng,
+    required double destLat,
+    required double destLng,
+    required double weightKg,
+    required List<RouteWaypoint> waypoints,
+  }) async {
+    final uri = Uri.parse('https://api.odsay.com/v1/api/searchPubTransPathT')
+        .replace(queryParameters: {
+      'SX': originLng.toString(),
+      'SY': originLat.toString(),
+      'EX': destLng.toString(),
+      'EY': destLat.toString(),
+      'apiKey': _odsayKey,
+    });
+
+    final response =
+        await http.get(uri).timeout(const Duration(seconds: 12));
+
+    if (response.statusCode != 200) {
+      debugPrint('[ModeA] ODsay ${response.statusCode}: ${response.body}');
+      return _mockRoute(from, to, 'transit', weightKg, waypoints);
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+
+    // ODsay 오류 코드 처리 (result.error 존재 시)
+    if (json.containsKey('error')) {
+      debugPrint('[ModeA] ODsay error: ${json['error']}');
+      return _mockRoute(from, to, 'transit', weightKg, waypoints);
+    }
+
+    final result = json['result'] as Map<String, dynamic>?;
+    if (result == null) {
+      return _mockRoute(from, to, 'transit', weightKg, waypoints);
+    }
+
+    final paths = result['path'] as List? ?? [];
+    if (paths.isEmpty) return _mockRoute(from, to, 'transit', weightKg, waypoints);
+
+    // 첫 번째 경로(추천) 사용
+    final path = paths[0] as Map<String, dynamic>;
+    final info = path['info'] as Map<String, dynamic>? ?? {};
+
+    final totalTimeMin = (info['totalTime'] as num? ?? 0).toInt();
+    final totalDistanceM = (info['totalDistance'] as num? ?? 0).toInt();
+    final totalWalkM = (info['totalWalk'] as num? ?? 0).toInt();
+    final durationSec = totalTimeMin * 60;
+    final distanceKm =
+        double.parse((totalDistanceM / 1000.0).toStringAsFixed(1));
+
+    // 역·정류장 좌표로 폴리라인 구성
+    final routePoints = <LatLng>[];
+    routePoints.add(LatLng(latitude: originLat, longitude: originLng));
+
+    final subPaths = path['subPath'] as List? ?? [];
+    for (final sub in subPaths) {
+      final subMap = sub as Map<String, dynamic>;
+      final passStopList = subMap['passStopList'] as Map<String, dynamic>?;
+      if (passStopList == null) continue;
+      final stations = passStopList['stations'] as List? ?? [];
+      for (final st in stations) {
+        final stMap = st as Map<String, dynamic>;
+        final x = double.tryParse(stMap['x']?.toString() ?? '');
+        final y = double.tryParse(stMap['y']?.toString() ?? '');
+        if (x != null && y != null && x != 0 && y != 0) {
+          routePoints.add(LatLng(latitude: y, longitude: x));
+        }
+      }
+    }
+
+    routePoints.add(LatLng(latitude: destLat, longitude: destLng));
+
+    // 칼로리: 도보 구간은 walk MET, 나머지는 transit MET
+    const walkSpeedMs = 1.25; // ≈ 4.5 km/h
+    final walkTimeSec = (totalWalkM / walkSpeedMs).round();
+    final transitTimeSec = max(0, durationSec - walkTimeSec);
+
+    final walkKcal = AppConstants.calculateKcal(
+      transport: 'walk',
+      weightKg: weightKg,
+      durationSeconds: walkTimeSec,
+    );
+    final transitKcal = AppConstants.calculateKcal(
+      transport: 'transit',
+      weightKg: weightKg,
+      durationSeconds: transitTimeSec,
+    );
+
+    return RouteResultEntity(
+      fromName: from,
+      toName: to,
+      distanceKm: distanceKm,
+      durationSeconds: durationSec,
+      transport: 'transit',
+      kcalBurn: (walkKcal + transitKcal).round(),
+      waypoints: waypoints,
+      routePoints: routePoints,
+    );
+  }
+
+  // ── vertexes 파싱 헬퍼 ────────────────────────────────────────────────────────
+
+  List<LatLng> _extractVertexes(Map<String, dynamic> route) {
+    final points = <LatLng>[];
+    final sections = route['sections'] as List? ?? [];
+    for (final section in sections) {
+      final roads =
+          (section as Map<String, dynamic>)['roads'] as List? ?? [];
+      for (final road in roads) {
+        final verts =
+            (road as Map<String, dynamic>)['vertexes'] as List? ?? [];
+        // vertexes: [x0, y0, x1, y1, ...] — x=lng, y=lat
+        for (var i = 0; i + 1 < verts.length; i += 2) {
+          final x = (verts[i] as num).toDouble();
+          final y = (verts[i + 1] as num).toDouble();
+          points.add(LatLng(latitude: y, longitude: x));
+        }
+      }
+    }
+    // 너무 많은 점은 다운샘플 (성능 최적화)
+    if (points.length > 600) {
+      final step = points.length ~/ 600;
+      return [for (var i = 0; i < points.length; i += step) points[i]];
+    }
+    return points;
+  }
+
+  // ── guides 파싱 헬퍼 ──────────────────────────────────────────────────────────
+
+  List<RouteGuide> _extractGuides(Map<String, dynamic> route) {
+    final guides = <RouteGuide>[];
+    final sections = route['sections'] as List? ?? [];
+    for (final section in sections) {
+      final sMap = section as Map<String, dynamic>;
+      for (final g in (sMap['guides'] as List? ?? [])) {
+        final gMap = g as Map<String, dynamic>;
+        final x = (gMap['x'] as num?)?.toDouble();
+        final y = (gMap['y'] as num?)?.toDouble();
+        if (x == null || y == null) continue;
+        guides.add(RouteGuide(
+          latitude: y,
+          longitude: x,
+          guidance: gMap['guidance'] as String? ?? '',
+          type: (gMap['type'] as num? ?? 11).toInt(),
+          distanceM: (gMap['distance'] as num? ?? 0).toInt(),
+        ));
+      }
+    }
+    return guides;
+  }
+
+  // ── Mock fallback ─────────────────────────────────────────────────────────────
+
+  RouteResultEntity _mockRoute(
+    String from,
+    String to,
+    String transport,
+    double weightKg,
+    List<RouteWaypoint> waypoints,
+  ) {
+    final extraSec = waypoints.length * 600;
+    final extraKm = waypoints.length * 0.8;
+    final durationSec = 2520 + extraSec;
+    final distanceKm = 3.2 + extraKm;
+    final kcalBurn = AppConstants.calculateKcal(
+      transport: transport,
+      weightKg: weightKg,
+      durationSeconds: durationSec,
+    ).round();
+    return RouteResultEntity(
+      fromName: from,
+      toName: to,
+      distanceKm: distanceKm,
+      durationSeconds: durationSec,
+      transport: transport,
+      kcalBurn: kcalBurn,
+      waypoints: waypoints,
+      // routePoints 없음 → 지도에 폴리라인 그리지 않음
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // getRoutesToDestinations (Mode B 용 — mock 유지)
+  // ────────────────────────────────────────────────────────────────────────────
 
   @override
   Future<List<RouteResultEntity>> getRoutesToDestinations({
@@ -111,6 +421,10 @@ class ModeARepositoryImpl implements ModeARepository {
     }).toList();
   }
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // getNearbyRestaurants — Kakao Local FD6 + TourAPI 음식점 (contentTypeId=39)
+  // ────────────────────────────────────────────────────────────────────────────
+
   @override
   Future<List<RestaurantEntity>> getNearbyRestaurants({
     required double latitude,
@@ -118,11 +432,277 @@ class ModeARepositoryImpl implements ModeARepository {
     required double radiusKm,
     required int targetKcal,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return mockRestaurants.where((r) {
+    try {
+      final results = await _fetchKakaoFoodPlaces(
+          latitude, longitude, (radiusKm * 1000).round());
+      if (results.isEmpty) return _filterMockByKcal(targetKcal);
+      return results;
+    } catch (e) {
+      debugPrint('[ModeA] getNearbyRestaurants error: $e');
+      return _filterMockByKcal(targetKcal);
+    }
+  }
+
+  Future<List<RestaurantEntity>> _fetchKakaoFoodPlaces(
+    double lat,
+    double lng,
+    int radiusM,
+  ) async {
+    final response = await http
+        .get(
+          Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/category.json')
+              .replace(queryParameters: {
+            'category_group_code': 'FD6',
+            'x': lng.toString(),
+            'y': lat.toString(),
+            'radius': radiusM.clamp(100, 20000).toString(),
+            'size': '15',
+            'sort': 'distance',
+          }),
+          headers: {'Authorization': 'KakaoAK $_kakaoKey'},
+        )
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode != 200) return [];
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final docs = json['documents'] as List? ?? [];
+
+    return docs.map<RestaurantEntity?>((doc) {
+      final x = double.tryParse(doc['x']?.toString() ?? '');
+      final y = double.tryParse(doc['y']?.toString() ?? '');
+      if (x == null || y == null || x == 0 || y == 0) return null;
+      final name = (doc['place_name'] as String? ?? '').trim();
+      if (name.isEmpty) return null;
+
+      final categoryName = doc['category_name'] as String? ?? '';
+      final distanceM =
+          int.tryParse(doc['distance']?.toString() ?? '0') ?? 0;
+      final kcal = _estimateKcal(categoryName);
+
+      return RestaurantEntity(
+        id: 'kakao_${doc['id']}',
+        name: name,
+        menu: _extractLeafCategory(categoryName),
+        category: _extractMainCategory(categoryName),
+        kcal: kcal,
+        distanceM: distanceM,
+        walkMinutes: max(1, (distanceM / 80).ceil()), // 도보 ~80m/분
+        rating: 0.0,
+        reviewCount: 0,
+        latitude: y,
+        longitude: x,
+        kind: _isKindCafe(categoryName) ? 'cafe' : 'food',
+        imageType: _imageTypeFromCategory(categoryName),
+        address: (doc['road_address_name'] as String? ?? '').isNotEmpty
+            ? doc['road_address_name'] as String
+            : doc['address_name'] as String?,
+        tel: doc['phone'] as String?,
+        kakaoPlaceId: doc['id'] as String?,
+      );
+    }).whereType<RestaurantEntity>().toList();
+  }
+
+  // ── 카테고리 기반 kcal 추정 ──────────────────────────────────────────────────
+
+  static const _kcalTable = <String, int>{
+    '한식': 520, '일식': 550, '중식': 600, '양식': 680, '동남아': 550,
+    '분식': 380, '패스트푸드': 700, '치킨': 650, '피자': 720,
+    '카페': 350, '베이커리': 400, '디저트': 350, '아이스크림': 280,
+    '뷔페': 900, '고기': 700, '해물': 500, '채식': 400, '죽': 300,
+  };
+
+  static int _estimateKcal(String categoryName) {
+    final lower = categoryName.toLowerCase();
+    for (final entry in _kcalTable.entries) {
+      if (lower.contains(entry.key)) return entry.value;
+    }
+    return 500; // 기본값
+  }
+
+  static String _extractMainCategory(String categoryName) {
+    // "음식점 > 한식 > 갈비/삼겹살" → "한식"
+    final parts = categoryName.split('>').map((s) => s.trim()).toList();
+    if (parts.length >= 2) return parts[1];
+    if (parts.isNotEmpty) return parts[0];
+    return '음식점';
+  }
+
+  static String _extractLeafCategory(String categoryName) {
+    // "음식점 > 한식 > 갈비/삼겹살" → "갈비/삼겹살"
+    final parts = categoryName.split('>').map((s) => s.trim()).toList();
+    final last = parts.isNotEmpty ? parts.last : categoryName;
+    if (last.isEmpty) return '식사';
+    // 너무 길면 앞 15자 잘라냄
+    return last.length > 15 ? '${last.substring(0, 15)}...' : last;
+  }
+
+  static bool _isKindCafe(String categoryName) {
+    final lower = categoryName.toLowerCase();
+    return lower.contains('카페') || lower.contains('커피') ||
+        lower.contains('디저트') || lower.contains('베이커리');
+  }
+
+  static String _imageTypeFromCategory(String categoryName) {
+    final lower = categoryName.toLowerCase();
+    if (lower.contains('카페') || lower.contains('커피')) return 'cafe';
+    if (lower.contains('일식') || lower.contains('초밥') || lower.contains('스시')) {
+      return 'sushi';
+    }
+    if (lower.contains('삼겹') || lower.contains('갈비') || lower.contains('고기')) {
+      return 'pork2';
+    }
+    if (lower.contains('돈까스') || lower.contains('경양식')) return 'pork';
+    if (lower.contains('국밥') || lower.contains('수제비') || lower.contains('탕')) {
+      return 'soup';
+    }
+    if (lower.contains('김밥') || lower.contains('분식')) return 'kimbap';
+    if (lower.contains('국수') || lower.contains('냉면') || lower.contains('칼국수')) {
+      return 'noodle';
+    }
+    return 'generic';
+  }
+
+  List<RestaurantEntity> _filterMockByKcal(int targetKcal) {
+    if (targetKcal <= 0) return List.of(_mockRestaurants);
+    return _mockRestaurants.where((r) {
       final ratio = r.kcal / targetKcal;
       return ratio >= (1 - AppConstants.kcalMatchTolerancePct) &&
           ratio <= (1 + AppConstants.kcalMatchTolerancePct * 2);
     }).toList();
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // getWaypointCandidates — TourAPI locationBasedList2 (관광지/레포츠)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @override
+  Future<List<WaypointCandidateEntity>> getWaypointCandidates({
+    required double midLat,
+    required double midLng,
+    required double originLat,
+    required double originLng,
+    required double destLat,
+    required double destLng,
+    required int extraKcalNeeded,
+    required String transport,
+    required double weightKg,
+  }) async {
+    try {
+      final results = await _fetchTourApiPlaces(midLat, midLng, 3000);
+      if (results.isEmpty) return [];
+
+      final baseDist = _haversine(originLat, originLng, destLat, destLng);
+      final speedMs = transport == 'bike' ? 4.17 : 1.25;
+
+      final candidates = results.map<WaypointCandidateEntity?>((item) {
+        final lat = (item['mapy'] as num?)?.toDouble();
+        final lng = (item['mapx'] as num?)?.toDouble();
+        if (lat == null || lng == null || lat == 0 || lng == 0) return null;
+
+        final contentId = item['contentid']?.toString() ?? '';
+        final name = (item['title'] as String? ?? '').trim();
+        if (name.isEmpty) return null;
+
+        // 우회 거리 계산: dist(O→W) + dist(W→D) - dist(O→D)
+        final detourM = max(
+          0.0,
+          _haversine(originLat, originLng, lat, lng) +
+              _haversine(lat, lng, destLat, destLng) -
+              baseDist,
+        );
+
+        final detourSec = (detourM / speedMs).round();
+        final detourKm =
+            double.parse((detourM / 1000.0).toStringAsFixed(1));
+        final extraKcal = AppConstants.calculateKcal(
+          transport: transport,
+          weightKg: weightKg,
+          durationSeconds: detourSec,
+        ).round();
+
+        final contentTypeId =
+            (item['contenttypeid'] as num?)?.toInt() ?? 12;
+        final category =
+            contentTypeId == 28 ? '레포츠' : '관광지';
+
+        return WaypointCandidateEntity(
+          id: 'tour_$contentId',
+          name: name,
+          latitude: lat,
+          longitude: lng,
+          address: item['addr1'] as String?,
+          imageUrl: (item['firstimage'] as String?)?.isNotEmpty == true
+              ? item['firstimage'] as String
+              : null,
+          category: category,
+          detourSec: detourSec,
+          detourKm: detourKm,
+          extraKcal: extraKcal,
+        );
+      }).whereType<WaypointCandidateEntity>().toList();
+
+      // extraKcal이 목표에 가까운 순으로 정렬, 상위 5개 반환
+      candidates.sort((a, b) =>
+          (a.extraKcal - extraKcalNeeded).abs().compareTo(
+                (b.extraKcal - extraKcalNeeded).abs(),
+              ));
+      return candidates.take(5).toList();
+    } catch (e) {
+      debugPrint('[ModeA] getWaypointCandidates error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTourApiPlaces(
+    double lat,
+    double lng,
+    int radiusM,
+  ) async {
+    final results = <Map<String, dynamic>>[];
+    for (final typeId in [
+      AppConstants.touristSightContentTypeId,
+      AppConstants.tourActivityContentTypeId,
+    ]) {
+      try {
+        final uri = Uri.parse(
+                '${AppConstants.tourApiBaseUrl}/locationBasedList2')
+            .replace(queryParameters: {
+          'serviceKey': _tourApiKey,
+          'numOfRows': '10',
+          'pageNo': '1',
+          'MobileOS': 'AND',
+          'MobileApp': 'neummuk',
+          'mapX': lng.toString(),
+          'mapY': lat.toString(),
+          'radius': radiusM.toString(),
+          'contentTypeId': typeId.toString(),
+          '_type': 'json',
+        });
+        final res =
+            await http.get(uri).timeout(const Duration(seconds: 10));
+        if (res.statusCode != 200) continue;
+        final json = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = json['response']?['body'] as Map<String, dynamic>?;
+        final items = body?['items']?['item'] as List? ?? [];
+        for (final item in items) {
+          if (item is Map<String, dynamic>) results.add(item);
+        }
+      } catch (e) {
+        debugPrint('[ModeA] _fetchTourApiPlaces typeId=$typeId error: $e');
+      }
+    }
+    return results;
+  }
+
+  static double _haversine(
+      double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371000.0;
+    const toRad = pi / 180;
+    final dLat = (lat2 - lat1) * toRad;
+    final dLng = (lng2 - lng1) * toRad;
+    final cosLat = cos(lat1 * toRad);
+    return r *
+        sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
   }
 }
