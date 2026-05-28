@@ -348,56 +348,75 @@ class _ExploreListSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: _kPanel,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 24, offset: Offset(0, -4))],
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
-            child: Column(children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: _kHandle, borderRadius: BorderRadius.circular(2)),
-                ),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: _kPanel,
+          boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 24, offset: Offset(0, -4))],
+        ),
+        child: CustomScrollView(
+          controller: scrollController,
+          slivers: [
+            // 헤더 — scrollController에 연결되어 드래그로 시트 확장/축소 가능
+            SliverToBoxAdapter(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                          color: _kHandle, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                    child: Row(children: [
+                      const Icon(Icons.place_rounded, size: 16, color: _kGreen),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('검색 결과 ${places.length}곳',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                      ),
+                      IconButton(
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close_rounded,
+                            size: 20, color: Colors.white54),
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(),
+                      ),
+                    ]),
+                  ),
+                  const Divider(color: Colors.white12, height: 1, thickness: 1),
+                ],
               ),
-              const SizedBox(height: 8),
-              Row(children: [
-                const Icon(Icons.place_rounded, size: 16, color: _kGreen),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text('검색 결과 ${places.length}곳',
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-                ),
-                IconButton(
-                  onPressed: onClose,
-                  icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white54),
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                ),
-              ]),
-            ]),
-          ),
-          const Divider(color: Colors.white12, height: 1, thickness: 1),
-          Expanded(
-            child: ListView.separated(
-              controller: scrollController,
-              padding: const EdgeInsets.only(bottom: 24),
-              itemCount: places.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(color: Colors.white10, height: 1, indent: 16, endIndent: 16),
-              itemBuilder: (context, index) {
-                final place = places[index];
-                return _ExploreListItem(place: place, onTap: () => onTapPlace(place));
-              },
             ),
-          ),
-        ],
+            // 목록
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (ctx, index) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ExploreListItem(
+                        place: places[index],
+                        onTap: () => onTapPlace(places[index])),
+                    if (index < places.length - 1)
+                      const Divider(
+                          color: Colors.white10, height: 1,
+                          indent: 16, endIndent: 16),
+                  ],
+                ),
+                childCount: places.length,
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          ],
+        ),
       ),
     );
   }
