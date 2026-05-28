@@ -167,15 +167,24 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     final radius = await _getVisibleRadiusMeters();
     if (!mounted) return;
     ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
+
+    // 홈에서 진입 시 이미 모드 A 상태라면 마커·폴리라인 동기화
+    if (ref.read(mapModeProvider) == MapMode.modeA) {
+      final modeAState = ref.read(modeAProvider);
+      unawaited(_syncModeAMarkers(modeAState));
+      unawaited(_drawModeAPolyline(modeAState.routeResult));
+    }
   }
 
   // ── Map events ────────────────────────────────────────────────
 
   void _onMapTapped(NPoint point, NLatLng latLng) {
-    if (ref.read(mapModeProvider) == MapMode.explore) {
-      if (ref.read(mapSearchNotifierProvider).selectedPlace != null) {
-        ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
-      }
+    final mode = ref.read(mapModeProvider);
+    if (mode == MapMode.explore) {
+      _onExploreMapTap();
+    } else if (mode == MapMode.modeA) {
+      // 안내 중에는 UI 숨김 비활성
+      if (!ref.read(modeANavProvider).isNavigating) _onModeAMapTap();
     }
   }
 
@@ -225,10 +234,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
         });
       case MapMode.modeA:
-        if ((_showExploreList || _clusterPanelPlaces != null) && mounted) {
+        if (mounted) {
           setState(() {
             _showExploreList = false;
             _clusterPanelPlaces = null;
+            _exploreMapFocus = false;
+            _modeAMapFocus = false;    // 모드 진입 시 포커스 초기화
+            _routePanelEditing = false; // 수정 패널 초기화
           });
         }
         if (__position != null) _locationOverlay?.setIsVisible(true);
@@ -238,6 +250,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _syncModeAMarkers(modeAState);
         _drawModeAPolyline(modeAState.routeResult);
       case MapMode.modeB:
+        _resetModeAFocusState();
         final routes = ref.read(routeSearchProvider).routes;
         if (routes.isNotEmpty) _updateModeBMarkers(routes);
     }
@@ -368,6 +381,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       }
       if (prev?.routeResult != next.routeResult) {
         _drawModeAPolyline(next.routeResult);
+        // 결과가 사라지면(도착지 초기화 등) 수정 패널 다시 표시
+        if (next.routeResult == null && mounted) {
+          setState(() => _routePanelEditing = false);
+        }
       }
     });
 

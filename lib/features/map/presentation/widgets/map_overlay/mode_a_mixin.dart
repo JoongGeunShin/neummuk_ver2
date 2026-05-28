@@ -4,6 +4,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   // ── Mode A state ───────────────────────────────────────────────
   bool _sheetAExpanded = false;
   Map<String, NOverlayImage>? _routeMarkerIcons;
+  bool _modeAMapFocus = false;    // 지도 탭 시 UI 숨김
+  bool _routePanelEditing = false; // 경로 수정 패널 열림 여부
 
   // Abstract dependencies
   NaverMapController? get _ctrl;
@@ -12,6 +14,22 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   set _locating(bool value);
   Future<void> _drawTransitStepMarkers(RouteResultEntity result, int activeIdx);
   Future<void> _resetNavCamera();
+
+  // ── Map focus toggle ───────────────────────────────────────────
+
+  void _onModeAMapTap() {
+    if (!mounted) return;
+    setState(() => _modeAMapFocus = !_modeAMapFocus);
+  }
+
+  void _resetModeAFocusState() {
+    if (mounted && (_modeAMapFocus || _routePanelEditing)) {
+      setState(() {
+        _modeAMapFocus = false;
+        _routePanelEditing = false;
+      });
+    }
+  }
 
   // ── Marker icons ───────────────────────────────────────────────
 
@@ -198,7 +216,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     FocusScope.of(context).unfocus();
     await ref.read(modeAProvider.notifier).search();
     if (mounted && ref.read(modeAProvider).routeResult != null) {
-      setState(() => _sheetAExpanded = false);
+      setState(() {
+        _sheetAExpanded = false;
+        _routePanelEditing = false; // 검색 완료 → 수정 패널 닫기
+      });
     }
   }
 
@@ -291,67 +312,110 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     double bottomPad,
   ) {
     if (mode != MapMode.modeA) return const [];
-    return [
-      // Route input panel (top)
-      Positioned(
-        top: 0, left: 0, right: 0,
-        child: _ModeARoutePanel(
-          state: modeAState,
-          locating: _locating,
-          onTapOrigin: () {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: const Row(children: [
-                Icon(Icons.touch_app_rounded, color: Colors.white, size: 16),
-                SizedBox(width: 8),
-                Text('출발지를 설정해주세요',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              ]),
-              duration: const Duration(seconds: 2),
-              backgroundColor: kMapPanel,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            ));
-            ref.read(mapModeProvider.notifier).set(MapMode.explore);
-          },
-          onGpsOrigin: _fetchGpsOriginForModeA,
-          onTapDest: () {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: const Row(children: [
-                Icon(Icons.touch_app_rounded, color: Colors.white, size: 16),
-                SizedBox(width: 8),
-                Text('도착지를 설정해주세요',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              ]),
-              duration: const Duration(seconds: 2),
-              backgroundColor: kMapPanel,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            ));
-            ref.read(mapModeProvider.notifier).set(MapMode.explore);
-          },
-          onClearDest: () =>
-              ref.read(modeAProvider.notifier).setDestCoords(null, null, ''),
-          onSetTransport: (t) => ref.read(modeAProvider.notifier).setTransport(t),
-          onRemoveWaypoint: (i) => ref.read(modeAProvider.notifier).removeWaypoint(i),
-          onReorderWaypoints: (o, n) =>
-              ref.read(modeAProvider.notifier).reorderWaypoint(o, n),
-          onSearch: (modeAState.originLat == null || modeAState.to.isEmpty)
-              ? null
-              : _onModeASearch,
-          onBack: () => context.pop(),
+
+    // 경로 입력 패널 표시 조건:
+    // - 아직 경로 결과 없음(입력 중) → 항상 표시
+    // - 결과 있음 → 사용자가 명시적으로 수정 버튼 눌렀을 때만
+    final showRoutePanel = modeAState.routeResult == null || _routePanelEditing;
+
+    // 안내 중에는 지도 포커스(UI 숨김) 비활성
+    final mapFocused = _modeAMapFocus && !navState.isNavigating;
+
+    final children = <Widget>[
+      // ── 경로 입력 패널 ──────────────────────────────────────
+      if (showRoutePanel)
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: _ModeARoutePanel(
+            state: modeAState,
+            locating: _locating,
+            onTapOrigin: () {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: const Row(children: [
+                  Icon(Icons.touch_app_rounded, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text('출발지를 설정해주세요',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                ]),
+                duration: const Duration(seconds: 2),
+                backgroundColor: kMapPanel,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              ));
+              ref.read(mapModeProvider.notifier).set(MapMode.explore);
+            },
+            onGpsOrigin: _fetchGpsOriginForModeA,
+            onTapDest: () {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: const Row(children: [
+                  Icon(Icons.touch_app_rounded, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text('도착지를 설정해주세요',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                ]),
+                duration: const Duration(seconds: 2),
+                backgroundColor: kMapPanel,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              ));
+              ref.read(mapModeProvider.notifier).set(MapMode.explore);
+            },
+            onClearDest: () =>
+                ref.read(modeAProvider.notifier).setDestCoords(null, null, ''),
+            onSetTransport: (t) => ref.read(modeAProvider.notifier).setTransport(t),
+            onRemoveWaypoint: (i) => ref.read(modeAProvider.notifier).removeWaypoint(i),
+            onReorderWaypoints: (o, n) =>
+                ref.read(modeAProvider.notifier).reorderWaypoint(o, n),
+            onSearch: (modeAState.originLat == null || modeAState.to.isEmpty)
+                ? null
+                : _onModeASearch,
+            onBack: () => context.pop(),
+          ),
         ),
-      ),
-      // Kcal widget (top-right)
+
+      // ── 경로 수정 버튼 (결과 있을 때 패널 대신) ────────────────
+      if (!showRoutePanel && !navState.isNavigating)
+        Positioned(
+          top: MediaQuery.paddingOf(context).top + 12,
+          left: 12,
+          child: GestureDetector(
+            onTap: () => setState(() => _routePanelEditing = true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: _kPanel,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.white24),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit_rounded, size: 14, color: _kWhite87),
+                  SizedBox(width: 6),
+                  Text('경로 수정',
+                      style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700, color: _kWhite87)),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+      // ── 칼로리 위젯 ─────────────────────────────────────────
       Positioned(
         right: 12,
-        top: MediaQuery.paddingOf(context).top + 220,
+        top: MediaQuery.paddingOf(context).top + (showRoutePanel ? 220 : 12),
         child: _KcalWidget(routeKcal: modeAState.routeResult?.kcalBurn),
       ),
-      // Result sheet (bottom, not during navigation)
+
+      // ── 결과 시트 (안내 중 아닐 때) ──────────────────────────
       if (modeAState.routeResult != null && !navState.isNavigating)
         Positioned(
           left: 0, right: 0, bottom: 0,
@@ -390,7 +454,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             ),
           ),
         ),
-      // Navigation cards (during navigation)
+
+      // ── 안내 중: 상단 카드 + 하단 스트립 ─────────────────────
       if (navState.isNavigating) ...[
         Positioned(
           top: MediaQuery.paddingOf(context).top + 8,
@@ -411,7 +476,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           ),
         ),
       ],
-      // Loading overlay
+
+      // ── 검색 중 로딩 ─────────────────────────────────────────
       if (modeAState.isLoading)
         Positioned.fill(
           child: Container(
@@ -421,6 +487,20 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             ),
           ),
         ),
+    ];
+
+    // 지도 포커스 모드: AnimatedOpacity로 UI 숨김 (폴리라인·마커는 Naver 레이어라 유지됨)
+    return [
+      Positioned.fill(
+        child: IgnorePointer(
+          ignoring: mapFocused,
+          child: AnimatedOpacity(
+            opacity: mapFocused ? 0.0 : 1.0,
+            duration: const Duration(milliseconds: 200),
+            child: Stack(fit: StackFit.expand, children: children),
+          ),
+        ),
+      ),
     ];
   }
 }

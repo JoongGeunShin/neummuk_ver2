@@ -13,12 +13,36 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
   final Map<int, NOverlayImage> _clusterIconCache = {};
   List<PlaceEntity>? _clusterPanelPlaces;
   double _currentZoom = 14.0;
+  bool _exploreMapFocus = false; // true: UI 숨김, 마커만 표시
 
   NaverMapController? get _ctrl;
 
   void _disposeExplore() {
     _searchCtrl.dispose();
     _sheetExploreCtrl.dispose();
+  }
+
+  // 지도 탭 시 UI 토글 — 장소 선택 중이면 먼저 해제, 그 다음 탭부터 숨김/표시
+  void _onExploreMapTap() {
+    if (!mounted) return;
+    final selectedPlace = ref.read(mapSearchNotifierProvider).selectedPlace;
+    if (selectedPlace != null) {
+      ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
+      return;
+    }
+    if (_exploreMapFocus) {
+      setState(() => _exploreMapFocus = false);
+    } else {
+      setState(() {
+        _exploreMapFocus = true;
+        _showExploreList = false;
+        _clusterPanelPlaces = null;
+      });
+    }
+  }
+
+  void _resetExploreMapFocus() {
+    if (_exploreMapFocus && mounted) setState(() => _exploreMapFocus = false);
   }
 
   // ── Helpers ────────────────────────────────────────────────────
@@ -127,7 +151,10 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
         final marker = NMarker(id: 'cluster_$ci', position: cluster.center, icon: clusterIcon);
         marker.setOnTapListener((_) {
           if (!mounted) return;
-          setState(() => _clusterPanelPlaces = cluster.places);
+          setState(() {
+            _clusterPanelPlaces = cluster.places;
+            _exploreMapFocus = false;
+          });
         });
         markers.add(marker);
       } else {
@@ -143,9 +170,11 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
           isHideCollidedCaptions: true,
         );
         marker.setOnTapListener((_) {
-          if (_clusterPanelPlaces != null && mounted) {
-            setState(() => _clusterPanelPlaces = null);
-          }
+          if (!mounted) return;
+          setState(() {
+            _clusterPanelPlaces = null;
+            _exploreMapFocus = false;
+          });
           ref.read(mapSearchNotifierProvider.notifier).selectPlace(place);
         });
         markers.add(marker);
@@ -170,7 +199,8 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     double bottomPad,
   ) {
     if (mode != MapMode.explore) return const [];
-    return [
+
+    final children = <Widget>[
       Positioned(
         top: 0, left: 0, right: 0,
         child: _ExploreTopPanel(
@@ -178,8 +208,12 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
           categories: categories,
           selectedCategory: exploreState.selectedCategory,
           onClose: () => context.pop(),
-          onSearch: _onSearchSubmit,
+          onSearch: (v) {
+            _resetExploreMapFocus();
+            _onSearchSubmit(v);
+          },
           onCategoryTap: (cat) async {
+            _resetExploreMapFocus();
             final radius = await _getVisibleRadiusMeters();
             if (!mounted) return;
             ref.read(mapSearchNotifierProvider.notifier)
@@ -274,6 +308,20 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
             onTapPlace: (place) => context.push('/place-detail', extra: place),
           ),
         ),
+    ];
+
+    // UI 전체를 AnimatedOpacity로 감싸 — 마커는 Naver 지도 레이어에 있으므로 영향 없음
+    return [
+      Positioned.fill(
+        child: IgnorePointer(
+          ignoring: _exploreMapFocus,
+          child: AnimatedOpacity(
+            opacity: _exploreMapFocus ? 0.0 : 1.0,
+            duration: const Duration(milliseconds: 200),
+            child: Stack(fit: StackFit.expand, children: children),
+          ),
+        ),
+      ),
     ];
   }
 }
