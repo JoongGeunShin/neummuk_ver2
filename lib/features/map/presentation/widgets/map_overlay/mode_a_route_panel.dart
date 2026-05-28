@@ -16,6 +16,7 @@ class _ModeARoutePanel extends StatelessWidget {
     required this.onRemoveWaypoint,
     required this.onReorderWaypoints,
     required this.onSearch,
+    required this.onResetAll,
     required this.onBack,
   });
 
@@ -29,6 +30,7 @@ class _ModeARoutePanel extends StatelessWidget {
   final ValueChanged<int> onRemoveWaypoint;
   final void Function(int oldIdx, int newIdx) onReorderWaypoints;
   final VoidCallback? onSearch;
+  final VoidCallback onResetAll;
   final VoidCallback onBack;
 
   static const _transports = [
@@ -50,7 +52,7 @@ class _ModeARoutePanel extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 12, 4),
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
               child: Row(children: [
                 MapControlButton(
                   onTap: onBack,
@@ -59,6 +61,13 @@ class _ModeARoutePanel extends StatelessWidget {
                 const SizedBox(width: 10),
                 const Text('경로 찾기',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kMapWhite87)),
+                const Spacer(),
+                _KcalWidget(routeKcal: state.routeResult?.kcalBurn),
+                const SizedBox(width: 4),
+                MapControlButton(
+                  onTap: onResetAll,
+                  child: const Icon(Icons.delete_sweep_rounded, size: 18, color: kMapWhite45),
+                ),
               ]),
             ),
             Container(

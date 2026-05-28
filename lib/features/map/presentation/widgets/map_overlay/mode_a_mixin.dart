@@ -314,9 +314,11 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     if (mode != MapMode.modeA) return const [];
 
     // 경로 입력 패널 표시 조건:
-    // - 아직 경로 결과 없음(입력 중) → 항상 표시
+    // - 안내 중이면 절대 표시 안 함
+    // - 경로 결과 없음(입력 중) → 표시
     // - 결과 있음 → 사용자가 명시적으로 수정 버튼 눌렀을 때만
-    final showRoutePanel = modeAState.routeResult == null || _routePanelEditing;
+    final showRoutePanel = !navState.isNavigating &&
+        (modeAState.routeResult == null || _routePanelEditing);
 
     // 안내 중에는 지도 포커스(UI 숨김) 비활성
     final mapFocused = _modeAMapFocus && !navState.isNavigating;
@@ -373,6 +375,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             onSearch: (modeAState.originLat == null || modeAState.to.isEmpty)
                 ? null
                 : _onModeASearch,
+            onResetAll: () {
+              ref.read(modeAProvider.notifier).clearAll();
+              _fetchGpsOriginForModeA();
+            },
             onBack: () => context.pop(),
           ),
         ),
@@ -408,12 +414,13 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           ),
         ),
 
-      // ── 칼로리 위젯 ─────────────────────────────────────────
-      Positioned(
-        right: 12,
-        top: MediaQuery.paddingOf(context).top + (showRoutePanel ? 220 : 12),
-        child: _KcalWidget(routeKcal: modeAState.routeResult?.kcalBurn),
-      ),
+      // ── 칼로리 위젯 (결과 시트 표시 중에만 — 패널 내부 헤더에도 있음) ──
+      if (!showRoutePanel && !navState.isNavigating)
+        Positioned(
+          right: 12,
+          top: MediaQuery.paddingOf(context).top + 12,
+          child: _KcalWidget(routeKcal: modeAState.routeResult?.kcalBurn),
+        ),
 
       // ── 결과 시트 (안내 중 아닐 때) ──────────────────────────
       if (modeAState.routeResult != null && !navState.isNavigating)

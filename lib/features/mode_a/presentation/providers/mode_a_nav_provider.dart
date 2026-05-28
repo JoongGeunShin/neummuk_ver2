@@ -59,7 +59,7 @@ class ModeANavState {
 
 const _kKeep = Object();
 
-@riverpod
+@Riverpod(keepAlive: true)
 class ModeANav extends _$ModeANav {
   @override
   ModeANavState build() => const ModeANavState();

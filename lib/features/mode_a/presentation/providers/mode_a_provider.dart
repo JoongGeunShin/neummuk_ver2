@@ -100,7 +100,7 @@ class ModeAState {
   }
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 class ModeA extends _$ModeA {
   @override
   ModeAState build() {
@@ -302,6 +302,40 @@ class ModeA extends _$ModeA {
     } catch (e) {
       state = state.copyWith(loadingCandidates: false);
     }
+  }
+
+  void clearRouteResult() {
+    state = ModeAState(
+      from: state.from,
+      to: state.to,
+      originLat: state.originLat,
+      originLng: state.originLng,
+      destLat: state.destLat,
+      destLng: state.destLng,
+      originIsCurrentLocation: state.originIsCurrentLocation,
+      transport: state.transport,
+      waypoints: state.waypoints,
+      destIsRestaurant: state.destIsRestaurant,
+      destKcal: state.destKcal,
+    );
+  }
+
+  Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    final wpCount = prefs.getInt('mode_a_wp_count') ?? 0;
+    for (var i = 0; i < wpCount; i++) {
+      await prefs.remove('mode_a_wp_${i}_name');
+      await prefs.remove('mode_a_wp_${i}_lat');
+      await prefs.remove('mode_a_wp_${i}_lng');
+    }
+    await prefs.remove('mode_a_from');
+    await prefs.remove('mode_a_origin_lat');
+    await prefs.remove('mode_a_origin_lng');
+    await prefs.remove('mode_a_to');
+    await prefs.remove('mode_a_dest_lat');
+    await prefs.remove('mode_a_dest_lng');
+    await prefs.remove('mode_a_wp_count');
+    state = const ModeAState();
   }
 
   int _calcKcal(String transport, double weight, int durationSec) {

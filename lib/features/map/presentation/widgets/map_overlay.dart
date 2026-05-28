@@ -405,6 +405,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _resetNavCamera();
         _showArrivalMessage();
       }
+      // 안내 종료(수동 또는 도착) → 결과 시트 숨김을 위해 routeResult 초기화
+      if ((prev?.isNavigating ?? false) && !next.isNavigating) {
+        ref.read(modeAProvider.notifier).clearRouteResult();
+      }
       if ((prev?.currentTransitStepIdx ?? 0) != next.currentTransitStepIdx) {
         final route = ref.read(modeAProvider).routeResult;
         if (route != null && route.transport == 'transit') {
@@ -450,8 +454,12 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         // ── Zoom controls ──────────────────────────────────────
         _buildZoomControls(context, mode, bottomPad, modeAState, navState),
 
-        // ── Mode toggle ────────────────────────────────────────
-        if (mode != MapMode.modeB)
+        // ── Mode toggle (탐색 중 또는 경로 결과 시트·안내 중이면 숨김) ──
+        if (mode != MapMode.modeB &&
+            !navState.isNavigating &&
+            !(mode == MapMode.modeA &&
+                modeAState.routeResult != null &&
+                !_routePanelEditing))
           Positioned(
             left: 12, bottom: bottomPad + 16,
             child: _ModeToggle(

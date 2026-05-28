@@ -23,11 +23,11 @@ final modeARepositoryProvider = Provider<ModeARepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ModeARepositoryRef = ProviderRef<ModeARepository>;
-String _$modeAHash() => r'23ba7d756bbb93331685c7a09e5f88318438655e';
+String _$modeAHash() => r'37fa3bacb257fda6f5afd5a88b53a3df0c82bcc6';
 
 /// See also [ModeA].
 @ProviderFor(ModeA)
-final modeAProvider = AutoDisposeNotifierProvider<ModeA, ModeAState>.internal(
+final modeAProvider = NotifierProvider<ModeA, ModeAState>.internal(
   ModeA.new,
   name: r'modeAProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -37,6 +37,6 @@ final modeAProvider = AutoDisposeNotifierProvider<ModeA, ModeAState>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef _$ModeA = AutoDisposeNotifier<ModeAState>;
+typedef _$ModeA = Notifier<ModeAState>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
