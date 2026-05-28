@@ -18,6 +18,56 @@ class LatLng {
   final double longitude;
 }
 
+/// 대중교통 구간 단계 (ODsay subPath 원소)
+class TransitStep {
+  const TransitStep({
+    required this.trafficType,
+    required this.startName,
+    required this.endName,
+    required this.distanceM,
+    required this.sectionTimeMin,
+    this.lineInfo,
+    this.startLat,
+    this.startLng,
+    this.endLat,
+    this.endLng,
+    this.stationCount = 0,
+  });
+
+  /// 이동 수단: 1=지하철, 2=버스, 3=도보
+  final int trafficType;
+  final String startName;
+  final String endName;
+  final int distanceM;
+  final int sectionTimeMin;
+  final String? lineInfo;  // 버스번호 or 지하철 호선명
+  final double? startLat;
+  final double? startLng;
+  final double? endLat;
+  final double? endLng;
+  final int stationCount;
+
+  bool get isWalk    => trafficType == 3;
+  bool get isBus     => trafficType == 2;
+  bool get isSubway  => trafficType == 1;
+  bool get isVehicle => isBus || isSubway;
+
+  String get typeLabel => isWalk ? '도보' : isBus ? '버스' : '지하철';
+
+  String get distanceLabel => distanceM < 1000
+      ? '${distanceM}m'
+      : '${(distanceM / 1000).toStringAsFixed(1)}km';
+
+  /// 현재 단계의 행동 설명 ("남위례역까지 도보" / "3420번 탑승 → 복정역환승센터 하차")
+  String get actionLabel {
+    if (isWalk) return '$endName까지 도보';
+    if (lineInfo != null && lineInfo!.isNotEmpty) {
+      return '$lineInfo 탑승 · $endName 하차';
+    }
+    return '$endName 하차';
+  }
+}
+
 /// 경로 안내 포인트 (Kakao Mobility sections.guides 원소)
 class RouteGuide {
   const RouteGuide({
@@ -59,6 +109,7 @@ class RouteResultEntity {
     this.waypoints = const [],
     this.routePoints = const [],
     this.guides = const [],
+    this.transitSteps = const [],
   });
 
   final String fromName;
@@ -71,8 +122,10 @@ class RouteResultEntity {
   final List<RouteWaypoint> waypoints;
   /// Kakao Mobility 응답에서 추출한 폴리라인 좌표 (지도 표시용)
   final List<LatLng> routePoints;
-  /// Kakao Mobility 응답에서 추출한 안내 포인트 (내비게이션용)
+  /// Kakao Mobility 응답에서 추출한 안내 포인트 (도보/자전거 내비게이션용)
   final List<RouteGuide> guides;
+  /// ODsay 응답에서 추출한 대중교통 단계 목록 (대중교통 안내용)
+  final List<TransitStep> transitSteps;
 
   int get durationMinutes => (durationSeconds / 60).round();
 
@@ -86,6 +139,7 @@ class RouteResultEntity {
     List<RouteWaypoint>? waypoints,
     List<LatLng>? routePoints,
     List<RouteGuide>? guides,
+    List<TransitStep>? transitSteps,
   }) {
     return RouteResultEntity(
       fromName: fromName ?? this.fromName,
@@ -97,6 +151,7 @@ class RouteResultEntity {
       waypoints: waypoints ?? this.waypoints,
       routePoints: routePoints ?? this.routePoints,
       guides: guides ?? this.guides,
+      transitSteps: transitSteps ?? this.transitSteps,
     );
   }
 }

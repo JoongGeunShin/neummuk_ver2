@@ -256,27 +256,49 @@ class ModeARepositoryImpl implements ModeARepository {
     final distanceKm =
         double.parse((totalDistanceM / 1000.0).toStringAsFixed(1));
 
-    // 역·정류장 좌표로 폴리라인 구성
+    // passShape.linestring(실제 도로 형상) 우선, 없으면 정류장 좌표로 폴리라인 구성
     final routePoints = <LatLng>[];
     routePoints.add(LatLng(latitude: originLat, longitude: originLng));
 
     final subPaths = path['subPath'] as List? ?? [];
     for (final sub in subPaths) {
       final subMap = sub as Map<String, dynamic>;
-      final passStopList = subMap['passStopList'] as Map<String, dynamic>?;
-      if (passStopList == null) continue;
-      final stations = passStopList['stations'] as List? ?? [];
-      for (final st in stations) {
-        final stMap = st as Map<String, dynamic>;
-        final x = double.tryParse(stMap['x']?.toString() ?? '');
-        final y = double.tryParse(stMap['y']?.toString() ?? '');
-        if (x != null && y != null && x != 0 && y != 0) {
-          routePoints.add(LatLng(latitude: y, longitude: x));
+
+      // passShape.linestring: "lon,lat lon,lat ..." 형태 (버스·지하철 구간에만 존재)
+      final passShape = subMap['passShape'] as Map<String, dynamic>?;
+      final linestring = passShape?['linestring'] as String?;
+
+      if (linestring != null && linestring.isNotEmpty) {
+        for (final pair in linestring.trim().split(' ')) {
+          final parts = pair.split(',');
+          if (parts.length < 2) continue;
+          final lng = double.tryParse(parts[0]);
+          final lat = double.tryParse(parts[1]);
+          if (lat != null && lng != null && lat != 0 && lng != 0) {
+            routePoints.add(LatLng(latitude: lat, longitude: lng));
+          }
+        }
+      } else {
+        // 도보 구간 등 passShape 없는 경우: 정류장 좌표로 폴백
+        final passStopList = subMap['passStopList'] as Map<String, dynamic>?;
+        if (passStopList == null) continue;
+        final stations = passStopList['stations'] as List? ?? [];
+        for (final st in stations) {
+          final stMap = st as Map<String, dynamic>;
+          final x = double.tryParse(stMap['x']?.toString() ?? '');
+          final y = double.tryParse(stMap['y']?.toString() ?? '');
+          if (x != null && y != null && x != 0 && y != 0) {
+            routePoints.add(LatLng(latitude: y, longitude: x));
+          }
         }
       }
     }
 
     routePoints.add(LatLng(latitude: destLat, longitude: destLng));
+
+    // ODsay subPath → TransitStep 파싱
+    final transitSteps = _extractTransitSteps(
+        subPaths, originLat, originLng, destLat, destLng);
 
     // 칼로리: 도보 구간은 walk MET, 나머지는 transit MET
     const walkSpeedMs = 1.25; // ≈ 4.5 km/h
@@ -303,7 +325,90 @@ class ModeARepositoryImpl implements ModeARepository {
       kcalBurn: (walkKcal + transitKcal).round(),
       waypoints: waypoints,
       routePoints: routePoints,
+      transitSteps: transitSteps,
     );
+  }
+
+  // ── ODsay subPath → TransitStep 파싱 ─────────────────────────────────────────
+
+  List<TransitStep> _extractTransitSteps(
+    List subPaths,
+    double originLat,
+    double originLng,
+    double destLat,
+    double destLng,
+  ) {
+    final steps = <TransitStep>[];
+    for (int i = 0; i < subPaths.length; i++) {
+      final sub = subPaths[i] as Map<String, dynamic>;
+      final trafficType = (sub['trafficType'] as num? ?? 3).toInt();
+      final distanceM   = (sub['distance'] as num? ?? 0).toInt();
+      final timeSec     = (sub['sectionTime'] as num? ?? 0).toInt();
+      final startName   = sub['startName'] as String? ?? '';
+      final endName     = sub['endName'] as String? ?? '';
+
+      // 시작/끝 좌표
+      double? startLat, startLng, endLat, endLng;
+      final passStopList = sub['passStopList'] as Map<String, dynamic>?;
+      if (passStopList != null) {
+        final stations = passStopList['stations'] as List? ?? [];
+        if (stations.isNotEmpty) {
+          final first = stations.first as Map<String, dynamic>;
+          final last  = stations.last  as Map<String, dynamic>;
+          startLng = double.tryParse(first['x']?.toString() ?? '');
+          startLat = double.tryParse(first['y']?.toString() ?? '');
+          endLng   = double.tryParse(last['x']?.toString() ?? '');
+          endLat   = double.tryParse(last['y']?.toString() ?? '');
+        }
+      }
+      // 첫 단계 시작 = 출발지 좌표
+      if (i == 0) { startLat = originLat; startLng = originLng; }
+      // 마지막 단계 끝 = 도착지 좌표
+      if (i == subPaths.length - 1) { endLat = destLat; endLng = destLng; }
+
+      // 버스/지하철 노선 정보
+      String? lineInfo;
+      if (trafficType == 2) {
+        // 버스
+        final lanes = sub['lane'] as List? ?? [];
+        if (lanes.isNotEmpty) {
+          final busNos = lanes
+              .map((l) => (l as Map<String, dynamic>)['busNo']?.toString() ?? '')
+              .where((s) => s.isNotEmpty)
+              .toSet()
+              .take(2)
+              .join('/');
+          if (busNos.isNotEmpty) lineInfo = '$busNos번';
+        }
+      } else if (trafficType == 1) {
+        // 지하철
+        final lanes = sub['lane'] as List? ?? [];
+        if (lanes.isNotEmpty) {
+          lineInfo = (lanes.first as Map<String, dynamic>)['name']?.toString();
+        }
+        lineInfo ??= sub['startName']?.toString();
+      }
+
+      // 정류장 수 (도보 이외)
+      final stationCount = trafficType != 3
+          ? ((passStopList?['stations'] as List?)?.length ?? 0)
+          : 0;
+
+      steps.add(TransitStep(
+        trafficType:    trafficType,
+        startName:      startName,
+        endName:        endName,
+        distanceM:      distanceM,
+        sectionTimeMin: timeSec,
+        lineInfo:       lineInfo,
+        startLat:       startLat,
+        startLng:       startLng,
+        endLat:         endLat,
+        endLng:         endLng,
+        stationCount:   stationCount,
+      ));
+    }
+    return steps;
   }
 
   // ── vertexes 파싱 헬퍼 ────────────────────────────────────────────────────────

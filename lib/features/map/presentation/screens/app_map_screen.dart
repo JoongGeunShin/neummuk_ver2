@@ -59,6 +59,9 @@ class _AppMapScreenState extends State<AppMapScreen> {
               onCameraIdle: () {
                 if (_mapReady) _events.onCameraIdle?.call();
               },
+              onCameraChange: (reason, animated) {
+                if (_mapReady) _events.onCameraChange?.call(reason, animated);
+              },
             ),
             Positioned.fill(
               child: widget.overlayBuilder(context, _ctrl, _events),

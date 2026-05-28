@@ -15,6 +15,7 @@ class ModeANavState {
     this.nextGuide,
     this.isOffRoute = false,
     this.showReroutePrompt = false,
+    this.currentTransitStepIdx = 0,
   });
 
   final bool isNavigating;
@@ -24,6 +25,8 @@ class ModeANavState {
   final RouteGuide? nextGuide;
   final bool isOffRoute;
   final bool showReroutePrompt;
+  /// 대중교통 안내: 현재 진행 중인 subPath 단계 인덱스
+  final int currentTransitStepIdx;
 
   String get remainingLabel => remainingDistanceM < 1000
       ? '${remainingDistanceM}m'
@@ -39,6 +42,7 @@ class ModeANavState {
     Object? nextGuide = _kKeep,
     bool? isOffRoute,
     bool? showReroutePrompt,
+    int? currentTransitStepIdx,
   }) {
     return ModeANavState(
       isNavigating: isNavigating ?? this.isNavigating,
@@ -48,6 +52,7 @@ class ModeANavState {
       nextGuide: identical(nextGuide, _kKeep) ? this.nextGuide : nextGuide as RouteGuide?,
       isOffRoute: isOffRoute ?? this.isOffRoute,
       showReroutePrompt: showReroutePrompt ?? this.showReroutePrompt,
+      currentTransitStepIdx: currentTransitStepIdx ?? this.currentTransitStepIdx,
     );
   }
 }
@@ -74,6 +79,7 @@ class ModeANav extends _$ModeANav {
       remainingDistanceM: totalM.round(),
       remainingSec: (totalM / speedMs).round(),
       nextGuide: route.guides.isNotEmpty ? route.guides.first : null,
+      currentTransitStepIdx: 0,
     );
   }
 
@@ -109,6 +115,12 @@ class ModeANav extends _$ModeANav {
 
     final nextGuide = _nextGuide(bestIdx, pts, route.guides);
 
+    // 대중교통: 현재 단계 끝 지점 도달 시 다음 단계로 전진
+    int transitIdx = state.currentTransitStepIdx;
+    if (route.transport == 'transit' && route.transitSteps.isNotEmpty) {
+      transitIdx = _advanceTransitStep(lat, lng, route.transitSteps, transitIdx);
+    }
+
     state = state.copyWith(
       nearestPtIdx: bestIdx,
       remainingDistanceM: remM.round(),
@@ -116,7 +128,18 @@ class ModeANav extends _$ModeANav {
       nextGuide: nextGuide,
       isOffRoute: offRoute,
       showReroutePrompt: offRoute && !state.isOffRoute,
+      currentTransitStepIdx: transitIdx,
     );
+  }
+
+  /// 현재 단계의 끝 지점 80m 이내 진입 시 다음 단계로 전진 (전진만, 후퇴 없음)
+  int _advanceTransitStep(
+      double lat, double lng, List<TransitStep> steps, int currentIdx) {
+    if (currentIdx >= steps.length - 1) return currentIdx;
+    final step = steps[currentIdx];
+    if (step.endLat == null || step.endLng == null) return currentIdx;
+    final d = _dist(lat, lng, step.endLat!, step.endLng!);
+    return d < 80 ? currentIdx + 1 : currentIdx;
   }
 
   RouteGuide? _nextGuide(

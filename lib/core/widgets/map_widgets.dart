@@ -18,6 +18,8 @@ class MapEventSink {
   void Function(NPoint, NLatLng)? onMapTapped;
   void Function(NPoint, NLatLng)? onLongTapped;
   VoidCallback? onCameraIdle;
+  /// 카메라가 변경될 때마다 호출됨 (reason: gesture=사용자, developer=코드)
+  void Function(NCameraUpdateReason reason, bool animated)? onCameraChange;
 }
 
 // ─── 공통 NaverMapViewOptions ─────────────────────────────────────────────────

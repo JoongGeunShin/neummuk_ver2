@@ -1,0 +1,279 @@
+part of '../map_overlay.dart';
+
+mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
+  // ── Explore state ──────────────────────────────────────────────
+  Map<PlaceSource, NOverlayImage>? _markerIcons;
+  double? _lastSearchLat;
+  double? _lastSearchLng;
+  bool _showReSearchButton = false;
+  bool _fitCameraOnNextResult = false;
+  final _searchCtrl = TextEditingController();
+  bool _showExploreList = false;
+  final _sheetExploreCtrl = DraggableScrollableController();
+  final Map<int, NOverlayImage> _clusterIconCache = {};
+  List<PlaceEntity>? _clusterPanelPlaces;
+  double _currentZoom = 14.0;
+
+  NaverMapController? get _ctrl;
+
+  void _disposeExplore() {
+    _searchCtrl.dispose();
+    _sheetExploreCtrl.dispose();
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+
+  double _topPanelHeight(BuildContext context) =>
+      MediaQuery.paddingOf(context).top + 108;
+
+  Future<int> _getVisibleRadiusMeters() async {
+    if (_ctrl == null) return 3000;
+    return MapCameraUtils.visibleRadiusMeters(_ctrl!);
+  }
+
+  Future<void> _fitCameraToPlaces(List<PlaceEntity> places) async {
+    if (_ctrl == null || places.isEmpty) return;
+    await MapCameraUtils.fitPoints(
+      _ctrl!,
+      places.map((p) => NLatLng(p.latitude, p.longitude)).toList(),
+      padding: const EdgeInsets.all(64),
+    );
+  }
+
+  Future<void> _onSearchSubmit(String value) async {
+    if (!mounted) return;
+    FocusScope.of(context).unfocus();
+    final radius = await _getVisibleRadiusMeters();
+    if (!mounted) return;
+    _fitCameraOnNextResult = value.isNotEmpty;
+    ref.read(mapSearchNotifierProvider.notifier).search(value, radiusMeters: radius);
+  }
+
+  Future<void> _reSearchThisArea() async {
+    final cam = await _ctrl?.getCameraPosition();
+    if (cam == null) return;
+    final lat = cam.target.latitude;
+    final lng = cam.target.longitude;
+    final radius = await _getVisibleRadiusMeters();
+    _lastSearchLat = lat;
+    _lastSearchLng = lng;
+    setState(() => _showReSearchButton = false);
+    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
+  }
+
+  Future<Map<PlaceSource, NOverlayImage>> _getMarkerIcons() async {
+    if (_markerIcons != null) return _markerIcons!;
+    final normalIcon = await NOverlayImage.fromWidget(
+      widget: const MapMarkerDot(color: Color(0xFF03C75A)),
+      size: const Size(26, 26),
+      context: context,
+    );
+    if (!mounted) return {};
+    final bothIcon = await NOverlayImage.fromWidget(
+      widget: const MapMarkerDot(color: Color(0xFFFFAB00), star: true),
+      size: const Size(32, 32),
+      context: context,
+    );
+    if (!mounted) return {};
+    _markerIcons = {
+      PlaceSource.tourApi: normalIcon,
+      PlaceSource.kakaoLocal: normalIcon,
+      PlaceSource.both: bothIcon,
+    };
+    return _markerIcons!;
+  }
+
+  List<_Cluster> _clusterPlaces(List<PlaceEntity> places, double zoom) {
+    final cellDeg = zoom >= 14 ? 0.002 : zoom >= 12 ? 0.01 : 0.05;
+    final groups = <String, List<PlaceEntity>>{};
+    for (final p in places) {
+      final gx = (p.longitude / cellDeg).floor();
+      final gy = (p.latitude / cellDeg).floor();
+      groups.putIfAbsent('$gx,$gy', () => []).add(p);
+    }
+    return groups.values.map((pts) {
+      final lat = pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
+      final lng = pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
+      return _Cluster(NLatLng(lat, lng), pts);
+    }).toList();
+  }
+
+  Future<NOverlayImage> _getClusterIcon(int count) async {
+    if (_clusterIconCache.containsKey(count)) return _clusterIconCache[count]!;
+    final icon = await NOverlayImage.fromWidget(
+      widget: _ClusterDot(count: count),
+      size: const Size(40, 40),
+      context: context,
+    );
+    _clusterIconCache[count] = icon;
+    return icon;
+  }
+
+  Future<void> _updateExploreMarkers(List<PlaceEntity> places) async {
+    if (_ctrl == null) return;
+    await _ctrl!.clearOverlays(type: NOverlayType.marker);
+    if (places.isEmpty) return;
+
+    final clusters = _clusterPlaces(places, _currentZoom);
+    final icons = await _getMarkerIcons();
+    if (!mounted) return;
+
+    final markers = <NMarker>{};
+    for (int ci = 0; ci < clusters.length; ci++) {
+      final cluster = clusters[ci];
+      if (cluster.places.length > 1) {
+        final clusterIcon = await _getClusterIcon(cluster.places.length);
+        if (!mounted) return;
+        final marker = NMarker(id: 'cluster_$ci', position: cluster.center, icon: clusterIcon);
+        marker.setOnTapListener((_) {
+          if (!mounted) return;
+          setState(() => _clusterPanelPlaces = cluster.places);
+        });
+        markers.add(marker);
+      } else {
+        final place = cluster.places.first;
+        final color = _sourceColor(place.source);
+        final marker = NMarker(
+          id: place.id,
+          position: NLatLng(place.latitude, place.longitude),
+          icon: icons[place.source],
+          caption: NOverlayCaption(
+              text: place.name, textSize: 12, color: color, haloColor: Colors.black87),
+          captionOffset: 4,
+          isHideCollidedCaptions: true,
+        );
+        marker.setOnTapListener((_) {
+          if (_clusterPanelPlaces != null && mounted) {
+            setState(() => _clusterPanelPlaces = null);
+          }
+          ref.read(mapSearchNotifierProvider.notifier).selectPlace(place);
+        });
+        markers.add(marker);
+      }
+    }
+    await _ctrl!.addOverlayAll(markers);
+  }
+
+  Color _sourceColor(PlaceSource source) => switch (source) {
+        PlaceSource.tourApi => const Color(0xFF03C75A),
+        PlaceSource.kakaoLocal => const Color(0xFF03C75A),
+        PlaceSource.both => const Color(0xFFFFAB00),
+      };
+
+  // ── Build overlay widgets ──────────────────────────────────────
+
+  List<Widget> _buildExploreOverlays(
+    BuildContext context,
+    MapMode mode,
+    MapSearchState exploreState,
+    List<String> categories,
+    double bottomPad,
+  ) {
+    if (mode != MapMode.explore) return const [];
+    return [
+      Positioned(
+        top: 0, left: 0, right: 0,
+        child: _ExploreTopPanel(
+          searchController: _searchCtrl,
+          categories: categories,
+          selectedCategory: exploreState.selectedCategory,
+          onClose: () => context.pop(),
+          onSearch: _onSearchSubmit,
+          onCategoryTap: (cat) async {
+            final radius = await _getVisibleRadiusMeters();
+            if (!mounted) return;
+            ref.read(mapSearchNotifierProvider.notifier)
+                .selectCategory(cat, radiusMeters: radius);
+          },
+        ),
+      ),
+      if (exploreState.isLoading)
+        Positioned(
+          top: _topPanelHeight(context) + 12, left: 0, right: 0,
+          child: const Center(child: MapLoadingChip('맛집 불러오는 중...')),
+        ),
+      if (_showReSearchButton && !exploreState.isLoading)
+        Positioned(
+          top: _topPanelHeight(context) + 12, left: 0, right: 0,
+          child: Center(
+            child: GestureDetector(
+              onTap: _reSearchThisArea,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  color: _kPanel,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white24),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh_rounded, size: 15, color: Colors.white70),
+                    SizedBox(width: 6),
+                    Text('이 지역 재검색',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      if (exploreState.places.isNotEmpty)
+        Positioned(
+          right: 12, top: _topPanelHeight(context) + 12,
+          child: const _MapLegend(),
+        ),
+      if (exploreState.places.isNotEmpty &&
+          !_showExploreList &&
+          exploreState.selectedPlace == null)
+        Positioned(
+          bottom: bottomPad + 16, left: 0, right: 0,
+          child: Center(
+            child: GestureDetector(
+              onTap: () => setState(() => _showExploreList = true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: _kPanel,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: Colors.white24),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 3)),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.format_list_bulleted_rounded, size: 15, color: _kWhite87),
+                    const SizedBox(width: 6),
+                    Text('목록보기 ${exploreState.places.length}',
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700, color: _kWhite87)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      if (_showExploreList && exploreState.places.isNotEmpty)
+        DraggableScrollableSheet(
+          controller: _sheetExploreCtrl,
+          initialChildSize: 0.42,
+          minChildSize: 0.13,
+          maxChildSize: 0.85,
+          snap: true,
+          snapSizes: const [0.13, 0.42, 0.85],
+          builder: (ctx, sc) => _ExploreListSheet(
+            scrollController: sc,
+            places: exploreState.places,
+            onClose: () => setState(() => _showExploreList = false),
+            onTapPlace: (place) => context.push('/place-detail', extra: place),
+          ),
+        ),
+    ];
+  }
+}
