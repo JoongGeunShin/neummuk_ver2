@@ -51,8 +51,9 @@ class _ModeARoutePanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
+            Container(
               padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+              margin: const EdgeInsets.fromLTRB(10, 0, 10, 0),
               child: Row(children: [
                 MapControlButton(
                   onTap: onBack,

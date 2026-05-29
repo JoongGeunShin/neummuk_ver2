@@ -26,9 +26,7 @@ class _KcalWidget extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🔥 오늘',
-                style: TextStyle(fontSize: 10, color: kMapWhite45, fontWeight: FontWeight.w600)),
-            Text('${walk.caloriesKcal.round()} kcal',
+            Text('🔥 ${walk.caloriesKcal.round()} kcal',
                 style: const TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFFF7A45))),
             if (routeKcal != null)
