@@ -119,6 +119,88 @@ class _LongPressSheet extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ── Nearby item action sheet (탭별 추천 아이템 선택 시트) ─────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+class _NearbyItemActionSheet extends StatelessWidget {
+  const _NearbyItemActionSheet({
+    required this.name,
+    required this.category,
+    required this.canAddWaypoint,
+    required this.onSetDest,
+    required this.onAddWaypoint,
+    required this.onViewDetail,
+  });
+
+  final String name;
+  final String? category;
+  final bool canAddWaypoint;
+  final VoidCallback onSetDest;
+  final VoidCallback onAddWaypoint;
+  final VoidCallback onViewDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: kMapPanel,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomPad),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                  color: kMapHandle, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (category != null && category!.isNotEmpty)
+            Text(category!,
+                style: const TextStyle(
+                    fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600)),
+          Text(name,
+              style: const TextStyle(
+                  color: kMapWhite87, fontSize: 16, fontWeight: FontWeight.w800),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 16),
+          Row(children: [
+            MapLocationActionBtn(
+              label: '도착지',
+              icon: Icons.place_rounded,
+              color: const Color(0xFFFF4D6D),
+              onTap: onSetDest,
+            ),
+            if (canAddWaypoint) ...[
+              const SizedBox(width: 8),
+              MapLocationActionBtn(
+                label: '경유지',
+                icon: Icons.add_location_alt_rounded,
+                color: const Color(0xFFFFC56E),
+                onTap: onAddWaypoint,
+              ),
+            ],
+            const SizedBox(width: 8),
+            MapLocationActionBtn(
+              label: '자세히',
+              icon: Icons.open_in_new_rounded,
+              color: kMapWhite45,
+              onTap: onViewDetail,
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ── Calorie compare panel ─────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 

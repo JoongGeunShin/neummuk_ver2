@@ -8,6 +8,7 @@ import '../../../../core/widgets/map_widgets.dart';
 import '../../../mode_a/domain/entities/restaurant_entity.dart';
 import '../../../mode_a/domain/entities/route_result_entity.dart';
 import '../../../mode_a/presentation/providers/mode_a_provider.dart';
+import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../domain/entities/place_entity.dart';
 import '../providers/map_mode_provider.dart';
 
@@ -44,6 +45,20 @@ class _Detail {
         latitude: p.latitude,
         longitude: p.longitude,
         source: p.source,
+      );
+
+  factory _Detail.fromTouristRoute(TouristRouteEntity r) => _Detail(
+        name: r.name,
+        category: r.region != null ? '${r.type} · ${r.region}' : r.type,
+        address: r.region,
+        imageUrl: r.imageUrls.isNotEmpty ? r.imageUrls.first : null,
+        latitude: r.startLat ?? 0,
+        longitude: r.startLng ?? 0,
+        kcalEstimate: r.kcal > 0 ? r.kcal : null,
+        distanceM: r.distanceKm > 0 ? (r.distanceKm * 1000).round() : null,
+        walkMinutes: r.durationMinutes > 0 ? r.durationMinutes : null,
+        menu: r.type,
+        tags: r.tags,
       );
 
   factory _Detail.fromRestaurant(RestaurantEntity r) => _Detail(
@@ -87,6 +102,9 @@ class _Detail {
     return parts.isNotEmpty ? parts.last : cat;
   }
 
+  bool get showInfoRow =>
+      isRestaurant || kcalEstimate != null || distanceM != null;
+
   (String, Color) get badge {
     if (isRestaurant) {
       return (category ?? '음식점', const Color(0xFF03C75A));
@@ -121,6 +139,8 @@ class PlaceDetailScreen extends ConsumerWidget {
       detail = _Detail.fromPlace(extra as PlaceEntity);
     } else if (extra is RestaurantEntity) {
       detail = _Detail.fromRestaurant(extra as RestaurantEntity);
+    } else if (extra is TouristRouteEntity) {
+      detail = _Detail.fromTouristRoute(extra as TouristRouteEntity);
     } else {
       detail = null;
     }
@@ -168,7 +188,7 @@ class PlaceDetailScreen extends ConsumerWidget {
                   delegate: SliverChildListDelegate([
                     _NameSection(detail: detail),
                     const SizedBox(height: 16),
-                    if (detail.isRestaurant && detail.kcalEstimate != null) ...[
+                    if (detail.showInfoRow) ...[
                       _RestaurantInfoRow(detail: detail),
                       const SizedBox(height: 12),
                     ],

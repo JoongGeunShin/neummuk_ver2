@@ -2,10 +2,17 @@ part of '../map_overlay.dart';
 
 mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   // ── Mode A state ───────────────────────────────────────────────
-  bool _sheetAExpanded = false;
+  final _sheetACtrl = DraggableScrollableController();
   Map<String, NOverlayImage>? _routeMarkerIcons;
+  final Map<int, NOverlayImage> _nearbyIconCache = {};
+  int _nearbyMarkerCount = 0;
   bool _modeAMapFocus = false;    // 지도 탭 시 UI 숨김
   bool _routePanelEditing = false; // 경로 수정 패널 열림 여부
+
+  void _disposeModeA() {
+    _sheetACtrl.dispose();
+    _nearbyIconCache.clear();
+  }
 
   // Abstract dependencies
   NaverMapController? get _ctrl;
@@ -170,6 +177,44 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
+  // ── Nearby item action ────────────────────────────────────────
+
+  void _showNearbyItemActionSheet({
+    required String name,
+    required double lat,
+    required double lng,
+    String? category,
+    required Object item,
+  }) {
+    final canAddWaypoint =
+        ref.read(modeAProvider).waypoints.length < 3;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NearbyItemActionSheet(
+        name: name,
+        category: category,
+        canAddWaypoint: canAddWaypoint,
+        onSetDest: () {
+          Navigator.pop(context);
+          ref.read(modeAProvider.notifier).setDestCoords(lat, lng, name);
+          ref.read(modeAProvider.notifier).search();
+          setState(() => _routePanelEditing = false);
+        },
+        onAddWaypoint: () {
+          Navigator.pop(context);
+          ref.read(modeAProvider.notifier).addWaypoint(
+                RouteWaypoint(name: name, latitude: lat, longitude: lng));
+          ref.read(modeAProvider.notifier).search();
+        },
+        onViewDetail: () {
+          Navigator.pop(context);
+          context.push('/place-detail', extra: item);
+        },
+      ),
+    );
+  }
+
   // ── Mode A dialogs / sheets ────────────────────────────────────
 
   Future<String?> _reverseGeocode(double lat, double lng) =>
@@ -216,10 +261,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     FocusScope.of(context).unfocus();
     await ref.read(modeAProvider.notifier).search();
     if (mounted && ref.read(modeAProvider).routeResult != null) {
-      setState(() {
-        _sheetAExpanded = false;
-        _routePanelEditing = false; // 검색 완료 → 수정 패널 닫기
-      });
+      setState(() => _routePanelEditing = false);
     }
   }
 
@@ -300,6 +342,138 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             ref.read(modeAProvider.notifier).loadWaypointCandidates(extra),
       ),
     );
+  }
+
+  // ── Nearby markers ────────────────────────────────────────────
+
+  Future<NOverlayImage?> _getNearbyIcon(Color color) async {
+    final key = color.toARGB32();
+    if (_nearbyIconCache.containsKey(key)) return _nearbyIconCache[key];
+    if (!mounted) return null;
+    final icon = await NOverlayImage.fromWidget(
+      widget: MapMarkerDot(color: color),
+      size: const Size(26, 26),
+      context: context,
+    );
+    if (!mounted) return null;
+    _nearbyIconCache[key] = icon;
+    return icon;
+  }
+
+  Future<void> _clearNearbyMarkers() async {
+    final ctrl = _ctrl;
+    if (ctrl == null || _nearbyMarkerCount == 0) return;
+    for (var i = 0; i < _nearbyMarkerCount; i++) {
+      try {
+        await ctrl.deleteOverlay(
+            NOverlayInfo(type: NOverlayType.marker, id: 'nearby_$i'));
+      } catch (_) {}
+    }
+    _nearbyMarkerCount = 0;
+  }
+
+  Future<void> _updateNearbyMarkers(ModeAState s) async {
+    await _clearNearbyMarkers();
+    final ctrl = _ctrl;
+    if (ctrl == null || s.routeResult == null) return;
+
+    final Color markerColor;
+    final List<({String id, NLatLng pos, String name, Object item})> pins;
+
+    switch (s.nearbyTab) {
+      case ModeANearbyTab.restaurant:
+        markerColor = kMapGreen;
+        pins = [
+          for (var i = 0; i < s.restaurants.length; i++)
+            (
+              id: 'nearby_$i',
+              pos: NLatLng(s.restaurants[i].latitude, s.restaurants[i].longitude),
+              name: s.restaurants[i].name,
+              item: s.restaurants[i] as Object,
+            ),
+        ];
+      case ModeANearbyTab.durunubi:
+        markerColor = const Color(0xFF7C8AFF);
+        pins = [
+          for (var i = 0; i < s.nearbyDurunubi.length; i++)
+            if (s.nearbyDurunubi[i].startLat != null &&
+                s.nearbyDurunubi[i].startLng != null)
+              (
+                id: 'nearby_$i',
+                pos: NLatLng(
+                    s.nearbyDurunubi[i].startLat!,
+                    s.nearbyDurunubi[i].startLng!),
+                name: s.nearbyDurunubi[i].name,
+                item: s.nearbyDurunubi[i] as Object,
+              ),
+        ];
+      default:
+        markerColor = const Color(0xFFFFB547);
+        pins = [
+          for (var i = 0; i < s.nearbyPlaces.length; i++)
+            (
+              id: 'nearby_$i',
+              pos: NLatLng(s.nearbyPlaces[i].latitude, s.nearbyPlaces[i].longitude),
+              name: s.nearbyPlaces[i].name,
+              item: s.nearbyPlaces[i] as Object,
+            ),
+        ];
+    }
+
+    if (pins.isEmpty) return;
+    final icon = await _getNearbyIcon(markerColor);
+    if (!mounted) return;
+
+    final markers = <NMarker>{};
+    for (final pin in pins) {
+      final m = NMarker(
+        id: pin.id,
+        position: pin.pos,
+        icon: icon,
+        caption: NOverlayCaption(
+          text: pin.name,
+          textSize: 11,
+          color: markerColor,
+          haloColor: Colors.black87,
+        ),
+        captionOffset: 4,
+        isHideCollidedCaptions: true,
+      );
+      final captured = pin.item;
+      m.setOnTapListener((_) {
+        if (!mounted) return;
+        if (captured is RestaurantEntity) {
+          _showNearbyItemActionSheet(
+            name: captured.name,
+            lat: captured.latitude,
+            lng: captured.longitude,
+            category: captured.category,
+            item: captured,
+          );
+        } else if (captured is PlaceEntity) {
+          _showNearbyItemActionSheet(
+            name: captured.name,
+            lat: captured.latitude,
+            lng: captured.longitude,
+            category: captured.category,
+            item: captured,
+          );
+        } else if (captured is TouristRouteEntity) {
+          _showNearbyItemActionSheet(
+            name: captured.name,
+            lat: captured.startLat ?? 0,
+            lng: captured.startLng ?? 0,
+            category: captured.region != null
+                ? '두루누비 · ${captured.region}'
+                : '두루누비',
+            item: captured,
+          );
+        }
+      });
+      markers.add(m);
+    }
+    _nearbyMarkerCount = markers.length;
+    await ctrl.addOverlayAll(markers);
   }
 
   // ── Mode A overlay widgets ─────────────────────────────────────
@@ -424,40 +598,53 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
       // ── 결과 시트 (안내 중 아닐 때) ──────────────────────────
       if (modeAState.routeResult != null && !navState.isNavigating)
-        Positioned(
-          left: 0, right: 0, bottom: 0,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-            height: _sheetAExpanded
-                ? context.screenHeight * 0.82
-                : context.screenHeight * 0.52,
-            decoration: const BoxDecoration(
-              color: kMapPanel,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              boxShadow: [
-                BoxShadow(color: Colors.black54, blurRadius: 40, offset: Offset(0, -12)),
-              ],
+        DraggableScrollableSheet(
+          controller: _sheetACtrl,
+          initialChildSize: 0.52,
+          minChildSize: 0.15,
+          maxChildSize: 0.85,
+          snap: true,
+          snapSizes: const [0.15, 0.52, 0.85],
+          builder: (ctx, sc) => _ModeAResultSheet(
+            scrollController: sc,
+            state: modeAState,
+            onRestaurantTap: (r) => _showNearbyItemActionSheet(
+              name: r.name,
+              lat: r.latitude,
+              lng: r.longitude,
+              category: r.category,
+              item: r,
             ),
-            child: _ModeAResultSheet(
-              state: modeAState,
-              expanded: _sheetAExpanded,
-              onToggleExpand: () =>
-                  setState(() => _sheetAExpanded = !_sheetAExpanded),
-              onRestaurantTap: (r) => context.push('/place-detail', extra: r),
-              onStartNavigation: () {
-                ref.read(modeANavProvider.notifier).start(modeAState.routeResult!);
-              },
-              onLoadCandidates: (extra) =>
-                  ref.read(modeAProvider.notifier).loadWaypointCandidates(extra),
-              onAddWaypointCandidate: (candidate) {
-                ref.read(modeAProvider.notifier).addWaypoint(RouteWaypoint(
-                  name: candidate.name,
-                  latitude: candidate.latitude,
-                  longitude: candidate.longitude,
-                ));
-                _showWaypointCandidateSheet(context);
-              },
+            onStartNavigation: () {
+              ref.read(modeANavProvider.notifier).start(modeAState.routeResult!);
+            },
+            onLoadCandidates: (extra) =>
+                ref.read(modeAProvider.notifier).loadWaypointCandidates(extra),
+            onAddWaypointCandidate: (candidate) {
+              ref.read(modeAProvider.notifier).addWaypoint(RouteWaypoint(
+                name: candidate.name,
+                latitude: candidate.latitude,
+                longitude: candidate.longitude,
+              ));
+              _showWaypointCandidateSheet(context);
+            },
+            onSwitchTab: (tab) =>
+                ref.read(modeAProvider.notifier).switchNearbyTab(tab),
+            onPlaceTap: (place) => _showNearbyItemActionSheet(
+              name: place.name,
+              lat: place.latitude,
+              lng: place.longitude,
+              category: place.category,
+              item: place,
+            ),
+            onDurunubiTap: (course) => _showNearbyItemActionSheet(
+              name: course.name,
+              lat: course.startLat ?? 0,
+              lng: course.startLng ?? 0,
+              category: course.region != null
+                  ? '두루누비 · ${course.region}'
+                  : '두루누비',
+              item: course,
             ),
           ),
         ),

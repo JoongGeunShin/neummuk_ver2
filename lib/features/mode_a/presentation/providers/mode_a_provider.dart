@@ -5,9 +5,24 @@ import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
 import '../../domain/entities/waypoint_candidate_entity.dart';
 import '../../domain/repositories/mode_a_repository.dart';
+import '../../../map/domain/entities/place_entity.dart';
+import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../onboarding/presentation/providers/onboarding_provider.dart';
 
 part 'mode_a_provider.g.dart';
+
+enum ModeANearbyTab {
+  restaurant('음식점', null),
+  sight('관광지', 12),
+  culture('문화시설', 14),
+  festival('축제·행사', 15),
+  course('여행코스', 25),
+  durunubi('두루누비', null);
+
+  const ModeANearbyTab(this.label, this.contentTypeId);
+  final String label;
+  final int? contentTypeId;
+}
 
 const _kRemove = Object();
 
@@ -35,6 +50,11 @@ class ModeAState {
     // Phase 4: waypoint candidates
     this.waypointCandidates = const [],
     this.loadingCandidates = false,
+    // 도착지 근처 탭
+    this.nearbyTab = ModeANearbyTab.restaurant,
+    this.nearbyPlaces = const [],
+    this.nearbyDurunubi = const [],
+    this.nearbyLoading = false,
   });
 
   final String from;
@@ -59,6 +79,12 @@ class ModeAState {
   final List<WaypointCandidateEntity> waypointCandidates;
   final bool loadingCandidates;
 
+  // 도착지 근처 탭
+  final ModeANearbyTab nearbyTab;
+  final List<PlaceEntity> nearbyPlaces;
+  final List<TouristRouteEntity> nearbyDurunubi;
+  final bool nearbyLoading;
+
   ModeAState copyWith({
     String? from,
     String? to,
@@ -77,6 +103,10 @@ class ModeAState {
     int? destKcal,
     List<WaypointCandidateEntity>? waypointCandidates,
     bool? loadingCandidates,
+    ModeANearbyTab? nearbyTab,
+    List<PlaceEntity>? nearbyPlaces,
+    List<TouristRouteEntity>? nearbyDurunubi,
+    bool? nearbyLoading,
   }) {
     return ModeAState(
       from: from ?? this.from,
@@ -96,6 +126,10 @@ class ModeAState {
       destKcal: destKcal ?? this.destKcal,
       waypointCandidates: waypointCandidates ?? this.waypointCandidates,
       loadingCandidates: loadingCandidates ?? this.loadingCandidates,
+      nearbyTab: nearbyTab ?? this.nearbyTab,
+      nearbyPlaces: nearbyPlaces ?? this.nearbyPlaces,
+      nearbyDurunubi: nearbyDurunubi ?? this.nearbyDurunubi,
+      nearbyLoading: nearbyLoading ?? this.nearbyLoading,
     );
   }
 }
@@ -175,10 +209,12 @@ class ModeA extends _$ModeA {
       destLat: lat,
       destLng: lng,
       routeResult: label.isEmpty ? null : state.routeResult,
-      // 도착지 변경 시 calorie matching 초기화
       destIsRestaurant: false,
       destKcal: 0,
       waypointCandidates: const [],
+      nearbyTab: ModeANearbyTab.restaurant,
+      nearbyPlaces: const [],
+      nearbyDurunubi: const [],
     );
     _save();
   }
@@ -301,6 +337,35 @@ class ModeA extends _$ModeA {
       );
     } catch (e) {
       state = state.copyWith(loadingCandidates: false);
+    }
+  }
+
+  Future<void> switchNearbyTab(ModeANearbyTab tab) async {
+    if (state.nearbyTab == tab) return;
+    state = state.copyWith(nearbyTab: tab, nearbyLoading: true);
+    final lat = state.destLat ?? 37.5635;
+    final lng = state.destLng ?? 126.9869;
+    try {
+      if (tab == ModeANearbyTab.restaurant) {
+        state = state.copyWith(nearbyLoading: false);
+        return;
+      }
+      if (tab == ModeANearbyTab.durunubi) {
+        final courses = await ref
+            .read(modeARepositoryProvider)
+            .getNearbyDurunubiCourses(latitude: lat, longitude: lng);
+        state = state.copyWith(nearbyDurunubi: courses, nearbyLoading: false);
+        return;
+      }
+      final places = await ref.read(modeARepositoryProvider).getNearbyPlaces(
+            latitude: lat,
+            longitude: lng,
+            radiusKm: 2.0,
+            contentTypeId: tab.contentTypeId!,
+          );
+      state = state.copyWith(nearbyPlaces: places, nearbyLoading: false);
+    } catch (_) {
+      state = state.copyWith(nearbyLoading: false);
     }
   }
 

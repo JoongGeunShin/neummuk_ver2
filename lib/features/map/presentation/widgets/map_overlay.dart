@@ -103,6 +103,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   void dispose() {
     _positionSub?.cancel();
     _disposeExplore();
+    _disposeModeA();
     _disposeModeB();
     super.dispose();
   }
@@ -332,9 +333,15 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       );
     }
     if (mode == MapMode.modeA && modeAState.routeResult != null) {
-      return Positioned(
-        right: 12,
-        bottom: context.screenHeight * (_sheetAExpanded ? 0.82 : 0.52) + bottomPad + 16,
+      return AnimatedBuilder(
+        animation: _sheetACtrl,
+        builder: (context, child) {
+          final screenH = MediaQuery.sizeOf(context).height;
+          final sheetH = _sheetACtrl.isAttached
+              ? _sheetACtrl.size * screenH
+              : screenH * 0.52;
+          return Positioned(right: 12, bottom: sheetH + bottomPad + 16, child: child!);
+        },
         child: zoomWidget,
       );
     }
@@ -381,10 +388,21 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       }
       if (prev?.routeResult != next.routeResult) {
         _drawModeAPolyline(next.routeResult);
-        // 결과가 사라지면(도착지 초기화 등) 수정 패널 다시 표시
         if (next.routeResult == null && mounted) {
           setState(() => _routePanelEditing = false);
+          _clearNearbyMarkers();
         }
+      }
+      // 탭 전환 or 데이터 로딩 완료 → 마커 갱신
+      final tabChanged = prev?.nearbyTab != next.nearbyTab;
+      final loadFinished =
+          (prev?.nearbyLoading ?? false) && !next.nearbyLoading;
+      final restaurantsRefreshed = next.nearbyTab == ModeANearbyTab.restaurant &&
+          !identical(prev?.restaurants, next.restaurants) &&
+          next.routeResult != null;
+      if ((tabChanged || loadFinished || restaurantsRefreshed) &&
+          next.routeResult != null) {
+        _updateNearbyMarkers(next);
       }
     });
 

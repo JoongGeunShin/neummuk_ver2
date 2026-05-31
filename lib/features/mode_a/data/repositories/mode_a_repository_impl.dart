@@ -6,6 +6,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../map/domain/entities/place_entity.dart';
+import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
 import '../../domain/entities/waypoint_candidate_entity.dart';
@@ -799,6 +801,165 @@ class ModeARepositoryImpl implements ModeARepository {
     }
     return results;
   }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // getNearbyPlaces — TourAPI locationBasedList2 (관광지·문화시설·축제·여행코스)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @override
+  Future<List<PlaceEntity>> getNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    required double radiusKm,
+    required int contentTypeId,
+  }) async {
+    try {
+      final uri = Uri.parse('${AppConstants.tourApiBaseUrl}/locationBasedList2')
+          .replace(queryParameters: {
+        'serviceKey': _tourApiKey,
+        'numOfRows': '20',
+        'pageNo': '1',
+        'MobileOS': 'AND',
+        'MobileApp': 'neummuk',
+        'mapX': longitude.toString(),
+        'mapY': latitude.toString(),
+        'radius': (radiusKm * 1000).clamp(100, 20000).toInt().toString(),
+        'contentTypeId': contentTypeId.toString(),
+        'arrange': 'E',
+        '_type': 'json',
+      });
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return [];
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = json['response']?['body'] as Map<String, dynamic>?;
+      final rawItems = body?['items']?['item'];
+      final items = rawItems is List
+          ? rawItems.cast<Map<String, dynamic>>()
+          : rawItems is Map<String, dynamic>
+              ? [rawItems]
+              : <Map<String, dynamic>>[];
+      return items.map<PlaceEntity?>((item) {
+        final lat = double.tryParse(item['mapy']?.toString() ?? '');
+        final lng = double.tryParse(item['mapx']?.toString() ?? '');
+        if (lat == null || lng == null) return null;
+        final id = item['contentid']?.toString() ?? '';
+        final name = (item['title'] as String? ?? '').trim();
+        if (name.isEmpty) return null;
+        final img = item['firstimage'] as String? ?? '';
+        return PlaceEntity(
+          id: 'tour_$id',
+          name: name,
+          latitude: lat,
+          longitude: lng,
+          address: item['addr1'] as String?,
+          imageUrl: img.isNotEmpty ? img : null,
+          category: _contentTypeLabel(contentTypeId),
+          source: PlaceSource.tourApi,
+        );
+      }).whereType<PlaceEntity>().toList();
+    } catch (e) {
+      debugPrint('[ModeA] getNearbyPlaces typeId=$contentTypeId error: $e');
+      return [];
+    }
+  }
+
+  static String _contentTypeLabel(int typeId) => switch (typeId) {
+        12 => '관광지',
+        14 => '문화시설',
+        15 => '축제·행사',
+        25 => '여행코스',
+        _ => '기타',
+      };
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // getNearbyDurunubiCourses — 두루누비 courseList + 위치 기반 필터
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @override
+  Future<List<TouristRouteEntity>> getNearbyDurunubiCourses({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final uri =
+          Uri.parse('${AppConstants.durunubiBaseUrl}/courseList').replace(
+        queryParameters: {
+          'ServiceKey': _tourApiKey,
+          'MobileOS': 'ETC',
+          'MobileApp': 'neummuk',
+          'numOfRows': '100',
+          'pageNo': '1',
+          '_type': 'json',
+        },
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return [];
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      final rawItems =
+          json['response']?['body']?['items']?['item'];
+      final items = rawItems is List
+          ? rawItems.cast<Map<String, dynamic>>()
+          : rawItems is Map<String, dynamic>
+              ? [rawItems]
+              : <Map<String, dynamic>>[];
+
+      final withDist = <({TouristRouteEntity route, double distM})>[];
+      for (final item in items) {
+        final lat = _parseDouble(item['mapy']);
+        final lng = _parseDouble(item['mapx']);
+        if (lat == null || lng == null) continue;
+        final route = _parseDurunubiItem(item, lat, lng);
+        if (route == null) continue;
+        withDist.add((route: route, distM: _haversine(latitude, longitude, lat, lng)));
+      }
+      withDist.sort((a, b) => a.distM.compareTo(b.distM));
+      return withDist.take(10).map((e) => e.route).toList();
+    } catch (e) {
+      debugPrint('[ModeA] getNearbyDurunubiCourses error: $e');
+      return [];
+    }
+  }
+
+  TouristRouteEntity? _parseDurunubiItem(
+      Map<String, dynamic> item, double lat, double lng) {
+    final name = (item['crsKorNm'] as String? ?? '').trim();
+    if (name.isEmpty) return null;
+    final distKm = _parseDouble(item['crsDstnc']) ?? 0.0;
+    final durationHrs = _parseDouble(item['crsTotlRqrmHour']) ?? 1.0;
+    final kcal =
+        AppConstants.calculateKcal(transport: 'walk', weightKg: AppConstants.defaultWeightKg,
+            durationSeconds: (durationHrs * 3600).round()).round();
+    final levelRaw = item['crsLevel']?.toString() ?? '';
+    final levelTag = switch (levelRaw) {
+      '1' || '하' => '하',
+      '2' || '중하' => '중하',
+      '3' || '중' => '중',
+      '4' || '중상' => '중상',
+      '5' || '상' => '상',
+      _ => '보통',
+    };
+    final imgs = [
+      item['thumbImg'], item['imgUrl'],
+      item['crsImgFileNm'], item['repFileNm'],
+    ].whereType<String>().where((s) => s.isNotEmpty).toList();
+    return TouristRouteEntity(
+      id: 'dur_${item['crsIdx'] ?? name}',
+      name: name,
+      distanceKm: distKm,
+      durationMinutes: (durationHrs * 60).round(),
+      kcal: kcal,
+      type: '도보',
+      tags: [levelTag],
+      startLat: lat,
+      startLng: lng,
+      region: item['sigun'] as String?,
+      gpxpath: item['gpxpath'] as String?,
+      imageUrls: imgs,
+    );
+  }
+
+  static double? _parseDouble(dynamic val) =>
+      val == null ? null : double.tryParse(val.toString());
 
   static double _haversine(
       double lat1, double lng1, double lat2, double lng2) {
