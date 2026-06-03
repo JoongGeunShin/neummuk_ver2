@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/food_catalog_repository_impl.dart';
 import '../../domain/entities/food_catalog_entity.dart';
@@ -19,6 +20,7 @@ class ExploreState {
     this.results = const [],
     this.popularFoods = const [],
     this.isLoading = false,
+    this.isSearchingApi = false,
     this.errorMessage,
   });
 
@@ -27,6 +29,8 @@ class ExploreState {
   final List<FoodCatalogEntity> results;
   final List<FoodCatalogEntity> popularFoods;
   final bool isLoading;
+  /// 검색 버튼으로 API 호출 중일 때 true
+  final bool isSearchingApi;
   final String? errorMessage;
 
   bool get isSearchMode => query.isNotEmpty;
@@ -37,6 +41,7 @@ class ExploreState {
     List<FoodCatalogEntity>? results,
     List<FoodCatalogEntity>? popularFoods,
     bool? isLoading,
+    bool? isSearchingApi,
     String? errorMessage,
   }) =>
       ExploreState(
@@ -45,6 +50,7 @@ class ExploreState {
         results: results ?? this.results,
         popularFoods: popularFoods ?? this.popularFoods,
         isLoading: isLoading ?? this.isLoading,
+        isSearchingApi: isSearchingApi ?? this.isSearchingApi,
         errorMessage: errorMessage,
       );
 }
@@ -83,21 +89,22 @@ class Explore extends _$Explore {
   }
 
   void setQuery(String q) {
-    state = state.copyWith(query: q);
+    state = state.copyWith(query: q, isSearchingApi: false);
     _debounce?.cancel();
     if (q.trim().isEmpty) {
       state = state.copyWith(results: []);
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 400), _search);
+    _debounce = Timer(const Duration(milliseconds: 400), _quickSearch);
   }
 
-  Future<void> _search() async {
+  /// 타이핑 중 실시간 검색 — Firestore 캐시만 조회
+  Future<void> _quickSearch() async {
     state = state.copyWith(isLoading: true);
     try {
       final items = await ref
           .read(foodCatalogRepositoryProvider)
-          .searchFoods(
+          .quickSearchFoods(
             state.query,
             category: state.category == '전체' ? null : state.category,
           );
@@ -107,10 +114,31 @@ class Explore extends _$Explore {
     }
   }
 
+  /// 검색 버튼 — Firestore + API 전체 파이프라인
+  Future<void> submitSearch() async {
+    if (state.query.trim().isEmpty) return;
+    _debounce?.cancel();
+    debugPrint('[Explore] submitSearch: "${state.query}"');
+    state = state.copyWith(isSearchingApi: true, isLoading: true);
+    try {
+      final items = await ref
+          .read(foodCatalogRepositoryProvider)
+          .searchFoods(
+            state.query,
+            category: state.category == '전체' ? null : state.category,
+          );
+      debugPrint('[Explore] submitSearch result: ${items.length} items');
+      state = state.copyWith(results: items, isLoading: false, isSearchingApi: false);
+    } catch (e) {
+      debugPrint('[Explore] submitSearch error: $e');
+      state = state.copyWith(isLoading: false, isSearchingApi: false);
+    }
+  }
+
   void setCategory(String cat) {
     state = state.copyWith(category: cat, results: []);
     if (state.query.isNotEmpty) {
-      _search();
+      _quickSearch();
     } else {
       _loadPopular();
     }
@@ -134,7 +162,7 @@ class Explore extends _$Explore {
                 category: f.category,
                 emoji: f.emoji,
                 nutrition: f.nutrition,
-                aliases: f.aliases,
+                tags: f.tags,
                 searchCount: f.searchCount + 1,
                 apiFoodCd: f.apiFoodCd,
                 isSeeded: f.isSeeded,

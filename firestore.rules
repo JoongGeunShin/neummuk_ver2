@@ -37,7 +37,7 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['search_count'])
           // 또는 search_count를 정확히 1 증가시키는 경우만 허용
           || (request.resource.data.search_count ==
-                resource.data.search_count + 1)
+                resource.data.get('search_count', 0) + 1)
         );
     }
 

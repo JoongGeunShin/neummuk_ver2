@@ -109,6 +109,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                               child: TextField(
                                 controller: _searchCtrl,
                                 onChanged: notifier.setQuery,
+                                textInputAction: TextInputAction.search,
+                                onSubmitted: (_) => notifier.submitSearch(),
                                 style: TextStyle(
                                     color: c.text,
                                     fontSize: 15,
@@ -126,7 +128,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                 ),
                               ),
                             ),
-                            if (state.query.isNotEmpty)
+                            if (state.query.isNotEmpty) ...[
                               GestureDetector(
                                 onTap: () {
                                   _searchCtrl.clear();
@@ -135,6 +137,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                 child: Icon(Icons.close_rounded,
                                     color: c.textMuted, size: 18),
                               ),
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onTap: notifier.submitSearch,
+                                child: state.isSearchingApi
+                                    ? SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: c.primary,
+                                        ),
+                                      )
+                                    : Icon(Icons.search_rounded,
+                                        color: c.primary, size: 20),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -374,7 +392,8 @@ class _FoodCard extends ConsumerWidget {
         final selected = await FoodDetailBottomSheet.show(context, ref, food);
         if (selected != null && context.mounted) {
           ref.read(selectedFoodProvider.notifier).set(selected);
-          ref.read(routeSearchProvider.notifier).loadRoutes(selected);
+          // 루트 상태 초기화 — 지도 오버레이가 GPS 확보 후 자동 검색
+          ref.read(routeSearchProvider.notifier).reset();
           ref.read(mapModeProvider.notifier).set(MapMode.modeB);
           context.push('/map');
         }
