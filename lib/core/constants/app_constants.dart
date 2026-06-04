@@ -27,10 +27,10 @@ class AppConstants {
       'https://apis.data.go.kr/B551011/KorService2';
   static const String kakaoLocalBaseUrl =
       'https://dapi.kakao.com/v2/local';
-  // 식품의약품안전처_식품영양성분 원료 DB (AMT_NUM 필드 사용)
+  // 식품의약품안전처_식품영양성분 DB (FoodNtrCpntDbInfo02 / getFoodNtrCpntDbInq02)
   static const String foodApiBaseUrl =
-      'https://apis.data.go.kr/1471000/FoodNtrIrdntInfoService1';
-  static const String foodApiEndpoint = 'getFoodNtrIrdntInfoList';
+      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo02';
+  static const String foodApiEndpoint = 'getFoodNtrCpntDbInq02';
 
   // Kakao Mobility API (인증: Authorization: KakaoAK {REST_API_KEY})
   // 한국관광공사_두루누비 정보 서비스 (산책로·자전거길 코스)
