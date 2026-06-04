@@ -153,7 +153,7 @@ class FoodApiItem {
 
     final serving1Portion = nutri1 > 0
         ? nutri1
-        : (z10500 > 0
+        : (z10500 > 0 && z10500 != servingRef
             ? z10500
             : (dish1 > 0 ? dish1 : _defaultServingG(foodName, cat1, cat2)));
 
