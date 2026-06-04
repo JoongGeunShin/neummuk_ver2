@@ -70,7 +70,7 @@ class AddFoodDialog extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Center(
-                  child: Text('식품영양처 DB에서 결과를 찾지 못했어요',
+                  child: Text('요청하신 음식의 결과를 찾지 못했어요\n올바른 이름 또는 구체적으로 입력해주세요',
                       style: TextStyle(
                           color: c.textMuted,
                           fontSize: 13,
