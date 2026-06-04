@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../domain/entities/food_catalog_entity.dart';
+import '../providers/explore_provider.dart';
 import 'food_card.dart';
 
 class SearchResults extends ConsumerWidget {
@@ -19,13 +20,15 @@ class SearchResults extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
+    final isLoading =
+        ref.watch(exploreProvider.select((s) => s.isLoadingCandidates));
 
     if (foods.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🔍', style: TextStyle(fontSize: context.wp(14))),
+            Text('🙁', style: TextStyle(fontSize: context.wp(14))),
             const SizedBox(height: 12),
             Text('"$query" 검색 결과가 없어요',
                 style: TextStyle(
@@ -33,34 +36,51 @@ class SearchResults extends ConsumerWidget {
                     fontSize: 15,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            Text('식품영양처 DB에서 직접 추가할 수 있어요',
+            Text('음식 정보를 찾아보고 추가해볼까요?',
                 style: TextStyle(
                     color: c.textFaint,
                     fontSize: 13,
                     fontWeight: FontWeight.w500)),
             const SizedBox(height: 20),
             GestureDetector(
-              onTap: onAddNew,
-              child: Container(
+              onTap: isLoading ? null : onAddNew,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
-                  color: c.primary,
+                  color: isLoading
+                      ? c.primary.withValues(alpha: 0.6)
+                      : c.primary,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 6),
-                    Text(
-                      '새로 추가하기',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800),
-                    ),
-                  ],
+                  children: isLoading
+                      ? [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('찾아보는 중...',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800)),
+                        ]
+                      : const [
+                          Icon(Icons.add_rounded,
+                              color: Colors.white, size: 18),
+                          SizedBox(width: 6),
+                          Text('새로 추가하기',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800)),
+                        ],
                 ),
               ),
             ),
@@ -84,19 +104,34 @@ class SearchResults extends ConsumerWidget {
                       letterSpacing: 0.4)),
               const Spacer(),
               GestureDetector(
-                onTap: onAddNew,
+                onTap: isLoading ? null : onAddNew,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add_circle_outline_rounded,
-                        size: 14, color: c.primary),
-                    const SizedBox(width: 4),
-                    Text('새로 추가',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: c.primary)),
-                  ],
+                  children: isLoading
+                      ? [
+                          SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 1.5, color: c.primary),
+                          ),
+                          const SizedBox(width: 4),
+                          Text('찾아보는 중...',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.primary)),
+                        ]
+                      : [
+                          Icon(Icons.add_circle_outline_rounded,
+                              size: 14, color: c.primary),
+                          const SizedBox(width: 4),
+                          Text('새로 추가',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.primary)),
+                        ],
                 ),
               ),
             ],
