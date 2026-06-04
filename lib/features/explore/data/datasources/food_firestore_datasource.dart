@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 
 /// food_catalog 컬렉션 CRUD.
@@ -78,5 +79,88 @@ class FoodFirestoreDatasource {
       }
       await batch.commit();
     }
+  }
+
+  /// search_count <= [maxCount] 이고 [before] 이전에 갱신된 비시드 항목 삭제.
+  /// 복합 인덱스 불필요: search_count 단독 쿼리 후 클라이언트에서 is_seeded 필터링
+  Future<int> pruneStale({
+    required int maxCount,
+    required DateTime before,
+  }) async {
+    try {
+      final snap = await _col
+          .where('search_count', isLessThanOrEqualTo: maxCount)
+          .limit(100)
+          .get();
+
+      final cutoff = Timestamp.fromDate(before);
+      final stale = snap.docs.where((d) {
+        final data = d.data();
+        // 시드 데이터는 보호
+        if (data['is_seeded'] as bool? ?? false) return false;
+        final ts = data['updated_at'];
+        return ts is Timestamp && ts.compareTo(cutoff) < 0;
+      }).toList();
+
+      if (stale.isEmpty) return 0;
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in stale) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      debugPrint('[Firestore] pruned ${stale.length} stale food items');
+      return stale.length;
+    } catch (e) {
+      debugPrint('[Firestore] pruneStale error: $e');
+      return 0;
+    }
+  }
+
+  // ── 카테고리 컬렉션 ──────────────────────────────────────────────
+
+  final _catCol =
+      FirebaseFirestore.instance.collection('food_categories');
+
+  Future<List<String>> getCategories() async {
+    try {
+      final snap =
+          await _catCol.orderBy('order').get();
+      if (snap.docs.isEmpty) return [];
+      return snap.docs
+          .map((d) => d.data()['name'] as String? ?? '')
+          .where((n) => n.isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('[Firestore] getCategories error: $e');
+      return [];
+    }
+  }
+
+  Future<void> ensureCategory(String name, {int order = 99}) async {
+    try {
+      final ref = _catCol.doc(name);
+      final snap = await ref.get();
+      if (!snap.exists) {
+        await ref.set({
+          'name': name,
+          'order': order,
+          'is_builtin': false,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+        debugPrint('[Firestore] created new category: $name');
+      }
+    } catch (e) {
+      debugPrint('[Firestore] ensureCategory error: $e');
+    }
+  }
+
+  Future<void> seedCategories(List<Map<String, dynamic>> cats) async {
+    final batch = FirebaseFirestore.instance.batch();
+    for (final cat in cats) {
+      final ref = _catCol.doc(cat['name'] as String);
+      batch.set(ref, cat, SetOptions(merge: true));
+    }
+    await batch.commit();
   }
 }

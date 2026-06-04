@@ -58,6 +58,10 @@ class FoodEmojiService {
   static bool _nameHas(String name, List<String> keywords) =>
       keywords.any(name.contains);
 
+  /// 음식 이름만으로 빠르게 UI 카테고리 반환 (cat1/cat2 없이). 충돌 감지용.
+  static String categoryFromName(String foodName) =>
+      resolveCategory(foodName: foodName);
+
   /// FOOD_CAT2_NM(식품중분류명) → UI 카테고리 매핑 테이블.
   /// cat2 값이 entry.key를 포함하면 해당 카테고리로 분류.
   static const _cat2ToUiCategory = <String, String>{

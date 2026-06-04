@@ -21,6 +21,9 @@ class FoodDetailBottomSheet extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // BottomNavigationBar 위로 올라오도록 useSafeArea 비활성화 후
+      // 버튼 padding에서 직접 처리
+      useSafeArea: false,
       builder: (_) => FoodDetailBottomSheet(food: food),
     );
   }
@@ -43,8 +46,9 @@ class FoodDetailBottomSheet extends ConsumerWidget {
         ),
         child: ListView(
           controller: scrollCtrl,
+          // kBottomNavigationBarHeight(56) 추가로 앱 하단 네비게이션바 위에 버튼 노출
           padding: EdgeInsets.fromLTRB(
-              20, 0, 20, context.bottomPadding + 20),
+              20, 0, 20, context.bottomPadding + kBottomNavigationBarHeight + 20),
           children: [
             // 핸들
             Center(

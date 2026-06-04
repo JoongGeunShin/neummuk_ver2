@@ -10,24 +10,6 @@ import '../../domain/entities/food_catalog_entity.dart';
 import '../providers/explore_provider.dart';
 import '../widgets/food_detail_bottom_sheet.dart';
 
-const _categories = [
-  '전체',
-  '치킨',
-  '족발·보쌈',
-  '돈까스·회·일식',
-  '피자',
-  '구이·고기',
-  '야식',
-  '양식',
-  '중식',
-  '아시안',
-  '백반·죽·국수',
-  '도시락',
-  '분식',
-  '카페·디저트',
-  '패스트푸드',
-];
-
 class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
 
@@ -50,161 +32,189 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final state = ref.watch(exploreProvider);
     final notifier = ref.read(exploreProvider.notifier);
 
+    // 카테고리가 로드되면 동적으로 사용, 그 전에는 빈 목록 유지
+    final categories = state.categories.isEmpty
+        ? const ['전체']
+        : state.categories;
+
     return DoubleBackToExit(
       child: Scaffold(
-      backgroundColor: c.bg,
-      body: Column(
-        children: [
-          // ── 헤더 ─────────────────────────────────────────────
-          SafeArea(
-            bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 뒤로가기 + 타이틀 (내 기록·MY 페이지와 동일 패턴)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      context.wp(2), context.hp(1), context.wp(3), 0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => context.go('/home'),
-                        icon: Icon(Icons.arrow_back_ios_new_rounded,
-                            color: c.text, size: 20),
-                      ),
-                      Text(
-                        '탐색',
-                        style: TextStyle(
-                          color: c.text,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
+        backgroundColor: c.bg,
+        body: Column(
+          children: [
+            // ── 헤더 ─────────────────────────────────────────────
+            SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                        context.wp(2), context.hp(1), context.wp(3), 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => context.go('/home'),
+                          icon: Icon(Icons.arrow_back_ios_new_rounded,
+                              color: c.text, size: 20),
                         ),
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                ),
-                // 검색바 + 카테고리 칩
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 48,
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          color: c.surfaceAlt,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: c.outline),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.search_rounded,
-                                color: c.textMuted, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchCtrl,
-                                onChanged: notifier.setQuery,
-                                textInputAction: TextInputAction.search,
-                                onSubmitted: (_) => notifier.submitSearch(),
-                                style: TextStyle(
-                                    color: c.text,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600),
-                                decoration: InputDecoration(
-                                  hintText: '음식 이름으로 검색 (예: 삼겹살, 타코야끼)',
-                                  hintStyle: TextStyle(
-                                      color: c.textMuted,
-                                      fontWeight: FontWeight.w500),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: EdgeInsets.zero,
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                            if (state.query.isNotEmpty) ...[
-                              GestureDetector(
-                                onTap: () {
-                                  _searchCtrl.clear();
-                                  notifier.setQuery('');
-                                },
-                                child: Icon(Icons.close_rounded,
-                                    color: c.textMuted, size: 18),
-                              ),
-                              const SizedBox(width: 6),
-                              GestureDetector(
-                                onTap: notifier.submitSearch,
-                                child: state.isSearchingApi
-                                    ? SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: c.primary,
-                                        ),
-                                      )
-                                    : Icon(Icons.search_rounded,
-                                        color: c.primary, size: 20),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 36,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _categories.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 8),
-                          itemBuilder: (ctx, i) => AppChip(
-                            label: _categories[i],
-                            active: state.category == _categories[i],
-                            onTap: () =>
-                                notifier.setCategory(_categories[i]),
+                        Text(
+                          '탐색',
+                          style: TextStyle(
+                            color: c.text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
+                        const Spacer(),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  // 검색바 + 카테고리 칩
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: c.surfaceAlt,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: c.outline),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.search_rounded,
+                                  color: c.textMuted, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchCtrl,
+                                  onChanged: notifier.setQuery,
+                                  textInputAction: TextInputAction.search,
+                                  onSubmitted: (_) => notifier.submitSearch(),
+                                  style: TextStyle(
+                                      color: c.text,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600),
+                                  decoration: InputDecoration(
+                                    hintText: '음식 이름으로 검색 (예: 삼겹살, 타코야끼)',
+                                    hintStyle: TextStyle(
+                                        color: c.textMuted,
+                                        fontWeight: FontWeight.w500),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    contentPadding: EdgeInsets.zero,
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              if (state.query.isNotEmpty) ...[
+                                GestureDetector(
+                                  onTap: () {
+                                    _searchCtrl.clear();
+                                    notifier.setQuery('');
+                                  },
+                                  child: Icon(Icons.close_rounded,
+                                      color: c.textMuted, size: 18),
+                                ),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: notifier.submitSearch,
+                                  child: state.isSearchingApi
+                                      ? SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: c.primary,
+                                          ),
+                                        )
+                                      : Icon(Icons.search_rounded,
+                                          color: c.primary, size: 20),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 36,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: categories.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (ctx, i) => AppChip(
+                              label: categories[i],
+                              active: state.category == categories[i],
+                              onTap: () =>
+                                  notifier.setCategory(categories[i]),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // ── 콘텐츠 ───────────────────────────────────────────
-          Expanded(
-            child: state.isLoading
-                ? Center(
-                    child: CircularProgressIndicator(color: c.primary))
-                : state.isSearchMode
-                    ? _SearchResults(
-                        foods: state.results,
-                        query: state.query,
-                      )
-                    : _PopularSection(foods: state.popularFoods),
-          ),
-        ],
+            // ── 콘텐츠 ───────────────────────────────────────────
+            Expanded(
+              child: state.isLoading
+                  ? Center(
+                      child:
+                          CircularProgressIndicator(color: c.primary))
+                  : state.isSearchMode
+                      ? _SearchResults(
+                          foods: state.results,
+                          query: state.query,
+                          onAddNew: () =>
+                              _showAddFoodDialog(context, ref, state.query),
+                        )
+                      : _PopularSection(foods: state.popularFoods),
+            ),
+          ],
+        ),
       ),
-    )); // DoubleBackToExit, Scaffold
+    );
+  }
+
+  Future<void> _showAddFoodDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String query,
+  ) async {
+    if (query.trim().isEmpty) return;
+    final notifier = ref.read(exploreProvider.notifier);
+    await notifier.fetchApiCandidates(query);
+
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => _AddFoodDialog(query: query),
+    );
   }
 }
 
 // ── 검색 결과 ──────────────────────────────────────────────────────────────────
 
 class _SearchResults extends ConsumerWidget {
-  const _SearchResults({required this.foods, required this.query});
+  const _SearchResults({
+    required this.foods,
+    required this.query,
+    required this.onAddNew,
+  });
 
   final List<FoodCatalogEntity> foods;
   final String query;
+  final VoidCallback onAddNew;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -222,11 +232,38 @@ class _SearchResults extends ConsumerWidget {
                     fontSize: 15,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            Text('다른 이름으로 검색해보세요',
+            Text('식품영양처 DB에서 직접 추가할 수 있어요',
                 style: TextStyle(
                     color: c.textFaint,
                     fontSize: 13,
                     fontWeight: FontWeight.w500)),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: onAddNew,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: c.primary,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.add_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    const Text(
+                      '새로 추가하기',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -237,12 +274,33 @@ class _SearchResults extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Text('${foods.length}개 결과',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: c.textMuted,
-                  letterSpacing: 0.4)),
+          child: Row(
+            children: [
+              Text('${foods.length}개 결과',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: c.textMuted,
+                      letterSpacing: 0.4)),
+              const Spacer(),
+              GestureDetector(
+                onTap: onAddNew,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_circle_outline_rounded,
+                        size: 14, color: c.primary),
+                    const SizedBox(width: 4),
+                    Text('새로 추가',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: c.primary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: GridView.builder(
@@ -259,6 +317,220 @@ class _SearchResults extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── 새로 추가하기 다이얼로그 ────────────────────────────────────────────────────
+
+class _AddFoodDialog extends ConsumerWidget {
+  const _AddFoodDialog({required this.query});
+
+  final String query;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final state = ref.watch(exploreProvider);
+    final notifier = ref.read(exploreProvider.notifier);
+
+    final keyboardH = MediaQuery.of(context).viewInsets.bottom;
+
+    return Dialog(
+      backgroundColor: c.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      // 키보드가 올라올 때 다이얼로그 하단 여백을 키보드 높이만큼 추가해 위로 밀어냄
+      insetPadding: EdgeInsets.fromLTRB(20, 40, 20, keyboardH + 20),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 헤더
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('"$query" 검색 결과',
+                          style: TextStyle(
+                              color: c.text,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text('추가할 음식을 선택하세요',
+                          style: TextStyle(
+                              color: c.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    notifier.clearApiCandidates();
+                    Navigator.of(context).pop();
+                  },
+                  icon: Icon(Icons.close_rounded, color: c.textMuted),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 후보 목록
+            if (state.isLoadingCandidates)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                    child: CircularProgressIndicator(color: c.primary)),
+              )
+            else if (state.apiCandidates.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text('식품영양처 DB에서 결과를 찾지 못했어요',
+                      style: TextStyle(
+                          color: c.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500)),
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  // 키보드 높이와 다이얼로그 헤더/패딩을 제외한 잔여 공간으로 제한
+                  maxHeight: (MediaQuery.of(context).size.height
+                          - keyboardH
+                          - 260) // 헤더(~80) + 다이얼로그 패딩(40*2+20*2) + 여유
+                      .clamp(80.0, MediaQuery.of(context).size.height * 0.4),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: state.apiCandidates.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: c.outline,
+                  ),
+                  itemBuilder: (ctx, i) {
+                    final food = state.apiCandidates[i];
+                    return _CandidateTile(
+                      food: food,
+                      onTap: () async {
+                        Navigator.of(context).pop();
+                        final ok =
+                            await notifier.saveSelectedFood(food);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(ok
+                                  ? '"${food.displayName}" 추가됨'
+                                  : '추가에 실패했어요'),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CandidateTile extends StatelessWidget {
+  const _CandidateTile({required this.food, required this.onTap});
+
+  final FoodCatalogEntity food;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(food.emoji,
+                    style: const TextStyle(fontSize: 22)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    food.displayName,
+                    style: TextStyle(
+                        color: c.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(food.category,
+                          style: TextStyle(
+                              color: c.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                      Text('  ·  ',
+                          style: TextStyle(
+                              color: c.textFaint, fontSize: 11)),
+                      Text('1인분 ${food.nutrition.servingSizeG.round()}g',
+                          style: TextStyle(
+                              color: c.textFaint,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${food.nutrition.caloriesKcal.round()}',
+                  style: TextStyle(
+                      color: c.primary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800),
+                ),
+                Text('kcal',
+                    style: TextStyle(
+                        color: c.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.add_circle_outline_rounded,
+                color: c.primary, size: 20),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -299,8 +571,7 @@ class _PopularSection extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Center(
-                        child:
-                            Text('🔥', style: TextStyle(fontSize: 28))),
+                        child: Text('🔥', style: TextStyle(fontSize: 28))),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -364,8 +635,7 @@ class _PopularSection extends ConsumerWidget {
                 childAspectRatio: context.screenWidth * 0.44 / 200,
               ),
               delegate: SliverChildBuilderDelegate(
-                (ctx, i) =>
-                    _FoodCard(food: foods[i], showRank: i < 3),
+                (ctx, i) => _FoodCard(food: foods[i], showRank: i < 3),
                 childCount: foods.length,
               ),
             ),
@@ -392,7 +662,6 @@ class _FoodCard extends ConsumerWidget {
         final selected = await FoodDetailBottomSheet.show(context, ref, food);
         if (selected != null && context.mounted) {
           ref.read(selectedFoodProvider.notifier).set(selected);
-          // 루트 상태 초기화 — 지도 오버레이가 GPS 확보 후 자동 검색
           ref.read(routeSearchProvider.notifier).reset();
           ref.read(mapModeProvider.notifier).set(MapMode.modeB);
           context.push('/map');
