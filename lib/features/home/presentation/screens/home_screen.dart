@@ -10,7 +10,6 @@ import '../../../../core/widgets/segmented_control.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../event/presentation/providers/event_provider.dart';
 import '../../../event/presentation/widgets/event_card.dart';
-import '../../../mode_b/data/repositories/mode_b_repository_impl.dart' show mockRoutes;
 import '../../../walk/presentation/providers/walk_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -359,65 +358,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 // Events section
                 _EventsSection(),
-
-                // Tourist routes section
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(context.wp(5), 0, context.wp(5), context.hp(1.5)),
-                    child: Text('오늘의 관광 코스',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c.text, letterSpacing: -0.2)),
-                  ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(context.wp(5), 0, context.wp(5), context.hp(3)),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (ctx, i) {
-                        final r = mockRoutes.elementAt(i);
-                        return Container(
-                          margin: EdgeInsets.only(bottom: context.hp(1)),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: c.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: c.outline),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48, height: 48,
-                                decoration: BoxDecoration(
-                                  color: c.primarySoft,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Icon(
-                                    r.type == '도보'
-                                        ? Icons.hiking_rounded
-                                        : Icons.directions_bike_rounded,
-                                    size: 22, color: c.primary),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(r.name,
-                                        style: TextStyle(color: c.text, fontWeight: FontWeight.w800, fontSize: 14)),
-                                    const SizedBox(height: 2),
-                                    Text('${r.distanceKm}km · ${r.durationMinutes}분 · 약 ${r.kcal} kcal',
-                                        style: TextStyle(color: c.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios_rounded, size: 14, color: c.textFaint),
-                            ],
-                          ),
-                        );
-                      },
-                      childCount: mockRoutes.take(3).length,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

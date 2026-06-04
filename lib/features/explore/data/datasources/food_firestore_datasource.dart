@@ -95,10 +95,7 @@ class FoodFirestoreDatasource {
 
       final cutoff = Timestamp.fromDate(before);
       final stale = snap.docs.where((d) {
-        final data = d.data();
-        // 시드 데이터는 보호
-        if (data['is_seeded'] as bool? ?? false) return false;
-        final ts = data['updated_at'];
+        final ts = d.data()['updated_at'];
         return ts is Timestamp && ts.compareTo(cutoff) < 0;
       }).toList();
 
@@ -155,12 +152,4 @@ class FoodFirestoreDatasource {
     }
   }
 
-  Future<void> seedCategories(List<Map<String, dynamic>> cats) async {
-    final batch = FirebaseFirestore.instance.batch();
-    for (final cat in cats) {
-      final ref = _catCol.doc(cat['name'] as String);
-      batch.set(ref, cat, SetOptions(merge: true));
-    }
-    await batch.commit();
-  }
 }

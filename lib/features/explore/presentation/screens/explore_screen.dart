@@ -167,18 +167,21 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
             // ── 콘텐츠 ───────────────────────────────────────────
             Expanded(
-              child: state.isLoading
-                  ? Center(
-                      child:
-                          CircularProgressIndicator(color: c.primary))
-                  : state.isSearchMode
-                      ? _SearchResults(
-                          foods: state.results,
-                          query: state.query,
-                          onAddNew: () =>
-                              _showAddFoodDialog(context, ref, state.query),
-                        )
-                      : _PopularSection(foods: state.popularFoods),
+              child: AbsorbPointer(
+                absorbing: state.isLoadingCandidates,
+                child: state.isLoading
+                    ? Center(
+                        child:
+                            CircularProgressIndicator(color: c.primary))
+                    : state.isSearchMode
+                        ? _SearchResults(
+                            foods: state.results,
+                            query: state.query,
+                            onAddNew: () =>
+                                _showAddFoodDialog(context, ref, state.query),
+                          )
+                        : _PopularSection(foods: state.popularFoods),
+              ),
             ),
           ],
         ),
@@ -334,13 +337,16 @@ class _AddFoodDialog extends ConsumerWidget {
     final state = ref.watch(exploreProvider);
     final notifier = ref.read(exploreProvider.notifier);
 
+    // 다이얼로그 가용 높이 = 화면 높이 - 키보드 - insetPadding vertical(80) - 내부 padding(40)
+    final screenH = MediaQuery.of(context).size.height;
     final keyboardH = MediaQuery.of(context).viewInsets.bottom;
+    final listMaxH = (screenH - keyboardH - 120 - 80)
+        .clamp(80.0, screenH * 0.4);
 
     return Dialog(
       backgroundColor: c.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      // 키보드가 올라올 때 다이얼로그 하단 여백을 키보드 높이만큼 추가해 위로 밀어냄
-      insetPadding: EdgeInsets.fromLTRB(20, 40, 20, keyboardH + 20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -398,43 +404,46 @@ class _AddFoodDialog extends ConsumerWidget {
                 ),
               )
             else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  // 키보드 높이와 다이얼로그 헤더/패딩을 제외한 잔여 공간으로 제한
-                  maxHeight: (MediaQuery.of(context).size.height
-                          - keyboardH
-                          - 260) // 헤더(~80) + 다이얼로그 패딩(40*2+20*2) + 여유
-                      .clamp(80.0, MediaQuery.of(context).size.height * 0.4),
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: state.apiCandidates.length,
-                  separatorBuilder: (_, __) => Divider(
-                    height: 1,
-                    color: c.outline,
+              // 저장 중 전체 목록 gesture 차단
+              AbsorbPointer(
+                absorbing: state.isSaving,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: listMaxH),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: state.apiCandidates.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: c.outline,
+                    ),
+                    itemBuilder: (ctx, i) {
+                      final food = state.apiCandidates[i];
+                      final isSavingThis =
+                          state.savingCanonicalName == food.canonicalName;
+                      return _CandidateTile(
+                        food: food,
+                        isSaving: isSavingThis,
+                        onTap: state.isSaving
+                            ? null // 저장 중이면 다른 항목 탭 차단
+                            : () async {
+                                Navigator.of(context).pop();
+                                final ok =
+                                    await notifier.saveSelectedFood(food);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(ok
+                                          ? '"${food.displayName}" 추가됨'
+                                          : '추가에 실패했어요'),
+                                      duration: const Duration(seconds: 2),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
+                      );
+                    },
                   ),
-                  itemBuilder: (ctx, i) {
-                    final food = state.apiCandidates[i];
-                    return _CandidateTile(
-                      food: food,
-                      onTap: () async {
-                        Navigator.of(context).pop();
-                        final ok =
-                            await notifier.saveSelectedFood(food);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(ok
-                                  ? '"${food.displayName}" 추가됨'
-                                  : '추가에 실패했어요'),
-                              duration: const Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  },
                 ),
               ),
           ],
@@ -445,10 +454,15 @@ class _AddFoodDialog extends ConsumerWidget {
 }
 
 class _CandidateTile extends StatelessWidget {
-  const _CandidateTile({required this.food, required this.onTap});
+  const _CandidateTile({
+    required this.food,
+    required this.onTap,
+    this.isSaving = false,
+  });
 
   final FoodCatalogEntity food;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isSaving;
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +470,9 @@ class _CandidateTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
-      child: Padding(
+      child: Opacity(
+        opacity: isSaving ? 1.0 : (onTap == null ? 0.5 : 1.0),
+        child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
         child: Row(
           children: [
@@ -468,8 +484,15 @@ class _CandidateTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
-                child: Text(food.emoji,
-                    style: const TextStyle(fontSize: 22)),
+                child: isSaving
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: c.primary),
+                      )
+                    : Text(food.emoji,
+                        style: const TextStyle(fontSize: 22)),
               ),
             ),
             const SizedBox(width: 12),
@@ -530,7 +553,8 @@ class _CandidateTile extends StatelessWidget {
                 color: c.primary, size: 20),
           ],
         ),
-      ),
+        ),  // Padding
+      ),    // Opacity
     );
   }
 }

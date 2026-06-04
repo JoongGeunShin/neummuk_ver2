@@ -15,7 +15,6 @@ abstract class FoodCatalogRepository {
 
   Future<List<FoodCatalogEntity>> getPopularFoods({String? category, int limit = 20});
   Future<void> incrementSearchCount(String canonicalName);
-  Future<void> seedInitialData();
 
   /// search_count 저조 + 오래된 항목 삭제.
   Future<void> pruneStaleData();

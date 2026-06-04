@@ -17,9 +17,15 @@ import '../../../../core/env/app_env.dart';
 ///   AMT_NUM24 → 포화지방산(g)
 ///
 /// 서빙 사이즈 우선순위:
-///   NUTRI_AMOUNT_SERVING(1회 섭취참고량) → DISH_ONE_SERVING(1회분량 참고량)
-///   → SERVING_SIZE(영양성분함량기준량) → 100g 폴백
+///   NUTRI_AMOUNT_SERVING(1회 섭취참고량)
+///   → Z10500 (KDRI 기반 1회 제공량 — 예: 짜장면 600mL)
+///   → DISH_ONE_SERVING(1회분량 참고량)
+///   → _defaultServingG (음식 종류별 기본값)
 ///   영양소 수치는 SERVING_SIZE 기준이므로 1인분 기준으로 스케일링한다.
+///
+/// 필터링:
+///   FOOD_OR_NM에 '외식'이 포함된 데이터만 사용.
+///   주요 영양소(탄수화물+단백질+지방) 합계가 0인 불완전 데이터 제외.
 class FoodApiDatasource {
   static const _timeout = Duration(seconds: 10);
 
@@ -83,8 +89,10 @@ class FoodApiDatasource {
           .where((item) =>
               item.foodName.isNotEmpty &&
               item.caloriesKcal > 0 &&
-              // 주요 영양소(탄수화물+단백질+지방) 모두 0이면 데이터 불완전 → 제외
-              (item.carbsG + item.proteinG + item.fatG) > 0)
+              // 주요 영양소 모두 0이면 불완전 데이터 → 제외
+              (item.carbsG + item.proteinG + item.fatG) > 0 &&
+              // 외식 데이터만 사용 (가공식품·농산물 등 제외)
+              item.foodOrNm.contains('외식'))
           .toList();
     } catch (e) {
       debugPrint('[FoodApi] parse error: $e');
@@ -109,11 +117,12 @@ class FoodApiItem {
     this.dbClassName = '',
     this.foodCat1Name = '',
     this.foodCat2Name = '',
+    this.foodOrNm = '',
   });
 
   final String foodCd;
   final String foodName;
-  /// 1인분 기준량 (NUTRI_AMOUNT_SERVING → DISH_ONE_SERVING → SERVING_SIZE → 100g)
+  /// 1인분 기준량 (NUTRI_AMOUNT_SERVING → Z10500 → DISH_ONE_SERVING → 기본값)
   final double servingSizeG;
   final double caloriesKcal;
   final double carbsG;
@@ -126,23 +135,28 @@ class FoodApiItem {
   final String dbClassName;
   final String foodCat1Name;
   final String foodCat2Name;
+  /// 식품 기원명 (외식/가공식품/농산물 등)
+  final String foodOrNm;
 
   factory FoodApiItem.fromJson(Map<String, dynamic> j) {
-    // 영양소 값의 기준 참조량
+    // 영양소 기준 참조량 (SERVING_SIZE)
     final refG = _d(j['SERVING_SIZE']);
     final servingRef = refG > 0 ? refG : 100.0;
 
-    // 1인분 기준: NUTRI_AMOUNT_SERVING → DISH_ONE_SERVING → 음식 종류별 기본값
+    // 1인분 기준: NUTRI_AMOUNT_SERVING → Z10500 → DISH_ONE_SERVING → 기본값
     final nutri1 = _parseServingG(j['NUTRI_AMOUNT_SERVING']?.toString());
+    final z10500 = _parseServingG(j['Z10500']?.toString()); // KDRI 1회 제공량
     final dish1 = _parseServingG(j['DISH_ONE_SERVING']?.toString());
     final foodName = j['FOOD_NM_KR']?.toString() ?? '';
     final cat1 = j['FOOD_CAT1_NM']?.toString() ?? '';
     final cat2 = j['FOOD_CAT2_NM']?.toString() ?? '';
-    final serving1Portion = nutri1 > 0 ? nutri1
-        : (dish1 > 0 ? dish1
-        : _defaultServingG(foodName, cat1, cat2));
 
-    // 영양소를 1인분 기준으로 스케일링
+    final serving1Portion = nutri1 > 0
+        ? nutri1
+        : (z10500 > 0
+            ? z10500
+            : (dish1 > 0 ? dish1 : _defaultServingG(foodName, cat1, cat2)));
+
     final scale = serving1Portion / servingRef;
 
     return FoodApiItem(
@@ -160,15 +174,17 @@ class FoodApiItem {
       dbClassName: j['DB_CLASS_NM']?.toString() ?? '',
       foodCat1Name: cat1,
       foodCat2Name: cat2,
+      foodOrNm: j['FOOD_OR_NM']?.toString() ?? '',
     );
   }
 
   /// API에 1회 섭취참고량이 없을 때 음식 종류별 기본 1인분 기준 (g).
+  /// Z10500이 있으면 이 값은 사용되지 않는다.
   static double _defaultServingG(String name, String cat1, String cat2) {
     bool has(List<String> kw) => kw.any(name.contains);
     if (has(['찌개', '전골'])) return 400.0;
     if (has(['국', '탕', '설렁탕', '곰탕', '갈비탕', '순대국'])) return 500.0;
-    if (has(['라면', '짬뽕', '쌀국수', '냉면', '칼국수', '국수', '콩국수'])) return 600.0;
+    if (has(['짜장', '짜장면', '라면', '짬뽕', '쌀국수', '냉면', '칼국수', '국수', '콩국수'])) return 600.0;
     if (has(['우동', '소바'])) return 500.0;
     if (has(['볶음밥', '비빔밥', '덮밥'])) return 350.0;
     if (has(['밥'])) return 300.0;
@@ -186,19 +202,17 @@ class FoodApiItem {
     if (has(['빵', '식빵'])) return 80.0;
     if (has(['과자', '쿠키', '스낵', '칩'])) return 50.0;
     if (cat1.contains('음료') || cat2.contains('음료')) return 240.0;
-    return 200.0; // 일반 음식 기본값
+    return 200.0;
   }
 
-  /// "600g", "1인분(600g)", "600ml", "600" 등에서 g 수치를 파싱.
+  /// "600g", "1인분(600g)", "600ml", "600" 등에서 g/ml 수치를 파싱.
   static double _parseServingG(String? raw) {
     if (raw == null || raw.trim().isEmpty || raw == '-') return 0.0;
-    // g/ml 단위가 명시된 경우 우선 파싱
     final unitMatch = RegExp(
       r'([\d.]+)\s*(?:g|ml|mL|㎖|㎏|cc)',
       caseSensitive: false,
     ).firstMatch(raw);
     if (unitMatch != null) return double.tryParse(unitMatch.group(1)!) ?? 0.0;
-    // 단위 없이 숫자만 있는 경우 — "1인분" 의 "1" 등 작은 값 제외
     final nums = RegExp(r'[\d.]+')
         .allMatches(raw)
         .map((m) => double.tryParse(m.group(0)!) ?? 0.0)

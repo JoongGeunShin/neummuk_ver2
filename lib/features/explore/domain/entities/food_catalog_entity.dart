@@ -11,7 +11,6 @@ class FoodCatalogEntity {
     this.tags = const [],
     this.searchCount = 0,
     this.apiFoodCd,
-    this.isSeeded = false,
   });
 
   final String canonicalName;
@@ -23,7 +22,6 @@ class FoodCatalogEntity {
   final List<String> tags;
   final int searchCount;
   final String? apiFoodCd;
-  final bool isSeeded;
 
   Map<String, dynamic> toFirestoreMap() => {
         'canonical_name': canonicalName,
@@ -34,7 +32,6 @@ class FoodCatalogEntity {
         'tags': tags,
         'search_count': searchCount,
         if (apiFoodCd != null) 'api_food_cd': apiFoodCd,
-        'is_seeded': isSeeded,
         'updated_at': FieldValue.serverTimestamp(),
       };
 
@@ -60,7 +57,6 @@ class FoodCatalogEntity {
       tags: List<String>.from(m['tags'] as List? ?? []),
       searchCount: (m['search_count'] as num?)?.toInt() ?? 0,
       apiFoodCd: m['api_food_cd'] as String?,
-      isSeeded: m['is_seeded'] as bool? ?? false,
     );
   }
 }

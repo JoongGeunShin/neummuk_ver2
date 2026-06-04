@@ -6,7 +6,23 @@ import '../../../../core/widgets/app_chip.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
 import '../providers/mode_b_provider.dart';
 
-const _foodCats = ['전체', '한식', '분식', '중식', '경양식', '카페', '디저트'];
+const _foodCats = [
+  '전체',
+  '치킨',
+  '족발·보쌈',
+  '돈까스·회·일식',
+  '피자',
+  '구이·고기',
+  '야식',
+  '양식',
+  '중식',
+  '아시안',
+  '백반·죽·국수',
+  '도시락',
+  '분식',
+  '카페·디저트',
+  '패스트푸드',
+];
 
 class ModeBSearchScreen extends ConsumerWidget {
   const ModeBSearchScreen({super.key});
@@ -163,7 +179,6 @@ class ModeBSearchScreen extends ConsumerWidget {
                       return GestureDetector(
                         onTap: () {
                           ref.read(selectedFoodProvider.notifier).set(f);
-                          ref.read(routeSearchProvider.notifier).loadRoutes(f);
                           context.go('/mode-b/route');
                         },
                         child: Container(

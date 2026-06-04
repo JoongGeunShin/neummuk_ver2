@@ -24,7 +24,7 @@ final foodCatalogRepositoryProvider = Provider<FoodCatalogRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FoodCatalogRepositoryRef = ProviderRef<FoodCatalogRepository>;
-String _$exploreHash() => r'85884375808f3da4e5f92a2183e8a8f616e0a18a';
+String _$exploreHash() => r'6c1f83827b9425ea77587d1ae2acf9bf24910a32';
 
 /// See also [Explore].
 @ProviderFor(Explore)

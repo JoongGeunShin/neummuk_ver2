@@ -36,15 +36,22 @@ class TouristRouteEntity {
   bool get hasDetailInfo => distanceKm > 0 && durationMinutes > 0;
   bool get hasImages => imageUrls.isNotEmpty;
 
-  TouristRouteEntity copyWith({bool? isLocal, List<String>? imageUrls}) =>
+  TouristRouteEntity copyWith({
+    bool? isLocal,
+    List<String>? imageUrls,
+    double? distanceKm,
+    int? durationMinutes,
+    int? kcal,
+    List<String>? tags,
+  }) =>
       TouristRouteEntity(
         id: id,
         name: name,
-        distanceKm: distanceKm,
-        durationMinutes: durationMinutes,
-        kcal: kcal,
+        distanceKm: distanceKm ?? this.distanceKm,
+        durationMinutes: durationMinutes ?? this.durationMinutes,
+        kcal: kcal ?? this.kcal,
         type: type,
-        tags: tags,
+        tags: tags ?? this.tags,
         startLat: startLat,
         startLng: startLng,
         region: region,

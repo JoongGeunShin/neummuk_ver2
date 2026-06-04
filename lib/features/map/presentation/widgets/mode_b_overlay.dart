@@ -1,18 +1,20 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/map_widgets.dart';
-import '../../../mode_b/domain/entities/food_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
+import '../common/map_ui_atoms.dart';
 
 const _kPanel    = kMapPanel;
 const _kPanelAlt = kMapPanelAlt;
@@ -40,6 +42,8 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
   bool _gpxLoading = false;
   final _sheetController = DraggableScrollableController();
 
+  Map<String, NOverlayImage>? _markerIcons;
+
   NaverMapController? get _ctrl => widget.controller;
 
   @override
@@ -54,12 +58,10 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
     if (old.controller == null && widget.controller != null) {
       final pos = _position;
       if (pos != null) {
-        _ctrl!.updateCamera(
-          NCameraUpdate.scrollAndZoomTo(
-            target: NLatLng(pos.latitude, pos.longitude),
-            zoom: 13,
-          ),
-        );
+        _ctrl!.updateCamera(NCameraUpdate.scrollAndZoomTo(
+          target: NLatLng(pos.latitude, pos.longitude),
+          zoom: 13,
+        ));
       }
     }
   }
@@ -70,6 +72,71 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
     super.dispose();
   }
 
+  // ── 마커 아이콘 캐시 ────────────────────────────────────────────
+
+  Future<Map<String, NOverlayImage>> _getMarkerIcons() async {
+    if (_markerIcons != null) return _markerIcons!;
+    final walkIcon = await NOverlayImage.fromWidget(
+      widget: const MapRouteMarkerDot(color: Color(0xFF03C75A), label: '●'),
+      size: const Size(28, 28),
+      context: context,
+    );
+    if (!mounted) return {};
+    final bikeIcon = await NOverlayImage.fromWidget(
+      widget: const MapRouteMarkerDot(color: Color(0xFFFFB547), label: '●'),
+      size: const Size(28, 28),
+      context: context,
+    );
+    if (!mounted) return {};
+    final selectedIcon = await NOverlayImage.fromWidget(
+      widget: const MapRouteMarkerDot(color: Color(0xFFFFD700), label: '★'),
+      size: const Size(32, 32),
+      context: context,
+    );
+    if (!mounted) return {};
+    _markerIcons = {'walk': walkIcon, 'bike': bikeIcon, 'selected': selectedIcon};
+    return _markerIcons!;
+  }
+
+  // ── 마커 갱신 ─────────────────────────────────────────────────
+
+  Future<void> _updateMapMarkers(
+    List<TouristRouteEntity> routes, {
+    int selectedIdx = -1,
+  }) async {
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    await ctrl.clearOverlays(type: NOverlayType.marker);
+
+    final icons = await _getMarkerIcons();
+    if (!mounted) return;
+
+    for (var i = 0; i < routes.length; i++) {
+      final r = routes[i];
+      if (!r.hasCoordinate) continue;
+      final isSelected = i == selectedIdx;
+      final icon = isSelected
+          ? icons['selected']
+          : (r.type == '자전거' ? icons['bike'] : icons['walk']);
+
+      await ctrl.addOverlay(NMarker(
+        id: 'route_$i',
+        position: NLatLng(r.startLat!, r.startLng!),
+        icon: icon,
+        caption: NOverlayCaption(
+          text: r.name,
+          textSize: 11,
+          color: isSelected ? const Color(0xFFFFD700) : const Color(0xFF03C75A),
+          haloColor: Colors.black87,
+        ),
+        captionOffset: 4,
+        isHideCollidedCaptions: true,
+      ));
+    }
+  }
+
+  // ── 위치 초기화 ────────────────────────────────────────────────
+
   Future<void> _initLocation() async {
     final pos = await fetchMapPosition();
     if (!mounted) return;
@@ -78,48 +145,17 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
       _locating = false;
     });
     if (pos != null && _ctrl != null) {
-      await _ctrl!.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(
-          target: NLatLng(pos.latitude, pos.longitude),
-          zoom: 13,
-        ),
-      );
+      await _ctrl!.updateCamera(NCameraUpdate.scrollAndZoomTo(
+        target: NLatLng(pos.latitude, pos.longitude),
+        zoom: 13,
+      ));
+    }
+    if (ref.read(routeSearchProvider).routes.isEmpty) {
+      await _onSearch();
     }
   }
 
-  Future<void> _goToCurrentLocation() async {
-    if (_ctrl == null) return;
-    setState(() => _locating = true);
-    try {
-      final pos = await fetchMapPosition();
-      if (!mounted) return;
-      setState(() => _position = pos);
-      if (pos != null) {
-        await _ctrl!.updateCamera(
-          NCameraUpdate.scrollAndZoomTo(
-            target: NLatLng(pos.latitude, pos.longitude),
-            zoom: 13,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _locating = false);
-    }
-  }
-
-  Future<void> _zoomIn() async {
-    final cam = await _ctrl?.getCameraPosition();
-    if (cam == null) return;
-    await _ctrl!
-        .updateCamera(NCameraUpdate.withParams(zoom: (cam.zoom + 1).clamp(1, 21)));
-  }
-
-  Future<void> _zoomOut() async {
-    final cam = await _ctrl?.getCameraPosition();
-    if (cam == null) return;
-    await _ctrl!
-        .updateCamera(NCameraUpdate.withParams(zoom: (cam.zoom - 1).clamp(1, 21)));
-  }
+  // ── 코스 검색 ─────────────────────────────────────────────────
 
   Future<void> _onSearch() async {
     final food = ref.read(selectedFoodProvider);
@@ -132,49 +168,41 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
         );
   }
 
-  Future<void> _updateMapMarkers(List<TouristRouteEntity> routes) async {
-    final ctrl = _ctrl;
-    if (ctrl == null) return;
-    await ctrl.clearOverlays(type: NOverlayType.marker);
-    await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
-    for (final r in routes.where((r) => r.hasCoordinate)) {
-      await ctrl.addOverlay(NMarker(
-        id: r.id,
-        position: NLatLng(r.startLat!, r.startLng!),
-      ));
-    }
+  // ── 카드 탭 → 선택 + 상세 ────────────────────────────────────
+
+  Future<void> _onRouteCardTap(int idx, TouristRouteEntity route) async {
+    ref.read(routeSearchProvider.notifier).selectRoute(idx);
+    if (mounted) context.push('/place-detail', extra: route);
   }
 
-  Future<void> _selectRoute(int idx) async {
-    ref.read(routeSearchProvider.notifier).selectRoute(idx);
-    final routes = ref.read(routeSearchProvider).routes;
-    if (idx >= routes.length) return;
+  // ── 루트 선택 → GPX 로드 ──────────────────────────────────────
+
+  Future<void> _onRouteSelected(int idx, List<TouristRouteEntity> routes) async {
+    if (idx < 0 || idx >= routes.length) return;
     final route = routes[idx];
     final ctrl = _ctrl;
     if (ctrl == null) return;
 
+    await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
+
     if (route.hasCoordinate) {
-      await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
-      await ctrl.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(
-          target: NLatLng(route.startLat!, route.startLng!),
-          zoom: 14,
-        ),
-      );
-      if (route.hasImages && mounted) {
-        _showImageGallery(context, route);
-      }
-    } else {
-      await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
-      if (route.gpxpath == null) return;
+      await ctrl.updateCamera(NCameraUpdate.scrollAndZoomTo(
+        target: NLatLng(route.startLat!, route.startLng!),
+        zoom: 14,
+      ));
+    }
+
+    if (route.gpxpath != null) {
       setState(() => _gpxLoading = true);
       try {
         final points = await _fetchGpxPoints(route.gpxpath!);
         if (!mounted || points.length < 2) return;
         await ctrl.addOverlay(NPolylineOverlay(
-          id: 'route_path',
+          id: 'course_path',
           coords: points,
-          color: const Color(0xFF03C75A),
+          color: route.type == '자전거'
+              ? const Color(0xFFFFB547)
+              : const Color(0xFF03C75A),
           width: 5,
         ));
         await _fitCamera(ctrl, points);
@@ -182,13 +210,133 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
         if (mounted) setState(() => _gpxLoading = false);
       }
     }
+
+    await _updateMapMarkers(routes, selectedIdx: idx);
   }
+
+  // ── 코스 시작 → 현재위치~코스 시작점 접근 경로 ──────────────
+
+  Future<void> _onCourseStarted(TouristRouteEntity route) async {
+    final ctrl = _ctrl;
+    final pos = _position;
+    if (ctrl == null) return;
+
+    // 시트 최소화
+    if (_sheetController.isAttached) {
+      _sheetController.animateTo(
+        0.13,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+
+    // 코스 시작점 좌표가 없으면 안내만
+    if (!route.hasCoordinate || pos == null) {
+      _showStartSnackbar(route);
+      return;
+    }
+
+    // 현재 위치 → 코스 시작점 도보 경로 (Kakao Mobility)
+    final approachPoints = await _fetchApproachRoute(
+      fromLat: pos.latitude, fromLng: pos.longitude,
+      toLat: route.startLat!, toLng: route.startLng!,
+    );
+
+    if (!mounted) return;
+
+    if (approachPoints.isNotEmpty) {
+      await ctrl.addOverlay(NPolylineOverlay(
+        id: 'approach_path',
+        coords: approachPoints,
+        color: const Color(0xFF7C8AFF), // 보라 — 접근 경로
+        width: 4,
+      ));
+
+      // 접근 경로 + 코스 전체 카메라 피팅
+      final allPoints = [
+        NLatLng(pos.latitude, pos.longitude),
+        ...approachPoints,
+        NLatLng(route.startLat!, route.startLng!),
+      ];
+      await _fitCamera(ctrl, allPoints, padding: const EdgeInsets.all(80));
+    }
+
+    _showStartSnackbar(route);
+  }
+
+  void _showStartSnackbar(TouristRouteEntity route) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${route.name} 코스를 시작합니다!\n걷기가 자동으로 기록됩니다 🏃',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: const Color(0xFF03C75A),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ── Kakao Mobility 도보 접근 경로 ─────────────────────────────
+
+  Future<List<NLatLng>> _fetchApproachRoute({
+    required double fromLat, required double fromLng,
+    required double toLat, required double toLng,
+  }) async {
+    try {
+      final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+      if (key.isEmpty) return [];
+      final uri = Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions');
+      final res = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'KakaoAK $key',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'origin': {'x': fromLng, 'y': fromLat},
+          'destination': {'x': toLng, 'y': toLat},
+          'waypoints': [],
+          'priority': 'RECOMMEND',
+          'road_details': false,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) return [];
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final routes = data['routes'] as List?;
+      if (routes == null || routes.isEmpty) return [];
+      final r = routes[0] as Map<String, dynamic>;
+      if ((r['result_code'] as int? ?? -1) != 0) return [];
+
+      final points = <NLatLng>[];
+      for (final section in (r['sections'] as List? ?? [])) {
+        for (final road in ((section as Map)['roads'] as List? ?? [])) {
+          final vx = (road as Map)['vertexes'] as List? ?? [];
+          for (var i = 0; i < vx.length - 1; i += 2) {
+            points.add(NLatLng(
+              (vx[i + 1] as num).toDouble(),
+              (vx[i] as num).toDouble(),
+            ));
+          }
+        }
+      }
+      return points;
+    } catch (e) {
+      debugPrint('[ApproachRoute] $e');
+      return [];
+    }
+  }
+
+  // ── GPX 파싱 ─────────────────────────────────────────────────
 
   Future<List<NLatLng>> _fetchGpxPoints(String gpxUrl) async {
     try {
-      final res = await http
-          .get(Uri.parse(gpxUrl))
-          .timeout(const Duration(seconds: 15));
+      final res =
+          await http.get(Uri.parse(gpxUrl)).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final body = res.body;
       final pattern =
@@ -219,7 +367,11 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
     }
   }
 
-  Future<void> _fitCamera(NaverMapController ctrl, List<NLatLng> points) async {
+  Future<void> _fitCamera(
+    NaverMapController ctrl,
+    List<NLatLng> points, {
+    EdgeInsets padding = const EdgeInsets.all(60),
+  }) async {
     var minLat = points.first.latitude, maxLat = points.first.latitude;
     var minLng = points.first.longitude, maxLng = points.first.longitude;
     for (final p in points) {
@@ -228,26 +380,66 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
       minLng = math.min(minLng, p.longitude);
       maxLng = math.max(maxLng, p.longitude);
     }
-    await ctrl.updateCamera(
-      NCameraUpdate.fitBounds(
-        NLatLngBounds(
-          southWest: NLatLng(minLat, minLng),
-          northEast: NLatLng(maxLat, maxLng),
-        ),
-        padding: const EdgeInsets.all(60),
+    await ctrl.updateCamera(NCameraUpdate.fitBounds(
+      NLatLngBounds(
+        southWest: NLatLng(minLat, minLng),
+        northEast: NLatLng(maxLat, maxLng),
       ),
-    );
+      padding: padding,
+    ));
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    if (_ctrl == null) return;
+    setState(() => _locating = true);
+    try {
+      final pos = await fetchMapPosition();
+      if (!mounted) return;
+      setState(() => _position = pos);
+      if (pos != null) {
+        await _ctrl!.updateCamera(NCameraUpdate.scrollAndZoomTo(
+          target: NLatLng(pos.latitude, pos.longitude),
+          zoom: 13,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  Future<void> _zoomIn() async {
+    final cam = await _ctrl?.getCameraPosition();
+    if (cam == null) return;
+    await _ctrl!.updateCamera(
+        NCameraUpdate.withParams(zoom: (cam.zoom + 1).clamp(1, 21)));
+  }
+
+  Future<void> _zoomOut() async {
+    final cam = await _ctrl?.getCameraPosition();
+    if (cam == null) return;
+    await _ctrl!.updateCamera(
+        NCameraUpdate.withParams(zoom: (cam.zoom - 1).clamp(1, 21)));
   }
 
   @override
   Widget build(BuildContext context) {
     final food = ref.watch(selectedFoodProvider);
     final state = ref.watch(routeSearchProvider);
-    final pos = _position;
 
     ref.listen<RouteSearchState>(routeSearchProvider, (prev, next) {
+      // 루트 목록 변경 → 마커 갱신
       if (!next.isLoading && next.routes != prev?.routes) {
-        _updateMapMarkers(next.routes);
+        _updateMapMarkers(next.routes, selectedIdx: next.selectedRouteIdx);
+      }
+      // 선택 루트 변경 → GPX 로드
+      if (next.selectedRouteIdx != prev?.selectedRouteIdx &&
+          next.routes.isNotEmpty) {
+        _onRouteSelected(next.selectedRouteIdx, next.routes);
+      }
+      // 코스 시작 → 접근 경로 그리기
+      if (!( prev?.isStarted ?? false) && next.isStarted) {
+        final route = next.selectedRoute;
+        if (route != null) _onCourseStarted(route);
       }
     });
 
@@ -255,17 +447,14 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
 
     return Stack(
       children: [
-        // ── 상단 바 ────────────────────────────────────────────────
+        // ── 상단 바 ───────────────────────────────────────────────
         Positioned(
           top: 0, left: 0, right: 0,
           child: Container(
             decoration: const BoxDecoration(
               color: _kPanel,
               boxShadow: [
-                BoxShadow(
-                    color: Colors.black54,
-                    blurRadius: 8,
-                    offset: Offset(0, 2)),
+                BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
               ],
             ),
             child: SafeArea(
@@ -281,8 +470,7 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
                     ),
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: _kPanelAlt,
                         borderRadius: BorderRadius.circular(12),
@@ -290,8 +478,7 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(food.emoji,
-                              style: const TextStyle(fontSize: 18)),
+                          Text(food.emoji, style: const TextStyle(fontSize: 18)),
                           const SizedBox(width: 8),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,16 +486,12 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
                             children: [
                               const Text('내 주변 산책로',
                                   style: TextStyle(
-                                      fontSize: 10,
-                                      color: _kWhite45,
+                                      fontSize: 10, color: _kWhite45,
                                       fontWeight: FontWeight.w700)),
-                              Text(
-                                '${food.name} · ${food.kcal} kcal',
-                                style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: _kWhite87),
-                              ),
+                              Text('${food.name} · ${food.kcal} kcal',
+                                  style: const TextStyle(
+                                      fontSize: 13, fontWeight: FontWeight.w800,
+                                      color: _kWhite87)),
                             ],
                           ),
                         ],
@@ -321,7 +504,7 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
           ),
         ),
 
-        // ── GPX 로딩 표시 ──────────────────────────────────────────
+        // ── GPX 로딩 표시 ─────────────────────────────────────────
         if (_gpxLoading)
           Positioned(
             top: _topBarHeight(context) + 12,
@@ -329,7 +512,7 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
             child: const Center(child: MapLoadingChip('경로 불러오는 중...')),
           ),
 
-        // ── 우하단 컨트롤 ──────────────────────────────────────────
+        // ── 우하단 컨트롤 ─────────────────────────────────────────
         AnimatedBuilder(
           animation: _sheetController,
           builder: (context, child) {
@@ -351,7 +534,7 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
           ),
         ),
 
-        // ── 하단 코스 패널 (드래그 가능) ────────────────────────────
+        // ── 하단 코스 패널 ────────────────────────────────────────
         DraggableScrollableSheet(
           controller: _sheetController,
           initialChildSize: 0.46,
@@ -362,21 +545,21 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
           builder: (context, scrollController) => _BottomPanel(
             scrollController: scrollController,
             state: state,
-            food: food,
-            pos: pos,
+            pos: _position,
             isLocating: _locating,
             onSearch: _onSearch,
+            onLoadMore: () => ref.read(routeSearchProvider.notifier).loadMore(),
             onTransportChange: (v) {
-              final notifier = ref.read(routeSearchProvider.notifier);
-              notifier.setTransport(
+              final food = ref.read(selectedFoodProvider);
+              if (food == null) return;
+              ref.read(routeSearchProvider.notifier).setTransport(
                 v, food,
-                lat: pos?.latitude ?? 37.5635,
-                lng: pos?.longitude ?? 126.9869,
+                lat: _position?.latitude ?? 37.5635,
+                lng: _position?.longitude ?? 126.9869,
               );
               _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
             },
-            onSelectRoute: _selectRoute,
-            onStartTap: () => context.go('/record'),
+            onCardTap: _onRouteCardTap,
           ),
         ),
       ],
@@ -387,34 +570,31 @@ class _ModeBOverlayState extends ConsumerState<ModeBOverlay> {
       MediaQuery.paddingOf(context).top + 66;
 }
 
-// ── 하단 코스 패널 ───────────────────────────────────────────────────────────
+// ── 하단 코스 패널 (CustomScrollView — DraggableScrollableSheet 정상 연동) ──
 
 class _BottomPanel extends StatelessWidget {
   const _BottomPanel({
     required this.scrollController,
     required this.state,
-    required this.food,
     required this.pos,
     required this.isLocating,
     required this.onSearch,
+    required this.onLoadMore,
     required this.onTransportChange,
-    required this.onSelectRoute,
-    required this.onStartTap,
+    required this.onCardTap,
   });
 
   final ScrollController scrollController;
   final RouteSearchState state;
-  final FoodEntity food;
   final Position? pos;
   final bool isLocating;
   final VoidCallback onSearch;
+  final VoidCallback onLoadMore;
   final void Function(String) onTransportChange;
-  final void Function(int) onSelectRoute;
-  final VoidCallback onStartTap;
+  final void Function(int, TouristRouteEntity) onCardTap;
 
   @override
   Widget build(BuildContext context) {
-    final selected = state.selectedRoute;
     final hasRoutes = state.routes.isNotEmpty;
 
     return ClipRRect(
@@ -424,14 +604,13 @@ class _BottomPanel extends StatelessWidget {
         child: CustomScrollView(
           controller: scrollController,
           slivers: [
+            // ── 핸들 + 이동수단 토글 ────────────────────────────
             SliverToBoxAdapter(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 10),
                   Container(
-                    width: 40,
-                    height: 4,
+                    width: 40, height: 4,
                     decoration: BoxDecoration(
                       color: _kHandle,
                       borderRadius: BorderRadius.circular(2),
@@ -451,13 +630,14 @@ class _BottomPanel extends StatelessWidget {
                 ],
               ),
             ),
+
+            // ── 콘텐츠 ──────────────────────────────────────────
             if (isLocating)
               const SliverFillRemaining(
                 child: Center(
                   child: Text('위치를 확인하는 중...',
                       style: TextStyle(
-                          color: _kWhite45,
-                          fontSize: 14,
+                          color: _kWhite45, fontSize: 14,
                           fontWeight: FontWeight.w600)),
                 ),
               )
@@ -474,16 +654,12 @@ class _BottomPanel extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.map_outlined,
-                          size: 36, color: _kWhite45),
+                      const Icon(Icons.map_outlined, size: 36, color: _kWhite45),
                       const SizedBox(height: 12),
-                      const Text(
-                        '현재 위치 주변 코스를 찾아보세요',
-                        style: TextStyle(
-                            color: _kWhite45,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600),
-                      ),
+                      const Text('현재 위치 주변 코스를 찾아보세요',
+                          style: TextStyle(
+                              color: _kWhite45, fontSize: 13,
+                              fontWeight: FontWeight.w600)),
                       const SizedBox(height: 16),
                       GestureDetector(
                         onTap: onSearch,
@@ -502,8 +678,7 @@ class _BottomPanel extends StatelessWidget {
                               SizedBox(width: 8),
                               Text('주변 코스 검색',
                                   style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14, fontWeight: FontWeight.w800,
                                       color: Colors.white)),
                             ],
                           ),
@@ -514,14 +689,13 @@ class _BottomPanel extends StatelessWidget {
                         pos != null
                             ? '현재 위치 기준으로 검색합니다'
                             : 'GPS 권한이 없어 기본 위치를 사용합니다',
-                        style: const TextStyle(
-                            fontSize: 11, color: _kWhite45),
+                        style: const TextStyle(fontSize: 11, color: _kWhite45),
                       ),
                     ],
                   ),
                 ),
               )
-            else
+            else ...[
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                 sliver: SliverList(
@@ -530,46 +704,56 @@ class _BottomPanel extends StatelessWidget {
                       route: state.routes[i],
                       transport: state.transport,
                       isSelected: i == state.selectedRouteIdx,
-                      onTap: () => onSelectRoute(i),
+                      onTap: () => onCardTap(i, state.routes[i]),
                     ),
                     childCount: state.routes.length,
                   ),
                 ),
               ),
-            if (selected != null)
+              // ── 더 보기 버튼 ──────────────────────────────────
               SliverToBoxAdapter(
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                        context.wp(4), 4, context.wp(4), 8),
-                    child: GestureDetector(
-                      onTap: onStartTap,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF03C75A),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.navigation_rounded,
-                                size: 18, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text('이 코스로 시작하기',
-                                style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      12, 4, 12, context.bottomPadding + 12),
+                  child: state.isLoadingMore
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: CircularProgressIndicator(
+                                color: Color(0xFF03C75A), strokeWidth: 2),
+                          ),
+                        )
+                      : state.hasMore
+                          ? GestureDetector(
+                              onTap: onLoadMore,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _kPanelAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.expand_more_rounded,
+                                        size: 18, color: _kWhite45),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '코스 더 보기 (${state.allRoutes.length - state.displayedRoutes.length}개 남음)',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: _kWhite45),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : const SizedBox(height: 8),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -589,23 +773,19 @@ class _TransportToggle extends StatelessWidget {
     return Container(
       height: 36,
       decoration: BoxDecoration(
-        color: _kPanelAlt,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          _ToggleItem(
-              label: '걷기',
-              icon: Icons.directions_walk_rounded,
-              selected: value == 'walk',
-              onTap: () => onChanged('walk')),
-          _ToggleItem(
-              label: '자전거',
-              icon: Icons.directions_bike_rounded,
-              selected: value == 'bike',
-              onTap: () => onChanged('bike')),
-        ],
-      ),
+          color: _kPanelAlt, borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        _ToggleItem(
+            label: '걷기',
+            icon: Icons.directions_walk_rounded,
+            selected: value == 'walk',
+            onTap: () => onChanged('walk')),
+        _ToggleItem(
+            label: '자전거',
+            icon: Icons.directions_bike_rounded,
+            selected: value == 'bike',
+            onTap: () => onChanged('bike')),
+      ]),
     );
   }
 }
@@ -637,14 +817,11 @@ class _ToggleItem extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon,
-                  size: 15,
-                  color: selected ? _kWhite87 : _kWhite45),
+              Icon(icon, size: 15, color: selected ? _kWhite87 : _kWhite45),
               const SizedBox(width: 5),
               Text(label,
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 13, fontWeight: FontWeight.w700,
                       color: selected ? _kWhite87 : _kWhite45)),
             ],
           ),
@@ -690,115 +867,85 @@ class _RouteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  transport == 'walk'
-                      ? Icons.hiking_rounded
-                      : Icons.directions_bike_rounded,
-                  size: 15,
-                  color: isSelected
-                      ? const Color(0xFF03C75A)
-                      : _kWhite45,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    route.name,
+            Row(children: [
+              Icon(
+                transport == 'walk'
+                    ? Icons.hiking_rounded
+                    : Icons.directions_bike_rounded,
+                size: 15,
+                color: isSelected ? const Color(0xFF03C75A) : _kWhite45,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(route.name,
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: isSelected
-                          ? const Color(0xFF03C75A)
-                          : _kWhite87,
+                      fontSize: 14, fontWeight: FontWeight.w800,
+                      color: isSelected ? const Color(0xFF03C75A) : _kWhite87,
                       letterSpacing: -0.2,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (route.isLocal) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF03C75A).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
                   ),
+                  child: const Text('내 지역',
+                      style: TextStyle(
+                          fontSize: 10, color: Color(0xFF03C75A),
+                          fontWeight: FontWeight.w700)),
                 ),
-                if (route.isLocal) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF03C75A).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text('내 지역',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: Color(0xFF03C75A),
-                            fontWeight: FontWeight.w700)),
-                  ),
-                ] else if (route.region != null) ...[
-                  const SizedBox(width: 6),
-                  Text(route.region!,
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: _kWhite45,
-                          fontWeight: FontWeight.w600)),
-                ],
-                if (route.gpxpath != null) ...[
-                  const SizedBox(width: 6),
-                  const Icon(Icons.route_rounded,
-                      size: 13, color: _kWhite45),
-                ],
-                if (route.hasImages) ...[
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _showImageGallery(context, route),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.photo_library_rounded,
-                          size: 15, color: Color(0xFF03C75A)),
-                    ),
-                  ),
-                ],
+              ] else if (route.region != null) ...[
+                const SizedBox(width: 6),
+                Text(route.region!,
+                    style: const TextStyle(
+                        fontSize: 11, color: _kWhite45,
+                        fontWeight: FontWeight.w600)),
               ],
-            ),
+              if (route.gpxpath != null) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.route_rounded, size: 13, color: _kWhite45),
+              ],
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, size: 16, color: _kWhite45),
+            ]),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                if (route.distanceFromUserM != null) ...[
-                  _InfoChip(
-                    icon: Icons.near_me_rounded,
-                    label: route.distanceFromUserM! < 1000
-                        ? '${route.distanceFromUserM}m'
-                        : '${(route.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
-                    color: const Color(0xFF03C75A),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (route.hasDetailInfo) ...[
-                  _InfoChip(
-                    icon: Icons.straighten_rounded,
-                    label: '${route.distanceKm.toStringAsFixed(1)}km',
-                  ),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Icons.schedule_rounded,
-                    label: '${route.durationMinutes}분',
-                  ),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Icons.local_fire_department_rounded,
-                    label: '~${route.kcal}kcal',
-                  ),
-                ] else ...[
-                  const _InfoChip(
-                    icon: Icons.info_outline_rounded,
-                    label: '상세정보 없음',
-                  ),
-                ],
-                if (route.tags.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Text(route.tags.first,
-                      style: const TextStyle(fontSize: 11, color: _kWhite45)),
-                ],
+            Row(children: [
+              if (route.distanceFromUserM != null) ...[
+                _InfoChip(
+                  icon: Icons.near_me_rounded,
+                  label: route.distanceFromUserM! < 1000
+                      ? '${route.distanceFromUserM}m'
+                      : '${(route.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
+                  color: const Color(0xFF03C75A),
+                ),
+                const SizedBox(width: 8),
               ],
-            ),
+              if (route.hasDetailInfo) ...[
+                _InfoChip(
+                    icon: Icons.straighten_rounded,
+                    label: '${route.distanceKm.toStringAsFixed(1)}km'),
+                const SizedBox(width: 8),
+                _InfoChip(
+                    icon: Icons.schedule_rounded,
+                    label: '${route.durationMinutes}분'),
+                const SizedBox(width: 8),
+                _InfoChip(
+                    icon: Icons.local_fire_department_rounded,
+                    label: '~${route.kcal}kcal'),
+              ] else ...[
+                const _InfoChip(
+                    icon: Icons.info_outline_rounded, label: '상세정보 없음'),
+              ],
+              if (route.tags.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(route.tags.first,
+                    style: const TextStyle(fontSize: 11, color: _kWhite45)),
+              ],
+            ]),
           ],
         ),
       ),
@@ -821,151 +968,8 @@ class _InfoChip extends StatelessWidget {
         Icon(icon, size: 12, color: c),
         const SizedBox(width: 3),
         Text(label,
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700, color: c)),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
       ],
-    );
-  }
-}
-
-// ── 이미지 갤러리 ─────────────────────────────────────────────────────────────
-
-void _showImageGallery(BuildContext context, TouristRouteEntity route) {
-  if (!route.hasImages) return;
-  showDialog(
-    context: context,
-    barrierColor: Colors.black87,
-    builder: (_) => _ImageGalleryDialog(route: route),
-  );
-}
-
-class _ImageGalleryDialog extends StatefulWidget {
-  const _ImageGalleryDialog({required this.route});
-  final TouristRouteEntity route;
-
-  @override
-  State<_ImageGalleryDialog> createState() => _ImageGalleryDialogState();
-}
-
-class _ImageGalleryDialogState extends State<_ImageGalleryDialog> {
-  final _pageCtrl = PageController();
-  int _current = 0;
-
-  @override
-  void dispose() {
-    _pageCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final urls = widget.route.imageUrls;
-    final total = urls.length;
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 80),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: ColoredBox(
-          color: _kPanel,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.route.name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: _kWhite87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded,
-                          size: 20, color: _kWhite45),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-              AspectRatio(
-                aspectRatio: 4 / 3,
-                child: PageView.builder(
-                  controller: _pageCtrl,
-                  itemCount: total,
-                  onPageChanged: (i) => setState(() => _current = i),
-                  itemBuilder: (ctx, i) => CachedNetworkImage(
-                    imageUrl: urls[i],
-                    fit: BoxFit.cover,
-                    fadeInDuration: const Duration(milliseconds: 250),
-                    placeholder: (_, __) => const ColoredBox(
-                      color: _kPanelAlt,
-                      child: Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white24),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (_, __, ___) => const ColoredBox(
-                      color: _kPanelAlt,
-                      child: Center(
-                        child: Icon(Icons.image_not_supported_outlined,
-                            size: 32, color: _kWhite45),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = 0; i < total; i++) ...[
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: i == _current ? 18 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: i == _current
-                              ? const Color(0xFF03C75A)
-                              : _kHandle,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      if (i < total - 1) const SizedBox(width: 5),
-                    ],
-                    if (total > 1) ...[
-                      const SizedBox(width: 12),
-                      Text(
-                        '${_current + 1} / $total',
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: _kWhite45,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

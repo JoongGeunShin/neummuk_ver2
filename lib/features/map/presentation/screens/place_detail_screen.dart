@@ -9,6 +9,7 @@ import '../../../mode_a/domain/entities/restaurant_entity.dart';
 import '../../../mode_a/domain/entities/route_result_entity.dart';
 import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
+import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/place_entity.dart';
 import '../providers/map_mode_provider.dart';
 
@@ -54,6 +55,7 @@ class _Detail {
         imageUrl: r.imageUrls.isNotEmpty ? r.imageUrls.first : null,
         latitude: r.startLat ?? 0,
         longitude: r.startLng ?? 0,
+        source: r.id.startsWith('tour_') ? PlaceSource.tourApi : PlaceSource.both,
         kcalEstimate: r.kcal > 0 ? r.kcal : null,
         distanceM: r.distanceKm > 0 ? (r.distanceKm * 1000).round() : null,
         walkMinutes: r.durationMinutes > 0 ? r.durationMinutes : null,
@@ -110,9 +112,9 @@ class _Detail {
       return (category ?? '음식점', const Color(0xFF03C75A));
     }
     return switch (source ?? PlaceSource.kakaoLocal) {
-      PlaceSource.tourApi => ('TourAPI', const Color(0xFFFF5722)),
+      PlaceSource.tourApi  => ('TourAPI', const Color(0xFFFF5722)),
       PlaceSource.kakaoLocal => ('카카오', const Color(0xFF1E88E5)),
-      PlaceSource.both => ('⭐ 추천', const Color(0xFFFFAB00)),
+      PlaceSource.both => ('두루누비', const Color(0xFF03C75A)),
     };
   }
 
@@ -225,7 +227,7 @@ class PlaceDetailScreen extends ConsumerWidget {
             ),
           ),
 
-          // ── 하단 경로 버튼 ─────────────────────────────────────
+          // ── 하단 버튼 ──────────────────────────────────────────
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
@@ -235,51 +237,55 @@ class PlaceDetailScreen extends ConsumerWidget {
                 color: kMapPanel,
                 border: Border(top: BorderSide(color: Colors.white12)),
               ),
-              child: Row(
-                children: [
-                  _RouteBtn(
-                    label: '출발지',
-                    color: const Color(0xFF2ECC71),
-                    icon: Icons.trip_origin_rounded,
-                    onTap: () {
-                      ref.read(modeAProvider.notifier).setOriginGps(
-                            detail!.latitude, detail.longitude, detail.name);
-                      ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                      context.pop();
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _RouteBtn(
-                    label: '도착지',
-                    color: const Color(0xFFE74C3C),
-                    icon: Icons.place_rounded,
-                    onTap: () {
-                      ref.read(modeAProvider.notifier).setDestCoords(
-                            detail!.latitude, detail.longitude, detail.name);
-                      ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                      context.pop();
-                    },
-                  ),
-                  if (canAddWaypoint) ...[
-                    const SizedBox(width: 8),
-                    _RouteBtn(
-                      label: '경유지',
-                      color: const Color(0xFFF39C12),
-                      icon: Icons.add_location_alt_rounded,
-                      onTap: () {
-                        ref.read(modeAProvider.notifier).addWaypoint(
-                              RouteWaypoint(
-                                name: detail!.name,
-                                latitude: detail.latitude,
-                                longitude: detail.longitude,
-                              ));
-                        ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                        context.pop();
-                      },
+              child: extra is TouristRouteEntity
+                  // ── Mode B 코스 전용 버튼 ──────────────────
+                  ? _ModeBCourseButtons(route: extra as TouristRouteEntity)
+                  // ── Mode A 경로 버튼 ────────────────────────
+                  : Row(
+                      children: [
+                        _RouteBtn(
+                          label: '출발지',
+                          color: const Color(0xFF2ECC71),
+                          icon: Icons.trip_origin_rounded,
+                          onTap: () {
+                            ref.read(modeAProvider.notifier).setOriginGps(
+                                  detail!.latitude, detail.longitude, detail.name);
+                            ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                            context.pop();
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _RouteBtn(
+                          label: '도착지',
+                          color: const Color(0xFFE74C3C),
+                          icon: Icons.place_rounded,
+                          onTap: () {
+                            ref.read(modeAProvider.notifier).setDestCoords(
+                                  detail!.latitude, detail.longitude, detail.name);
+                            ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                            context.pop();
+                          },
+                        ),
+                        if (canAddWaypoint) ...[
+                          const SizedBox(width: 8),
+                          _RouteBtn(
+                            label: '경유지',
+                            color: const Color(0xFFF39C12),
+                            icon: Icons.add_location_alt_rounded,
+                            onTap: () {
+                              ref.read(modeAProvider.notifier).addWaypoint(
+                                    RouteWaypoint(
+                                      name: detail!.name,
+                                      latitude: detail.latitude,
+                                      longitude: detail.longitude,
+                                    ));
+                              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                              context.pop();
+                            },
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ],
-              ),
             ),
           ),
         ],
@@ -657,6 +663,90 @@ class _CircleBtn extends StatelessWidget {
         ),
         child: Icon(icon, size: 20, color: Colors.white),
       ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── Mode B 코스 선택 버튼
+// ════════════════════════════════════════════════════════════════════════════
+
+class _ModeBCourseButtons extends ConsumerWidget {
+  const _ModeBCourseButtons({required this.route});
+  final TouristRouteEntity route;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routes = ref.watch(routeSearchProvider).routes;
+    final idx = routes.indexWhere((r) => r.id == route.id);
+
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              if (idx >= 0) {
+                ref.read(routeSearchProvider.notifier).selectRoute(idx);
+              }
+              context.pop();
+            },
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFF03C75A).withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: const Color(0xFF03C75A).withValues(alpha: 0.45)),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.map_rounded, size: 17, color: Color(0xFF03C75A)),
+                  SizedBox(height: 2),
+                  Text('지도에서 보기',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF03C75A))),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 2,
+          child: GestureDetector(
+            onTap: () {
+              if (idx >= 0) {
+                ref.read(routeSearchProvider.notifier).selectRoute(idx);
+              }
+              ref.read(routeSearchProvider.notifier).startRoute();
+              context.pop();
+            },
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFF03C75A),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.navigation_rounded,
+                      size: 17, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text('이 코스로 시작하기',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

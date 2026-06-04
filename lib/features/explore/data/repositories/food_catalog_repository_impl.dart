@@ -1,6 +1,4 @@
-import 'dart:math' show min;
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import '../../domain/entities/food_nutrition_entity.dart';
 import '../../domain/repositories/food_catalog_repository.dart';
@@ -11,21 +9,6 @@ import '../datasources/food_firestore_datasource.dart';
 const _pruneSearchCountThreshold = 1;
 const _pruneDaysOld = 30;
 
-/// 앱 최초 실행 시 API로 채울 인기 음식 이름 목록.
-const _seedFoodNames = [
-  '프라이드치킨', '양념치킨', '삼겹살', '된장찌개', '비빔밥',
-  '불고기', '라면', '떡볶이', '김치찌개', '피자',
-  '햄버거', '짜장면', '초밥', '돈까스', '갈비탕',
-  '냉면', '족발', '보쌈', '삼계탕', '제육볶음',
-];
-
-/// 기본 제공 카테고리 (Firestore food_categories 컬렉션 초기값).
-const _builtinCategories = [
-  '전체', '치킨', '족발·보쌈', '돈까스·회·일식', '피자',
-  '구이·고기', '야식', '양식', '중식', '아시안',
-  '백반·죽·국수', '도시락', '분식', '카페·디저트', '패스트푸드',
-];
-
 class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
   FoodCatalogRepositoryImpl()
       : _api = FoodApiDatasource(),
@@ -33,9 +16,6 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
 
   final FoodApiDatasource _api;
   final FoodFirestoreDatasource _firestore;
-
-  static const _seedKey = 'food_catalog_seeded_v2';
-  static const _catSeedKey = 'food_categories_seeded_v1';
 
   @override
   Future<List<FoodCatalogEntity>> quickSearchFoods(
@@ -63,7 +43,6 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
 
     final q = query.trim();
 
-    // 1. Firestore 정확 일치
     final exact = await _firestore.getByCanonicalName(q.replaceAll(' ', ''));
     if (exact != null) {
       return (category == null || category == '전체' || exact.category == category)
@@ -71,12 +50,9 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
           : [];
     }
 
-    // 2. Firestore 접두어 검색
     final prefix = await _firestore.searchByPrefix(q, category: category);
     if (prefix.isNotEmpty) return prefix;
 
-    // Firestore에 없으면 빈 목록 반환 — 자동 저장 없음
-    // 사용자가 직접 "새로 추가하기"로 fetchCandidatesFromApi 호출
     debugPrint('[FoodRepo] searchFoods: Firestore miss for "$q", returning empty');
     return [];
   }
@@ -97,20 +73,29 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
     debugPrint('[FoodRepo] API: ${apiItems.length} total → ${relevant.length} relevant');
 
     final seen = <String>{};
-    return relevant
+    final entities = relevant
         .map(_apiItemToEntity)
         .where((e) => seen.add(e.canonicalName))
         .toList();
+
+    final qLower = q.toLowerCase();
+    final matched = entities.where((e) {
+      final dn = e.displayName.toLowerCase();
+      return dn == qLower ||
+          dn.startsWith('$qLower ') ||
+          dn.startsWith('$qLower(') ||
+          dn.startsWith('$qLower,') ||
+          dn.startsWith('$qLower-');
+    }).toList();
+
+    debugPrint('[FoodRepo] after exact-match filter: ${matched.length} items');
+    return matched;
   }
 
   @override
   Future<void> persistFood(FoodCatalogEntity entity) async {
     try {
-      // 카테고리가 기본 목록에 없으면 Firestore에 새 카테고리 생성
-      if (entity.category != '기타' &&
-          !_builtinCategories.contains(entity.category)) {
-        await _firestore.ensureCategory(entity.category);
-      }
+      await _firestore.ensureCategory(entity.category);
       final m = entity.toFirestoreMap()..remove('search_count');
       await _firestore.upsert(m);
       await _firestore.incrementCount(entity.canonicalName);
@@ -141,64 +126,6 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
   }
 
   @override
-  Future<void> seedInitialData() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_seedKey) == true) return;
-
-    debugPrint('[FoodRepo] API 기반 초기 시드 시작 (${_seedFoodNames.length}개)');
-    await prefs.setBool(_seedKey, true);
-
-    // 카테고리 시드
-    await _seedCategories(prefs);
-
-    const batchSize = 5;
-    for (var i = 0; i < _seedFoodNames.length; i += batchSize) {
-      final chunk = _seedFoodNames.sublist(i, min(i + batchSize, _seedFoodNames.length));
-      await Future.wait(chunk.map(_seedOne));
-    }
-    debugPrint('[FoodRepo] 초기 시드 완료');
-  }
-
-  Future<void> _seedCategories(SharedPreferences prefs) async {
-    if (prefs.getBool(_catSeedKey) == true) return;
-    await prefs.setBool(_catSeedKey, true);
-    try {
-      final cats = _builtinCategories
-          .asMap()
-          .entries
-          .map((e) => {
-                'name': e.value,
-                'order': e.key,
-                'is_builtin': true,
-              })
-          .toList();
-      await _firestore.seedCategories(cats);
-      debugPrint('[FoodRepo] 카테고리 시드 완료');
-    } catch (e) {
-      debugPrint('[FoodRepo] 카테고리 시드 실패: $e');
-    }
-  }
-
-  Future<void> _seedOne(String foodName) async {
-    try {
-      final items = await _api.search(foodName, numOfRows: 1);
-      if (items.isEmpty) return;
-      // 시드는 가장 관련성 높은 항목 우선 — _isRelevant 통과하는 첫 번째 항목
-      final relevant = items.firstWhere(
-        (it) => _isRelevant(it.foodName, foodName),
-        orElse: () => items.first,
-      );
-      final entity = _apiItemToEntity(relevant);
-      final m = entity.toFirestoreMap()..remove('search_count');
-      await _firestore.upsert(m);
-      await _firestore.incrementCount(entity.canonicalName);
-      debugPrint('[FoodRepo] seeded: ${entity.displayName} (${entity.nutrition.caloriesKcal.round()} kcal)');
-    } catch (e) {
-      debugPrint('[FoodRepo] seed failed for $foodName: $e');
-    }
-  }
-
-  @override
   Future<void> pruneStaleData() async {
     final before = DateTime.now().subtract(const Duration(days: _pruneDaysOld));
     final deleted = await _firestore.pruneStale(
@@ -212,15 +139,10 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
   Future<List<String>> getCategories() async {
     try {
       final cats = await _firestore.getCategories();
-      if (cats.isEmpty) return _builtinCategories;
-      // '전체'는 항상 맨 앞에
-      final sorted = [
-        if (!cats.contains('전체')) '전체',
-        ...cats.where((c) => c != '전체'),
-      ];
-      return sorted;
+      if (cats.contains('전체')) return cats;
+      return ['전체', ...cats];
     } catch (_) {
-      return _builtinCategories;
+      return ['전체'];
     }
   }
 
@@ -238,7 +160,6 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
       return foodPart.contains(query);
     }
 
-    // 대분류와 검색어가 서로 다른 음식 카테고리면 제외
     final prefixCat = FoodEmojiService.categoryFromName(categoryPart);
     final queryCat = FoodEmojiService.categoryFromName(query);
     if (prefixCat != '기타' && queryCat != '기타' && prefixCat != queryCat) {
@@ -251,7 +172,6 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
   FoodCatalogEntity _apiItemToEntity(FoodApiItem item) {
     final rawName = item.foodName;
     final canonicalName = rawName.replaceAll(' ', '');
-    // 대분류_음식명 구조면 음식명만 displayName으로
     final nameParts = rawName.split('_');
     final displayName = (nameParts.length > 1
             ? nameParts.sublist(1).join(' ')
@@ -265,19 +185,10 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
       cat2: item.foodCat2Name,
     );
 
-    // 카테고리: 매핑 없으면 API cat2 → cat1 순으로 원본 카테고리명 사용
-    String category = FoodEmojiService.resolveCategory(
-      foodName: displayName,
-      cat1: item.foodCat1Name,
-      cat2: item.foodCat2Name,
-    );
-    if (category == '기타') {
-      if (item.foodCat2Name.isNotEmpty) {
-        category = item.foodCat2Name;
-      } else if (item.foodCat1Name.isNotEmpty) {
-        category = item.foodCat1Name;
-      }
-    }
+    // API 원본 카테고리를 그대로 사용: FOOD_CAT2_NM → FOOD_CAT1_NM → '기타'
+    final category = item.foodCat2Name.isNotEmpty
+        ? item.foodCat2Name
+        : (item.foodCat1Name.isNotEmpty ? item.foodCat1Name : '기타');
 
     return FoodCatalogEntity(
       canonicalName: canonicalName,

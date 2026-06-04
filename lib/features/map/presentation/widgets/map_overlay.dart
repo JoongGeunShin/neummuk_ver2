@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' show pi, sin, cos, atan2;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -252,8 +254,8 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _drawModeAPolyline(modeAState.routeResult);
       case MapMode.modeB:
         _resetModeAFocusState();
-        final routes = ref.read(routeSearchProvider).routes;
-        if (routes.isNotEmpty) _updateModeBMarkers(routes);
+        final modeBState = ref.read(routeSearchProvider);
+        if (modeBState.routes.isNotEmpty) _updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx);
     }
   }
 
@@ -408,7 +410,14 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
 
     ref.listen<RouteSearchState>(routeSearchProvider, (prev, next) {
       if (!next.isLoading && next.routes != prev?.routes) {
-        _updateModeBMarkers(next.routes);
+        _updateModeBMarkers(next.routes, selectedIdx: next.selectedRouteIdx);
+      }
+      if (next.selectedRouteIdx != prev?.selectedRouteIdx && next.routes.isNotEmpty) {
+        _loadModeBRouteGpx(next.selectedRouteIdx);
+      }
+      if (!(prev?.isStarted ?? false) && next.isStarted) {
+        final route = next.selectedRoute;
+        if (route != null) _onStartModeBCourse(route);
       }
     });
 

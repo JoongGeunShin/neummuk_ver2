@@ -4,15 +4,6 @@ part of '../map_overlay.dart';
 // ── Route card ────────────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-void _showImageGallery(BuildContext context, TouristRouteEntity route) {
-  if (!route.hasImages) return;
-  showDialog(
-    context: context,
-    barrierColor: Colors.black87,
-    builder: (_) => _ImageGalleryDialog(route: route),
-  );
-}
-
 class _RouteCard extends StatelessWidget {
   const _RouteCard({
     required this.route,
@@ -87,18 +78,8 @@ class _RouteCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 const Icon(Icons.route_rounded, size: 13, color: _kWhite45),
               ],
-              if (route.hasImages) ...[
-                const SizedBox(width: 4),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => _showImageGallery(context, route),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.photo_library_rounded,
-                        size: 15, color: Color(0xFF03C75A)),
-                  ),
-                ),
-              ],
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, size: 16, color: _kWhite45),
             ]),
             const SizedBox(height: 8),
             Row(children: [
@@ -138,121 +119,3 @@ class _RouteCard extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// ── Image gallery dialog ──────────────────────────────────────────────────────
-// ════════════════════════════════════════════════════════════════════════════
-
-class _ImageGalleryDialog extends StatefulWidget {
-  const _ImageGalleryDialog({required this.route});
-  final TouristRouteEntity route;
-
-  @override
-  State<_ImageGalleryDialog> createState() => _ImageGalleryDialogState();
-}
-
-class _ImageGalleryDialogState extends State<_ImageGalleryDialog> {
-  final _pageCtrl = PageController();
-  int _current = 0;
-
-  @override
-  void dispose() {
-    _pageCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final urls  = widget.route.imageUrls;
-    final total = urls.length;
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 80),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: ColoredBox(
-          color: _kPanel,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-                child: Row(children: [
-                  Expanded(
-                    child: Text(widget.route.name,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w800, color: _kWhite87),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 20, color: _kWhite45),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ]),
-              ),
-              AspectRatio(
-                aspectRatio: 4 / 3,
-                child: PageView.builder(
-                  controller: _pageCtrl,
-                  itemCount: total,
-                  onPageChanged: (i) => setState(() => _current = i),
-                  itemBuilder: (ctx, i) => CachedNetworkImage(
-                    imageUrl: urls[i],
-                    fit: BoxFit.cover,
-                    fadeInDuration: const Duration(milliseconds: 250),
-                    placeholder: (_, __) => const ColoredBox(
-                      color: _kPanelAlt,
-                      child: Center(
-                        child: SizedBox(
-                          width: 24, height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (_, __, ___) => const ColoredBox(
-                      color: _kPanelAlt,
-                      child: Center(
-                        child: Icon(Icons.image_not_supported_outlined,
-                            size: 32, color: _kWhite45),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = 0; i < total; i++) ...[
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: i == _current ? 18 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: i == _current
-                              ? const Color(0xFF03C75A)
-                              : _kHandle,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      if (i < total - 1) const SizedBox(width: 5),
-                    ],
-                    if (total > 1) ...[
-                      const SizedBox(width: 12),
-                      Text('${_current + 1} / $total',
-                          style: const TextStyle(
-                              fontSize: 11, color: _kWhite45, fontWeight: FontWeight.w600)),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

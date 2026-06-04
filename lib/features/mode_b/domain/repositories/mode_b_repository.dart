@@ -9,4 +9,5 @@ abstract interface class ModeBRepository {
     required int targetKcal,
     required String transport,
   });
+  Future<List<TouristRouteEntity>> enrichBatch(List<TouristRouteEntity> batch);
 }

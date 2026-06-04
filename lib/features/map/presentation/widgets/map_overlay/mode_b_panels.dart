@@ -60,7 +60,7 @@ class _ModeBTopBar extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── Mode B bottom panel ───────────────────────────────────────────────────────
+// ── Mode B bottom panel (CustomScrollView — 스크롤 정상 연동)
 // ════════════════════════════════════════════════════════════════════════════
 
 class _ModeBBottomPanel extends StatelessWidget {
@@ -71,9 +71,9 @@ class _ModeBBottomPanel extends StatelessWidget {
     required this.pos,
     required this.isLocating,
     required this.onSearch,
+    required this.onLoadMore,
     required this.onTransportChange,
-    required this.onSelectRoute,
-    required this.onStartTap,
+    required this.onCardTap,
   });
 
   final ScrollController scrollController;
@@ -82,13 +82,12 @@ class _ModeBBottomPanel extends StatelessWidget {
   final Position? pos;
   final bool isLocating;
   final VoidCallback onSearch;
+  final VoidCallback onLoadMore;
   final void Function(String) onTransportChange;
-  final void Function(int) onSelectRoute;
-  final VoidCallback onStartTap;
+  final void Function(int, TouristRouteEntity) onCardTap;
 
   @override
   Widget build(BuildContext context) {
-    final selected  = state.selectedRoute;
     final hasRoutes = state.routes.isNotEmpty;
 
     return ClipRRect(
@@ -98,9 +97,9 @@ class _ModeBBottomPanel extends StatelessWidget {
         child: CustomScrollView(
           controller: scrollController,
           slivers: [
+            // ── 핸들 + 이동수단 토글 ───────────────────────────────
             SliverToBoxAdapter(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 10),
                   Container(
@@ -120,6 +119,7 @@ class _ModeBBottomPanel extends StatelessWidget {
                 ],
               ),
             ),
+            // ── 콘텐츠 ─────────────────────────────────────────────
             if (isLocating)
               const SliverFillRemaining(
                 child: Center(
@@ -179,7 +179,7 @@ class _ModeBBottomPanel extends StatelessWidget {
                   ),
                 ),
               )
-            else
+            else ...[
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                 sliver: SliverList(
@@ -188,43 +188,56 @@ class _ModeBBottomPanel extends StatelessWidget {
                       route: state.routes[i],
                       transport: state.transport,
                       isSelected: i == state.selectedRouteIdx,
-                      onTap: () => onSelectRoute(i),
+                      onTap: () => onCardTap(i, state.routes[i]),
                     ),
                     childCount: state.routes.length,
                   ),
                 ),
               ),
-            if (selected != null)
               SliverToBoxAdapter(
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(context.wp(4), 4, context.wp(4), 8),
-                    child: GestureDetector(
-                      onTap: onStartTap,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF03C75A),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.navigation_rounded, size: 18, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text('이 코스로 시작하기',
-                                style: TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w800,
-                                    color: Colors.white)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      12, 4, 12, context.bottomPadding + 12),
+                  child: state.isLoadingMore
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: CircularProgressIndicator(
+                                color: Color(0xFF03C75A), strokeWidth: 2),
+                          ),
+                        )
+                      : state.hasMore
+                          ? GestureDetector(
+                              onTap: onLoadMore,
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _kPanelAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.expand_more_rounded,
+                                        size: 18, color: _kWhite45),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '코스 더 보기 (${state.allRoutes.length - state.displayedRoutes.length}개 남음)',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: _kWhite45),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : const SizedBox(height: 8),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -233,7 +246,7 @@ class _ModeBBottomPanel extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── Transport toggle ──────────────────────────────────────────────────────────
+// ── Transport toggle
 // ════════════════════════════════════════════════════════════════════════════
 
 class _TransportToggle extends StatelessWidget {

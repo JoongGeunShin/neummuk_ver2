@@ -11,6 +11,9 @@ part 'explore_provider.g.dart';
 FoodCatalogRepository foodCatalogRepository(FoodCatalogRepositoryRef ref) =>
     FoodCatalogRepositoryImpl();
 
+// savingCanonicalName에 null을 명시적으로 set하기 위한 sentinel
+const _sentinel = Object();
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 class ExploreState {
@@ -23,6 +26,7 @@ class ExploreState {
     this.isSearchingApi = false,
     this.apiCandidates = const [],
     this.isLoadingCandidates = false,
+    this.savingCanonicalName,
     this.categories = const [],
     this.errorMessage,
   });
@@ -38,11 +42,14 @@ class ExploreState {
   final List<FoodCatalogEntity> apiCandidates;
   /// API 후보 로딩 중
   final bool isLoadingCandidates;
+  /// 저장 중인 항목 canonicalName (null이면 저장 중 아님)
+  final String? savingCanonicalName;
   /// Firestore에서 로드한 카테고리 목록
   final List<String> categories;
   final String? errorMessage;
 
   bool get isSearchMode => query.isNotEmpty;
+  bool get isSaving => savingCanonicalName != null;
 
   ExploreState copyWith({
     String? query,
@@ -53,6 +60,7 @@ class ExploreState {
     bool? isSearchingApi,
     List<FoodCatalogEntity>? apiCandidates,
     bool? isLoadingCandidates,
+    Object? savingCanonicalName = _sentinel,
     List<String>? categories,
     String? errorMessage,
   }) =>
@@ -65,6 +73,9 @@ class ExploreState {
         isSearchingApi: isSearchingApi ?? this.isSearchingApi,
         apiCandidates: apiCandidates ?? this.apiCandidates,
         isLoadingCandidates: isLoadingCandidates ?? this.isLoadingCandidates,
+        savingCanonicalName: savingCanonicalName == _sentinel
+            ? this.savingCanonicalName
+            : savingCanonicalName as String?,
         categories: categories ?? this.categories,
         errorMessage: errorMessage,
       );
@@ -84,8 +95,6 @@ class Explore extends _$Explore {
   }
 
   Future<void> _init() async {
-    final repo = ref.read(foodCatalogRepositoryProvider);
-    await repo.seedInitialData();
     await Future.wait([
       _loadPopular(),
       _loadCategories(),
@@ -192,19 +201,24 @@ class Explore extends _$Explore {
     }
   }
 
-  /// 사용자가 선택한 항목을 Firestore에 저장
+  /// 사용자가 선택한 항목을 Firestore에 저장 (저장 중 gesture 차단)
   Future<bool> saveSelectedFood(FoodCatalogEntity entity) async {
+    if (state.isSaving) return false; // 중복 호출 방지
+    state = state.copyWith(savingCanonicalName: entity.canonicalName);
     try {
       await ref.read(foodCatalogRepositoryProvider).persistFood(entity);
-      // 저장 후 결과 목록 및 카테고리 갱신
       await Future.wait([
         _quickSearch(),
         _loadCategories(),
       ]);
-      state = state.copyWith(apiCandidates: []);
+      state = state.copyWith(
+        apiCandidates: [],
+        savingCanonicalName: null,
+      );
       return true;
     } catch (e) {
       debugPrint('[Explore] saveSelectedFood error: $e');
+      state = state.copyWith(savingCanonicalName: null);
       return false;
     }
   }
@@ -241,7 +255,6 @@ class Explore extends _$Explore {
                 tags: f.tags,
                 searchCount: f.searchCount + 1,
                 apiFoodCd: f.apiFoodCd,
-                isSeeded: f.isSeeded,
               )
             : f)
         .toList();

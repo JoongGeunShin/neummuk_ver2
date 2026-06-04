@@ -6,7 +6,7 @@ part of 'mode_b_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$modeBRepositoryHash() => r'f113cbbc3d668f28ca6e4923253d5fe6e39038e5';
+String _$modeBRepositoryHash() => r'e2eb455288d4ab7325fc238cb7b3e504db0c3e68';
 
 /// See also [modeBRepository].
 @ProviderFor(modeBRepository)
@@ -55,7 +55,7 @@ final selectedFoodProvider =
     );
 
 typedef _$SelectedFood = Notifier<FoodEntity?>;
-String _$routeSearchHash() => r'940b1f81afd06106fc2f3e37cf2fa711b7d333da';
+String _$routeSearchHash() => r'2121e5852672d00681bd31bf3eaf5583307087a8';
 
 /// See also [RouteSearch].
 @ProviderFor(RouteSearch)
