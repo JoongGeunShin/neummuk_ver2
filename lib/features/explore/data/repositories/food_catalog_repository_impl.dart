@@ -186,9 +186,11 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
     );
 
     // API 원본 카테고리를 그대로 사용: FOOD_CAT2_NM → FOOD_CAT1_NM → '기타'
-    final category = item.foodCat2Name.isNotEmpty
+    // "해당없음"은 API의 null 플레이스홀더이므로 무효 처리
+    bool validCat(String s) => s.isNotEmpty && s != '해당없음';
+    final category = validCat(item.foodCat2Name)
         ? item.foodCat2Name
-        : (item.foodCat1Name.isNotEmpty ? item.foodCat1Name : '기타');
+        : (validCat(item.foodCat1Name) ? item.foodCat1Name : '기타');
 
     return FoodCatalogEntity(
       canonicalName: canonicalName,
