@@ -71,9 +71,13 @@ class WalkTaskHandler extends TaskHandler {
       _prefs?.setDouble(kWalkCalories, _caloriesKcal);
     }
 
-    FlutterForegroundTask.updateService(
-      notificationText: '$_trueSteps걸음 · ${_caloriesKcal.round()} kcal',
-    );
+    // Mode B 네비게이션 중이면 안내 문구를 알림에 표시
+    final navInstruction = _prefs?.getString('mode_b_nav_instruction');
+    final notifText = (navInstruction != null && navInstruction.isNotEmpty)
+        ? '🗺️ $navInstruction'
+        : '$_trueSteps걸음 · ${_caloriesKcal.round()} kcal';
+
+    FlutterForegroundTask.updateService(notificationText: notifText);
   }
 
   @override

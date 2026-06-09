@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/entities/user_entity.dart';
 import '../providers/auth_provider.dart';
+import '../../../map/presentation/providers/map_mode_provider.dart';
+import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -51,13 +53,41 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       return;
     }
     if (user.isGuest) {
-      context.go('/home');
+      // 게스트도 Mode B 네비게이션 복원 확인
+      await _tryRestoreModeBNav();
+      if (!mounted) return;
+      context.go('/home'); // ignore: use_build_context_synchronously
       return;
     }
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     final done = prefs.getBool('onboarding_done_${user.uid}') ?? false;
-    context.go(done ? '/home' : '/onboarding'); // ignore: use_build_context_synchronously
+    if (!done) {
+      context.go('/onboarding'); // ignore: use_build_context_synchronously
+      return;
+    }
+    // Mode B 네비게이션 복원 확인
+    final restored = await _tryRestoreModeBNav();
+    if (!mounted) return;
+    if (restored) {
+      ref.read(mapModeProvider.notifier).set(MapMode.modeB); // ignore: use_build_context_synchronously
+      context.go('/map'); // ignore: use_build_context_synchronously
+    } else {
+      context.go('/home'); // ignore: use_build_context_synchronously
+    }
+  }
+
+  /// Mode B 네비게이션 상태가 저장되어 있으면 복원한다.
+  /// [true] = 복원 성공 (→ /map으로 이동해야 함)
+  Future<bool> _tryRestoreModeBNav() async {
+    try {
+      final savedState = await ModeBNav.tryRestoreFromPrefs();
+      if (savedState == null || !mounted) return false;
+      ref.read(modeBNavProvider.notifier).restore(savedState);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

@@ -18,7 +18,7 @@ class TourApiCoursesDatasource {
     required double lng,
     String transport = 'walk',
     double weightKg = AppConstants.defaultWeightKg,
-    int radiusM = 15000,
+    int radiusM = 3000,
     int numOfRows = 20,
   }) async {
     if (!_enabled) {
@@ -212,6 +212,7 @@ class TourApiCoursesDatasource {
         startLat: mapy,
         startLng: mapx,
         imageUrls: imageUrls,
+        source: 'tour_api',
       );
     } catch (e) {
       debugPrint('[TourApi] parse error: $e');

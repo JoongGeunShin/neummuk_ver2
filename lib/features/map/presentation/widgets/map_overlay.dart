@@ -22,7 +22,9 @@ import '../../../mode_a/domain/entities/waypoint_candidate_entity.dart';
 import '../../../mode_a/presentation/providers/mode_a_nav_provider.dart';
 import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../../mode_b/domain/entities/food_entity.dart';
+import '../../../mode_b/domain/entities/spot_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
+import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../../user/presentation/providers/user_provider.dart';
 import '../../../walk/presentation/providers/walk_provider.dart';
@@ -46,6 +48,8 @@ part 'map_overlay/explore_mixin.dart';
 part 'map_overlay/nav_mixin.dart';
 part 'map_overlay/mode_a_mixin.dart';
 part 'map_overlay/mode_b_mixin.dart';
+part 'map_overlay/mode_b_nav_mixin.dart';
+part 'map_overlay/mode_b_nav_panels.dart';
 
 const _kPanel    = kMapPanel;
 const _kPanelAlt = kMapPanelAlt;
@@ -69,7 +73,7 @@ class MapOverlay extends ConsumerStatefulWidget {
 }
 
 class _MapOverlayState extends ConsumerState<MapOverlay>
-    with _ExploreOverlayMixin, _NavOverlayMixin, _ModeAOverlayMixin, _ModeBOverlayMixin {
+    with _ExploreOverlayMixin, _NavOverlayMixin, _ModeAOverlayMixin, _ModeBOverlayMixin, _ModeBNavOverlayMixin {
 
   @override Position? get _position => __position;
   Position? __position;
@@ -107,6 +111,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     _disposeExplore();
     _disposeModeA();
     _disposeModeB();
+    _disposeModeBNav();
     super.dispose();
   }
 
@@ -143,6 +148,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       setState(() => __position = p);
       _locationOverlay?.setPosition(NLatLng(p.latitude, p.longitude));
 
+      // Mode A 네비게이션
       final navState = ref.read(modeANavProvider);
       if (navState.isNavigating) {
         final route = ref.read(modeAProvider).routeResult;
@@ -161,6 +167,12 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _prevNavPosition = p;
         _followNavCamera(p.latitude, p.longitude, _lastNavBearing);
       }
+
+      // Mode B 네비게이션
+      final modeBNavState = ref.read(modeBNavProvider);
+      if (modeBNavState.isNavigating) {
+        _onModeBNavPositionUpdate(p, modeBNavState);
+      }
     });
 
     final lat = pos?.latitude ?? 37.5665;
@@ -176,6 +188,32 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       final modeAState = ref.read(modeAProvider);
       unawaited(_syncModeAMarkers(modeAState));
       unawaited(_drawModeAPolyline(modeAState.routeResult));
+    }
+
+    // 앱 재시작 복원: Mode B nav 상태 복원
+    if (ref.read(mapModeProvider) == MapMode.modeB) {
+      final navState = ref.read(modeBNavProvider);
+      if (navState.isNavigating && navState.route != null) {
+        if (navState.needsGpxReload) {
+          // GPX 코스: GPX 파일 재로드
+          unawaited(_reloadGpxForNavigation(navState.route!.gpxpath!));
+        } else if (navState.route!.isGenerated) {
+          // 생성 코스: 도로경로 재그리기 + 스팟 마커 복원
+          unawaited(_restoreGeneratedCourseNav(navState));
+        }
+      }
+    }
+  }
+
+  Future<void> _restoreGeneratedCourseNav(ModeBNavState navState) async {
+    final route = navState.route!;
+    if (route.waypoints.isEmpty) return;
+    await _drawGeneratedCourseOnMap(route);
+    if (mounted) {
+      await _drawNavSpotMarkers(
+        route.waypoints,
+        currentIdx: navState.currentWaypointIdx,
+      );
     }
   }
 
@@ -214,11 +252,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   }
 
   void _onCameraChange(NCameraUpdateReason reason, bool animated) {
-    if (!mounted || _navCameraUpdating) return;
-    if (reason == NCameraUpdateReason.gesture &&
-        ref.read(modeANavProvider).isNavigating &&
-        _navCameraFollow) {
-      setState(() => _navCameraFollow = false);
+    if (!mounted) return;
+    if (_navCameraUpdating) return;
+    if (reason == NCameraUpdateReason.gesture) {
+      if (ref.read(modeANavProvider).isNavigating && _navCameraFollow) {
+        setState(() => _navCameraFollow = false);
+      }
+      _onModeBNavCameraGesture();
     }
   }
 
@@ -308,6 +348,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     if (mode == MapMode.modeA && navState.isNavigating) {
       return Positioned(right: 12, bottom: 96 + bottomPad + 16, child: zoomWidget);
     }
+    if (mode == MapMode.modeB && ref.read(modeBNavProvider).isNavigating) {
+      return Positioned(right: 12, bottom: 96 + bottomPad + 16, child: zoomWidget);
+    }
     if (mode == MapMode.modeB) {
       return AnimatedBuilder(
         animation: _sheetBCtrl,
@@ -355,12 +398,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    final mode       = ref.watch(mapModeProvider);
+    final mode         = ref.watch(mapModeProvider);
     final exploreState = ref.watch(mapSearchNotifierProvider);
     final modeAState   = ref.watch(modeAProvider);
     final navState     = ref.watch(modeANavProvider);
     final food         = ref.watch(selectedFoodProvider);
     final modeBState   = ref.watch(routeSearchProvider);
+    final modeBNavState = ref.watch(modeBNavProvider);
     final profileAsync = ref.watch(userProfileProvider);
 
     ref.listen<MapMode>(mapModeProvider, _onModeChanged);
@@ -409,15 +453,39 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     });
 
     ref.listen<RouteSearchState>(routeSearchProvider, (prev, next) {
-      if (!next.isLoading && next.routes != prev?.routes) {
+      // 기성 코스 목록 변경 시 마커 갱신 (생성 코스 선택 중에는 기성 마커 갱신 생략)
+      if (!next.isLoading && next.routes != prev?.routes && !next.generatedCourseSelected) {
         _updateModeBMarkers(next.routes, selectedIdx: next.selectedRouteIdx);
       }
-      if (next.selectedRouteIdx != prev?.selectedRouteIdx && next.routes.isNotEmpty) {
+      // 기성 코스 선택 변경 시 GPX/마커 갱신
+      if (next.selectedRouteIdx != prev?.selectedRouteIdx &&
+          next.selectedRouteIdx >= 0 &&
+          next.routes.isNotEmpty) {
         _loadModeBRouteGpx(next.selectedRouteIdx);
       }
-      if (!(prev?.isStarted ?? false) && next.isStarted) {
+      // 생성 코스 완성 → 자동으로 지도에 표시
+      if (!identical(prev?.generatedCourse, next.generatedCourse) &&
+          next.generatedCourse != null) {
+        unawaited(_drawGeneratedCourseOnMap(next.generatedCourse!));
+      }
+      // place_detail_screen에서 "안내 시작" 탭 → navPending 감지
+      if (!(prev?.navPending ?? false) && next.navPending) {
+        ref.read(routeSearchProvider.notifier).clearNavPending();
         final route = next.selectedRoute;
         if (route != null) _onStartModeBCourse(route);
+      }
+      // 스팟 검색 완료 후 코스 생성 실패 → 피드백
+      final fetchDone = (prev?.isFetchingSpots ?? false) && !next.isFetchingSpots;
+      if (fetchDone && next.generatedCourse == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('주변에 코스를 만들 스팟이 부족해요. 태그를 바꾸거나 지도를 이동 후 다시 시도해보세요.'),
+            backgroundColor: kMapPanel,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     });
 
@@ -432,7 +500,6 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _resetNavCamera();
         _showArrivalMessage();
       }
-      // 안내 종료(수동 또는 도착) → 결과 시트 숨김을 위해 routeResult 초기화
       if ((prev?.isNavigating ?? false) && !next.isNavigating) {
         ref.read(modeAProvider.notifier).clearRouteResult();
       }
@@ -441,6 +508,34 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (route != null && route.transport == 'transit') {
           _drawTransitStepMarkers(route, next.currentTransitStepIdx);
         }
+      }
+    });
+
+    // Mode B 네비게이션 이벤트
+    ref.listen<ModeBNavState>(modeBNavProvider, (prev, next) {
+      if (!next.isNavigating) return;
+
+      // 도착 감지
+      if (prev?.isNavigating ?? false) _checkModeBNavArrival(next);
+
+      // 경로 이탈 감지 (GPX 코스)
+      if (!(prev?.isOffRoute ?? false) && next.isOffRoute) {
+        _showModeBOffRouteSnackBar();
+      }
+
+      // 앱 재시작 후 GPX 포인트 재로드
+      if (next.needsGpxReload && !(prev?.needsGpxReload ?? false)) {
+        unawaited(_reloadGpxForNavigation(next.route!.gpxpath!));
+      }
+
+      // 생성 코스: 경유지 도달 시 마커 갱신 (현재 목적지 강조 위치 변경)
+      if ((next.route?.isGenerated ?? false) &&
+          next.currentWaypointIdx != (prev?.currentWaypointIdx ?? 0) &&
+          (next.route?.waypoints.isNotEmpty ?? false)) {
+        _drawNavSpotMarkers(
+          next.route!.waypoints,
+          currentIdx: next.currentWaypointIdx,
+        );
       }
     });
 
@@ -455,8 +550,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         // ── Mode A overlays ────────────────────────────────────
         ..._buildModeAOverlays(context, mode, modeAState, navState, bottomPad),
 
-        // ── Mode B overlays ────────────────────────────────────
-        ..._buildModeBOverlays(context, mode, food, modeBState, bottomPad, __locating),
+        // ── Mode B overlays (코스 탐색) ────────────────────────
+        if (!modeBNavState.isNavigating)
+          ..._buildModeBOverlays(context, mode, food, modeBState, bottomPad, __locating),
+
+        // ── Mode B nav overlays (네비게이션 중) ────────────────
+        if (mode == MapMode.modeB)
+          ..._buildModeBNavOverlays(context, modeBNavState, bottomPad),
 
         // ── Nav re-center button ───────────────────────────────
         if (mode == MapMode.modeA && navState.isNavigating && !_navCameraFollow)
@@ -484,6 +584,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         // ── Mode toggle (탐색 중 또는 경로 결과 시트·안내 중이면 숨김) ──
         if (mode != MapMode.modeB &&
             !navState.isNavigating &&
+            !modeBNavState.isNavigating &&
             !(mode == MapMode.modeA &&
                 modeAState.routeResult != null &&
                 !_routePanelEditing))

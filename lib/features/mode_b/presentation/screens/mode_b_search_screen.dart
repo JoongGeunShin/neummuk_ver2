@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_chip.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
+import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../providers/mode_b_provider.dart';
 
 const _foodCats = [
@@ -179,7 +180,8 @@ class ModeBSearchScreen extends ConsumerWidget {
                       return GestureDetector(
                         onTap: () {
                           ref.read(selectedFoodProvider.notifier).set(f);
-                          context.go('/mode-b/route');
+                          ref.read(mapModeProvider.notifier).set(MapMode.modeB);
+                          context.go('/map');
                         },
                         child: Container(
                           padding: const EdgeInsets.all(14),

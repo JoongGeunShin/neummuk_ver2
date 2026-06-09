@@ -8,10 +8,14 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
 import '../../domain/entities/food_entity.dart';
+import '../../domain/entities/spot_entity.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 import '../../domain/repositories/mode_b_repository.dart';
+import '../../domain/services/mode_b_course_generator.dart';
 import '../datasources/durunubi_datasource.dart';
+import '../datasources/kakao_local_spots_datasource.dart';
 import '../datasources/tour_api_courses_datasource.dart';
+import '../datasources/tour_api_spots_datasource.dart';
 
 class ModeBRepositoryImpl implements ModeBRepository {
   ModeBRepositoryImpl({
@@ -24,23 +28,22 @@ class ModeBRepositoryImpl implements ModeBRepository {
   final double _weightKg;
   final _durunubi = DurunubiDatasource();
   final _tourApi = TourApiCoursesDatasource();
+  final _kakaoSpots = KakaoLocalSpotsDatasource();
+  final _tourApiSpots = TourApiSpotsDatasource();
+  final _generator = const ModeBCourseGenerator();
+
+  // ── 음식 검색 ────────────────────────────────────────────────────
 
   @override
   Future<List<FoodEntity>> getFoods({String? query, String? category}) async {
     final resolvedCategory = (category == null || category == '전체') ? null : category;
     final results = (query == null || query.trim().isEmpty)
-        ? await _foodCatalogRepo.getPopularFoods(
-            category: resolvedCategory,
-            limit: 30,
-          )
-        : await _foodCatalogRepo.searchFoods(
-            query.trim(),
-            category: resolvedCategory,
-          );
-    return results
-        .map((c) => FoodEntity.fromCatalog(c, weightKg: _weightKg))
-        .toList();
+        ? await _foodCatalogRepo.getPopularFoods(category: resolvedCategory, limit: 30)
+        : await _foodCatalogRepo.searchFoods(query.trim(), category: resolvedCategory);
+    return results.map((c) => FoodEntity.fromCatalog(c, weightKg: _weightKg)).toList();
   }
+
+  // ── 기성 코스 검색 (두루누비 + TourAPI 여행코스) ───────────────────
 
   @override
   Future<List<TouristRouteEntity>> getTouristRoutes({
@@ -48,6 +51,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
     required double longitude,
     required int targetKcal,
     required String transport,
+    int radiusM = 3000,
   }) async {
     final results = await Future.wait([
       _tourApi.fetchNearbyCourses(
@@ -55,8 +59,9 @@ class ModeBRepositoryImpl implements ModeBRepository {
         lng: longitude,
         transport: transport,
         weightKg: _weightKg,
+        radiusM: radiusM,
       ),
-      _fetchDurunubiRoutes(latitude, longitude, transport),
+      _fetchDurunubiRoutes(latitude, longitude, transport, radiusM),
     ]);
 
     final tourApiRoutes = results[0];
@@ -65,21 +70,33 @@ class ModeBRepositoryImpl implements ModeBRepository {
     debugPrint('[ModeBRepo] TourAPI=${tourApiRoutes.length}, Durunubi=${durunubiRoutes.length}');
 
     final merged = [...durunubiRoutes, ...tourApiRoutes];
-
     if (merged.isEmpty) return [];
 
-    // 현재 위치에서 가까운 순 ASC 정렬
-    merged.sort((a, b) =>
-        _distanceFromUser(a, latitude, longitude)
-            .compareTo(_distanceFromUser(b, latitude, longitude)));
+    // 칼로리 ±20% 필터 (우선 적용)
+    final tolerance = AppConstants.kcalMatchTolerancePct;
+    final matched = merged.where((r) {
+      if (r.kcal <= 0) return true; // kcal 미상 → 포함
+      return (r.kcal - targetKcal).abs() <= targetKcal * tolerance;
+    }).toList();
 
-    return merged;
+    // 매칭 결과가 너무 적으면 전체를 kcal 근사 순으로 정렬해서 반환
+    final base = matched.length >= 3 ? matched : merged;
+    base.sort((a, b) {
+      final aDiff = (a.kcal - targetKcal).abs();
+      final bDiff = (b.kcal - targetKcal).abs();
+      if (aDiff != bDiff) return aDiff.compareTo(bDiff);
+      return _distanceFromUser(a, latitude, longitude)
+          .compareTo(_distanceFromUser(b, latitude, longitude));
+    });
+
+    return base;
   }
 
   Future<List<TouristRouteEntity>> _fetchDurunubiRoutes(
     double lat,
     double lng,
     String transport,
+    int radiusM,
   ) async {
     final region = await _reverseGeocode(lat, lng);
     final items = await _durunubi.fetchAllCoursesCached();
@@ -96,39 +113,138 @@ class ModeBRepositoryImpl implements ModeBRepository {
 
     debugPrint('[Durunubi] parsed ${all.length}/${items.length}');
 
-    if (region == null) return all;
+    // 좌표 없는 코스 제외 + 반경 필터
+    // 두루누비 코스에 좌표가 없으면 반경 기준을 알 수 없으므로 제외한다
+    final radiusKm = radiusM / 1000.0;
+    final inRadius = all.where((r) {
+      if (!r.hasCoordinate) return false;
+      return _haversineKm(lat, lng, r.startLat!, r.startLng!) <= radiusKm;
+    }).toList();
 
-    final local = all.where((r) => _matchesRegion(r.region, region)).toList();
-    debugPrint('[Durunubi] local (${region.sido} ${region.sigungu}): ${local.length}');
+    debugPrint('[Durunubi] inRadius (${radiusKm.toStringAsFixed(1)}km): ${inRadius.length}/${all.length}');
 
+    if (region == null) return inRadius;
+
+    // 반경 내 코스 중 현재 지역은 "내 지역" 태그 표시
+    final local = inRadius.where((r) => _matchesRegion(r.region, region)).toList();
     final localMarked = local.map((r) => r.copyWith(isLocal: true)).toList();
-    final national = all.where((r) => !local.contains(r)).toList();
-    return [...localMarked, ...national];
+    final others = inRadius.where((r) => !local.contains(r)).toList();
+    return [...localMarked, ...others];
   }
+
+  // ── 스팟 검색 ────────────────────────────────────────────────────
+
+  @override
+  Future<List<SpotEntity>> searchSpots({
+    required double latitude,
+    required double longitude,
+    required Set<SpotTag> tags,
+    required String transport,
+  }) async {
+    final radiusM = transport == 'bike' ? 5000 : 3000;
+    final effectiveTags = tags.isEmpty ? SpotTag.values.toSet() : tags;
+
+    // 카카오 로컬 카테고리 코드 수집 (우선순위 높음)
+    final kakaoCodes = <String>{};
+    for (final tag in effectiveTags) {
+      kakaoCodes.addAll(tag.kakaoGroupCodes);
+    }
+
+    // TourAPI contentTypeId 수집 (카카오가 지원하지 않는 타입 포함)
+    final tourTypeIds = <int>[];
+    for (final tag in effectiveTags) {
+      final typeId = tag.tourApiContentTypeId;
+      if (typeId != null) tourTypeIds.add(typeId);
+    }
+
+    final results = await Future.wait([
+      if (kakaoCodes.isNotEmpty)
+        _kakaoSpots.fetchSpots(
+          lat: latitude,
+          lng: longitude,
+          categoryGroupCodes: kakaoCodes.toList(),
+          radiusM: radiusM,
+        )
+      else
+        Future.value(<SpotEntity>[]),
+      if (tourTypeIds.isNotEmpty)
+        _tourApiSpots.fetchSpots(
+          lat: latitude,
+          lng: longitude,
+          contentTypeIds: tourTypeIds,
+          radiusM: radiusM,
+        )
+      else
+        Future.value(<SpotEntity>[]),
+    ]);
+
+    final kakaoSpots = results[0];
+    final tourSpots = results[1];
+
+    // 중복 제거: 같은 이름+좌표 근처(50m 이내)는 카카오 우선
+    final combined = <SpotEntity>[...kakaoSpots];
+    for (final ts in tourSpots) {
+      final isDuplicate = kakaoSpots.any((ks) =>
+          _haversineKm(ks.lat, ks.lng, ts.lat, ts.lng) < 0.05 &&
+          ks.name == ts.name);
+      if (!isDuplicate) combined.add(ts);
+    }
+
+    combined.sort((a, b) =>
+        (a.distanceFromUserM ?? 99999).compareTo(b.distanceFromUserM ?? 99999));
+
+    debugPrint('[ModeBRepo] spots: kakao=${kakaoSpots.length}, tourApi=${tourSpots.length}, combined=${combined.length}');
+    return combined;
+  }
+
+  // ── 코스 생성 ────────────────────────────────────────────────────
+
+  @override
+  TouristRouteEntity? generateCourse({
+    required List<SpotEntity> spots,
+    required double userLat,
+    required double userLng,
+    required int targetKcal,
+    required String transport,
+  }) =>
+      _generator.generate(
+        spots: spots,
+        userLat: userLat,
+        userLng: userLng,
+        targetKcal: targetKcal,
+        transport: transport,
+        weightKg: _weightKg,
+      );
+
+  // ── Enrichment ────────────────────────────────────────────────────
+
+  @override
+  Future<List<TouristRouteEntity>> enrichBatch(List<TouristRouteEntity> batch) async {
+    final futures = batch.map((r) => r.id.startsWith('tour_')
+        ? _tourApi.enrichCourse(r, weightKg: _weightKg)
+        : Future.value(r));
+    return Future.wait(futures);
+  }
+
+  // ── 역지오코딩 ────────────────────────────────────────────────────
 
   Future<({String sido, String sigungu})?> _reverseGeocode(double lat, double lng) async {
     try {
       final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
       if (key.isEmpty) return null;
-
       final uri = Uri.parse('https://dapi.kakao.com/v2/local/geo/coord2regioncode.json')
           .replace(queryParameters: {'x': '$lng', 'y': '$lat'});
-
       final res = await http
           .get(uri, headers: {'Authorization': 'KakaoAK $key'})
           .timeout(const Duration(seconds: 5));
-
       if (res.statusCode != 200) return null;
-
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final docs = data['documents'] as List<dynamic>?;
       if (docs == null || docs.isEmpty) return null;
-
       final doc = (docs.firstWhere(
             (d) => d['region_type'] == 'H',
             orElse: () => docs.first,
           ) as Map<String, dynamic>);
-
       return (
         sido: doc['region_1depth_name']?.toString() ?? '',
         sigungu: doc['region_2depth_name']?.toString() ?? '',
@@ -139,10 +255,9 @@ class ModeBRepositoryImpl implements ModeBRepository {
     }
   }
 
-  bool _matchesRegion(
-    String? routeSigun,
-    ({String sido, String sigungu}) region,
-  ) {
+  // ── Helpers ───────────────────────────────────────────────────────
+
+  bool _matchesRegion(String? routeSigun, ({String sido, String sigungu}) region) {
     if (routeSigun == null || routeSigun.isEmpty) return false;
     final sidoShort = region.sido.replaceAll(RegExp(r'(특별시|광역시|특별자치시|도|특별자치도)'), '');
     return routeSigun.contains(region.sido) ||
@@ -150,11 +265,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
         (region.sigungu.isNotEmpty && routeSigun.contains(region.sigungu));
   }
 
-  TouristRouteEntity? _parseDurunubi(
-    Map<String, dynamic> item,
-    double met,
-    String transport,
-  ) {
+  TouristRouteEntity? _parseDurunubi(Map<String, dynamic> item, double met, String transport) {
     try {
       final id = item['crsIdx']?.toString() ?? '';
       final name = item['crsKorNm']?.toString() ?? '';
@@ -178,6 +289,14 @@ class ModeBRepositoryImpl implements ModeBRepository {
         }
       }
 
+      // 두루누비 API 좌표 필드: lat/lng (공식), mapY/mapX (일부 응답), 없으면 null
+      final lat = double.tryParse(item['lat']?.toString() ?? '') ??
+          double.tryParse(item['mapY']?.toString() ?? '') ??
+          double.tryParse(item['mapy']?.toString() ?? '');
+      final lng = double.tryParse(item['lng']?.toString() ?? '') ??
+          double.tryParse(item['mapX']?.toString() ?? '') ??
+          double.tryParse(item['mapx']?.toString() ?? '');
+
       return TouristRouteEntity(
         id: id,
         name: name,
@@ -188,7 +307,10 @@ class ModeBRepositoryImpl implements ModeBRepository {
         tags: [if (level.isNotEmpty) _levelTag(level)],
         region: sigun.isEmpty ? null : sigun,
         gpxpath: (gpxpath != null && gpxpath.isNotEmpty) ? gpxpath : null,
+        startLat: lat,
+        startLng: lng,
         imageUrls: imageUrls,
+        source: 'durunubi',
       );
     } catch (e) {
       debugPrint('[Durunubi] parse error: $e');
@@ -205,32 +327,22 @@ class ModeBRepositoryImpl implements ModeBRepository {
         _ => level,
       };
 
-  @override
-  Future<List<TouristRouteEntity>> enrichBatch(List<TouristRouteEntity> batch) async {
-    // TourAPI 코스만 병렬 enrichment, 나머지는 그대로
-    final futures = batch.map((r) => r.id.startsWith('tour_')
-        ? _tourApi.enrichCourse(r, weightKg: _weightKg)
-        : Future.value(r));
-    return Future.wait(futures);
-  }
-
   int _distanceFromUser(TouristRouteEntity r, double userLat, double userLng) {
     if (r.distanceFromUserM != null) return r.distanceFromUserM!;
     if (r.startLat != null && r.startLng != null) {
-      return _haversineM(userLat, userLng, r.startLat!, r.startLng!);
+      return (_haversineKm(userLat, userLng, r.startLat!, r.startLng!) * 1000).round();
     }
     return 99999999;
   }
 
-  int _haversineM(double lat1, double lng1, double lat2, double lng2) {
-    const R = 6371000.0;
+  double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
+    const R = 6371.0;
     final phi1 = lat1 * math.pi / 180;
     final phi2 = lat2 * math.pi / 180;
     final dPhi = (lat2 - lat1) * math.pi / 180;
     final dLambda = (lng2 - lng1) * math.pi / 180;
     final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
-        math.cos(phi1) * math.cos(phi2) *
-            math.sin(dLambda / 2) * math.sin(dLambda / 2);
-    return (R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))).round();
+        math.cos(phi1) * math.cos(phi2) * math.sin(dLambda / 2) * math.sin(dLambda / 2);
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 }

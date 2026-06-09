@@ -1,7 +1,7 @@
 part of '../map_overlay.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── Route card ────────────────────────────────────────────────────────────────
+// ── Route card
 // ════════════════════════════════════════════════════════════════════════════
 
 class _RouteCard extends StatelessWidget {
@@ -10,15 +10,18 @@ class _RouteCard extends StatelessWidget {
     required this.transport,
     required this.isSelected,
     required this.onTap,
+    this.onStart,
   });
 
   final TouristRouteEntity route;
   final String transport;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -26,12 +29,10 @@ class _RouteCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF03C75A).withValues(alpha: 0.12)
-              : _kPanelAlt,
+          color: isSelected ? c.primarySoft : c.surfaceAlt,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? const Color(0xFF03C75A) : Colors.white12,
+            color: isSelected ? c.primary : c.outline,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -40,18 +41,17 @@ class _RouteCard extends StatelessWidget {
           children: [
             Row(children: [
               Icon(
-                transport == 'walk'
-                    ? Icons.hiking_rounded
-                    : Icons.directions_bike_rounded,
+                transport == 'walk' ? Icons.hiking_rounded : Icons.directions_bike_rounded,
                 size: 15,
-                color: isSelected ? const Color(0xFF03C75A) : _kWhite45,
+                color: isSelected ? c.primary : c.textMuted,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(route.name,
                     style: TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w800,
-                      color: isSelected ? const Color(0xFF03C75A) : _kWhite87,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? c.primary : c.text,
                       letterSpacing: -0.2,
                     ),
                     overflow: TextOverflow.ellipsis),
@@ -61,25 +61,24 @@ class _RouteCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF03C75A).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
+                    color: c.primarySoft, borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('내 지역',
+                  child: Text('내 지역',
                       style: TextStyle(
-                          fontSize: 10, color: Color(0xFF03C75A), fontWeight: FontWeight.w700)),
+                          fontSize: 10, color: c.primary, fontWeight: FontWeight.w700)),
                 ),
               ] else if (route.region != null) ...[
                 const SizedBox(width: 6),
                 Text(route.region!,
-                    style: const TextStyle(
-                        fontSize: 11, color: _kWhite45, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        fontSize: 11, color: c.textMuted, fontWeight: FontWeight.w600)),
               ],
               if (route.gpxpath != null) ...[
                 const SizedBox(width: 6),
-                const Icon(Icons.route_rounded, size: 13, color: _kWhite45),
+                Icon(Icons.route_rounded, size: 13, color: c.textMuted),
               ],
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded, size: 16, color: _kWhite45),
+              Icon(Icons.chevron_right_rounded, size: 16, color: c.textMuted),
             ]),
             const SizedBox(height: 8),
             Row(children: [
@@ -89,7 +88,7 @@ class _RouteCard extends StatelessWidget {
                   label: route.distanceFromUserM! < 1000
                       ? '${route.distanceFromUserM}m'
                       : '${(route.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
-                  color: const Color(0xFF03C75A),
+                  color: c.primary,
                 ),
                 const SizedBox(width: 8),
               ],
@@ -109,13 +108,38 @@ class _RouteCard extends StatelessWidget {
               if (route.tags.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Text(route.tags.first,
-                    style: const TextStyle(fontSize: 11, color: _kWhite45)),
+                    style: TextStyle(fontSize: 11, color: c.textMuted)),
               ],
             ]),
+            // 선택된 카드에 안내 시작 버튼
+            if (isSelected && onStart != null) ...[
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: onStart,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: c.primary, borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.navigation_rounded, size: 15, color: c.onPrimary),
+                      const SizedBox(width: 6),
+                      Text('안내 시작',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: c.onPrimary)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 }
-
