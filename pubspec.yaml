@@ -35,6 +35,7 @@ dependencies:
 
   # Map
   flutter_naver_map: ^1.3.0
+  flutter_compass: ^0.8.0
 
   # HTTP
   http: ^1.2.1
