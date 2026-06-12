@@ -143,6 +143,7 @@ class _ModeBBottomPanel extends StatelessWidget {
     required this.onTagToggle,
     required this.onGenerateCourse,
     required this.onGeneratedCourseTap,
+    required this.onDifficultyFilter,
   });
 
   final ScrollController scrollController;
@@ -159,6 +160,7 @@ class _ModeBBottomPanel extends StatelessWidget {
   final void Function(SpotTag) onTagToggle;
   final VoidCallback onGenerateCourse;
   final void Function(TouristRouteEntity) onGeneratedCourseTap;
+  final void Function(String) onDifficultyFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -220,6 +222,15 @@ class _ModeBBottomPanel extends StatelessWidget {
                         isFetching: state.isFetchingSpots,
                       ),
                     ),
+                    // ── 난이도 필터 ─────────────────────────────────────
+                    if (state.allRoutes.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
+                        child: _DifficultyFilterRow(
+                          selected: state.difficultyFilter,
+                          onSelect: onDifficultyFilter,
+                        ),
+                      ),
                     // ── 생성된 코스 카드 (있을 때) ──────────────────────────
                     if (state.generatedCourse != null)
                       Padding(
@@ -654,6 +665,128 @@ class _GeneratedCourseCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── Difficulty filter row
+// ════════════════════════════════════════════════════════════════════════════
+
+class _DifficultyFilterRow extends StatelessWidget {
+  const _DifficultyFilterRow({
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final String selected;
+  final void Function(String) onSelect;
+
+  static const _filters = ['전체', '쉬움', '보통', '어려움'];
+  static const _icons = ['📋', '🟢', '🟡', '🔴'];
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Row(
+      children: [
+        Text('난이도',
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700, color: c.textMuted)),
+        const SizedBox(width: 8),
+        for (var i = 0; i < _filters.length; i++) ...[
+          GestureDetector(
+            onTap: () => onSelect(_filters[i]),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: selected == _filters[i] ? c.primarySoft : c.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: selected == _filters[i] ? c.primary : c.outline,
+                  width: selected == _filters[i] ? 1.5 : 1,
+                ),
+              ),
+              child: Text(
+                '${_icons[i]} ${_filters[i]}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: selected == _filters[i] ? c.primary : c.textMuted,
+                ),
+              ),
+            ),
+          ),
+          if (i < _filters.length - 1) const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── Mode B 칼로리 미니바 (탐색 중 상시 표시)
+// ════════════════════════════════════════════════════════════════════════════
+
+class _ModeBKcalMiniBar extends StatelessWidget {
+  const _ModeBKcalMiniBar({
+    required this.todayKcal,
+    required this.targetKcal,
+  });
+
+  final double todayKcal;
+  final int targetKcal;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final pct = targetKcal > 0
+        ? (todayKcal / targetKcal).clamp(0.0, 1.0)
+        : 0.0;
+    final isDone = pct >= 1.0;
+    final pctLabel = '${(pct * 100).toStringAsFixed(0)}%';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: c.bg,
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isDone ? Icons.check_circle_rounded : Icons.local_fire_department_rounded,
+            size: 14,
+            color: isDone ? Colors.green : c.primary,
+          ),
+          const SizedBox(width: 6),
+          Text('오늘 소모',
+              style: TextStyle(
+                  fontSize: 11, color: c.textMuted, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: pct,
+                backgroundColor: c.surfaceAlt,
+                valueColor: AlwaysStoppedAnimation<Color>(isDone ? Colors.green : c.primary),
+                minHeight: 5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${todayKcal.round()}/${targetKcal}kcal ($pctLabel)',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: isDone ? Colors.green : c.textMuted,
+            ),
+          ),
+        ],
       ),
     );
   }

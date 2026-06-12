@@ -10,12 +10,24 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// true = 북쪽 고정 (north-up), false = 이동 방향 (heading-up, 기본)
   bool _modeBNorthUpMode = false;
 
+  /// 생성 코스 스팟 캐러셀 현재 페이지 인덱스
+  int _modeBNavWaypointPageIdx = 0;
+
+  /// 생성 코스 이탈 시작 시각 (30초 유지 시 재경로)
+  DateTime? _offRouteStartTime;
+
   NaverMapController? get _ctrl;
   Position? get _position;
+
+  /// 기기 나침반 방위각 (map_overlay.dart의 _compassHeading 필드로 구현)
+  double get _compassHeading;
 
   // mode_b_mixin에서 구현
   DraggableScrollableController get _sheetBCtrl;
   Future<List<NLatLng>> _fetchGpxPoints(String gpxUrl);
+  List<NLatLng> get _lastGeneratedRoutePoints;
+  Future<void> _rerouteGeneratedCourse(
+      Position p, TouristRouteEntity route, int wpIdx);
 
   void _disposeModeBNav() {
     // nothing to dispose currently
@@ -67,6 +79,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   // ── Navigation 종료 ───────────────────────────────────────────
 
   Future<void> _stopModeBNavigation() async {
+    final navState = ref.read(modeBNavProvider);
+    if (navState.isNavigating && navState.elapsedKcal >= 1.0) {
+      await _saveModeBRecord(navState);
+    }
     await ref.read(modeBNavProvider.notifier).stop();
 
     if (!mounted) return;
@@ -76,6 +92,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _modeBNavLastBearing = 0.0;
       _modeBNavPrevPosition = null;
       _modeBNorthUpMode = false;
+      _modeBNavWaypointPageIdx = 0;
     });
 
     // 카메라 초기화
@@ -127,9 +144,34 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     _modeBNavPrevPosition = p;
 
     if (_modeBNavCameraFollow) {
-      // north-up 모드: bearing=0 고정, heading-up 모드: GPS 이동 방향
-      final cameraBearing = _modeBNorthUpMode ? 0.0 : _modeBNavLastBearing;
+      // north-up 모드: bearing=0 고정, heading-up 모드: 나침반 방위각 사용
+      final cameraBearing = _modeBNorthUpMode ? 0.0 : _compassHeading;
       _followModeBCamera(p.latitude, p.longitude, cameraBearing);
+    }
+
+    // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로
+    final route = navState.route;
+    if (route != null && route.isGenerated) {
+      final pts = _lastGeneratedRoutePoints;
+      if (pts.isNotEmpty) {
+        double minDist = double.infinity;
+        for (var i = 0; i < pts.length; i += 5) {
+          final d = Geolocator.distanceBetween(
+              p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
+          if (d < minDist) minDist = d;
+        }
+        if (minDist > 100) {
+          _offRouteStartTime ??= DateTime.now();
+          if (DateTime.now().difference(_offRouteStartTime!).inSeconds >= 30) {
+            _offRouteStartTime = null;
+            _showModeBOffRouteSnackBar();
+            unawaited(
+                _rerouteGeneratedCourse(p, route, navState.currentWaypointIdx));
+          }
+        } else {
+          _offRouteStartTime = null;
+        }
+      }
     }
   }
 
@@ -173,18 +215,38 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     });
   }
 
+  Future<void> _panToWaypoint(int idx, List<SpotWaypoint> waypoints) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || idx < 0 || idx >= waypoints.length) return;
+    final wp = waypoints[idx];
+    _modeBNavCameraUpdating = true;
+    await ctrl.updateCamera(
+      NCameraUpdate.scrollAndZoomTo(
+        target: NLatLng(wp.lat, wp.lng),
+        zoom: 17,
+      )..setAnimation(
+          animation: NCameraAnimation.easing,
+          duration: const Duration(milliseconds: 500),
+        ),
+    );
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) _modeBNavCameraUpdating = false;
+    });
+  }
+
   void _recenterModeBNav() {
     if (!mounted) return;
     setState(() => _modeBNavCameraFollow = true);
     final pos = _position;
     if (pos != null) {
-      _followModeBCamera(pos.latitude, pos.longitude, _modeBNavLastBearing);
+      final bearing = _modeBNorthUpMode ? 0.0 : _compassHeading;
+      _followModeBCamera(pos.latitude, pos.longitude, bearing);
     }
   }
 
   // ── 도착 감지 ─────────────────────────────────────────────────
 
-  void _checkModeBNavArrival(ModeBNavState navState) {
+  Future<void> _checkModeBNavArrival(ModeBNavState navState) async {
     if (!navState.isNavigating) return;
     final route = navState.route;
     if (route == null) return;
@@ -194,6 +256,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         : navState.remainingDistanceM < 50;
 
     if (isArrived) {
+      await _saveModeBRecord(navState);
       ref.read(modeBNavProvider.notifier).stop();
       _resetModeBNavCamera();
       _showModeBNavArrivalMessage(route.name);
@@ -255,6 +318,23 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     );
   }
 
+  // ── 완주 기록 저장 ────────────────────────────────────────────
+
+  Future<void> _saveModeBRecord(ModeBNavState navState) async {
+    try {
+      final uid = ref.read(authStateProvider).valueOrNull?.uid;
+      if (uid == null) return;
+      final kcal = navState.elapsedKcal;
+      if (kcal < 1.0) return;
+      final distM = navState.route != null
+          ? (navState.route!.distanceKm * 1000 * navState.kcalProgress)
+          : 0.0;
+      final date = DateTime.now().toIso8601String().substring(0, 10);
+      await ref.read(recordRepositoryProvider).addModeBCalories(uid, date, kcal, distM);
+      ref.invalidate(weekRecordsProvider);
+    } catch (_) {}
+  }
+
   // ── 경로 이탈 스낵바 ─────────────────────────────────────────
 
   void _showModeBOffRouteSnackBar() {
@@ -313,13 +393,29 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   ) {
     if (!navState.isNavigating || navState.route == null) return const [];
 
+    final route = navState.route!;
+
     return [
-      // 상단 카드
+      // 상단 카드 / 스팟 캐러셀
       Positioned(
         top: MediaQuery.paddingOf(context).top + 8,
         left: 12,
         right: 12,
-        child: _ModeBNavTopCard(navState: navState),
+        child: route.isGenerated && route.waypoints.isNotEmpty
+            ? _ModeBNavSpotCarousel(
+                waypoints: route.waypoints,
+                activeIdx: _modeBNavWaypointPageIdx,
+                navState: navState,
+                onPageChanged: (idx) {
+                  setState(() {
+                    _modeBNavWaypointPageIdx = idx;
+                    _modeBNavCameraFollow = false;
+                  });
+                  _panToWaypoint(idx, route.waypoints);
+                },
+                onStop: _stopModeBNavigation,
+              )
+            : _ModeBNavTopCard(navState: navState),
       ),
 
       // 하단 스트립

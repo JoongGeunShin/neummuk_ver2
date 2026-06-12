@@ -69,6 +69,61 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
     );
   }
 
+  // ── Guide direction marker (next turn point on map) ───────────────────────
+
+  Future<void> _updateNavGuideMarker(RouteGuide? guide) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || !mounted) return;
+    await ctrl
+        .deleteOverlay(
+          const NOverlayInfo(type: NOverlayType.marker, id: 'nav_guide_arrow'),
+        )
+        .catchError((_) {});
+    if (guide == null || guide.isArrival) return;
+
+    final icon = await NOverlayImage.fromWidget(
+      widget: _GuideDirectionMarker(type: guide.type, guidance: guide.guidance),
+      size: const Size(48, 48),
+      context: context, // ignore: use_build_context_synchronously
+    );
+    if (!mounted) return;
+
+    await ctrl.addOverlay(
+      NMarker(
+        id: 'nav_guide_arrow',
+        position: NLatLng(guide.latitude, guide.longitude),
+        icon: icon,
+      )..setZIndex(20),
+    );
+  }
+
+  Future<void> _clearNavGuideMarker() async {
+    await _ctrl
+        ?.deleteOverlay(
+          const NOverlayInfo(type: NOverlayType.marker, id: 'nav_guide_arrow'),
+        )
+        .catchError((_) {});
+  }
+
+  Future<void> _panToGuidePoint(int idx, RouteResultEntity route) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || idx < 0 || idx >= route.guides.length) return;
+    final guide = route.guides[idx];
+    _navCameraUpdating = true;
+    await ctrl.updateCamera(
+      NCameraUpdate.scrollAndZoomTo(
+        target: NLatLng(guide.latitude, guide.longitude),
+        zoom: 17,
+      )..setAnimation(
+          animation: NCameraAnimation.easing,
+          duration: const Duration(milliseconds: 500),
+        ),
+    );
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) _navCameraUpdating = false;
+    });
+  }
+
   // ── Transit step markers ───────────────────────────────────────
 
   int _transitStepMarkerCount = 0;

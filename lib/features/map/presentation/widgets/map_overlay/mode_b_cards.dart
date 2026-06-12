@@ -100,8 +100,15 @@ class _RouteCard extends StatelessWidget {
                 MapInfoChip(
                     icon: Icons.schedule_rounded, label: '${route.durationMinutes}분'),
                 const SizedBox(width: 8),
-                MapInfoChip(
-                    icon: Icons.local_fire_department_rounded, label: '~${route.kcal}kcal'),
+                if (route.kcal > 0)
+                  MapInfoChip(
+                      icon: Icons.local_fire_department_rounded,
+                      label: '~${route.kcal}kcal')
+                else
+                  const MapInfoChip(
+                      icon: Icons.help_outline_rounded, label: '칼로리 미제공'),
+              ] else if (route.source == 'tour_api') ...[
+                const MapInfoChip(icon: Icons.straighten_rounded, label: '거리 미제공'),
               ] else ...[
                 const MapInfoChip(icon: Icons.info_outline_rounded, label: '상세정보 없음'),
               ],

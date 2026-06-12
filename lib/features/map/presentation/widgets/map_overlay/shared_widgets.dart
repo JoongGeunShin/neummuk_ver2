@@ -231,19 +231,49 @@ class _RouteArrowIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Transform.rotate(
-      angle: bearingDeg * (3.14159265359 / 180),
-      child: Container(
-        width: 22,
-        height: 22,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.85),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.5),
-        ),
-        child: const Icon(Icons.arrow_upward_rounded, size: 12, color: Colors.white),
+      angle: bearingDeg * (pi / 180),
+      child: CustomPaint(
+        size: const Size(16, 16),
+        painter: _ChevronArrowPainter(color: color),
       ),
     );
   }
+}
+
+class _ChevronArrowPainter extends CustomPainter {
+  const _ChevronArrowPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    // 위쪽을 가리키는 쉐브론 (방향 회전은 Transform.rotate에서 처리)
+    final path = Path()
+      ..moveTo(w * 0.5, h * 0.08)
+      ..lineTo(w * 0.90, h * 0.62)
+      ..lineTo(w * 0.5, h * 0.42)
+      ..lineTo(w * 0.10, h * 0.62)
+      ..close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChevronArrowPainter old) => old.color != color;
 }
 
 // ════════════════════════════════════════════════════════════════════════════

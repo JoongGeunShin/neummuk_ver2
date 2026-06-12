@@ -5,6 +5,7 @@ import '../../domain/entities/daily_record_entity.dart';
 
 abstract interface class RecordRepository {
   Future<void> saveDailyRecord(String uid, DailyRecordEntity record);
+  Future<void> addModeBCalories(String uid, String date, double kcal, double distanceM);
   Future<List<DailyRecordEntity>> getWeekRecords(String uid);
   Future<List<BadgeEntity>> getBadges(String uid);
 }
@@ -24,6 +25,24 @@ class RecordRepositoryImpl implements RecordRepository {
         'caloriesKcal': record.caloriesKcal,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+  @override
+  Future<void> addModeBCalories(
+    String uid,
+    String date,
+    double kcal,
+    double distanceM,
+  ) =>
+      _col(uid).doc(date).set(
+        {
+          'date': date,
+          'steps': FieldValue.increment(0),
+          'distanceM': FieldValue.increment(distanceM),
+          'caloriesKcal': FieldValue.increment(kcal),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
 
   /// Fetches this week's records (Mon → today) by document ID — no index needed.
   @override

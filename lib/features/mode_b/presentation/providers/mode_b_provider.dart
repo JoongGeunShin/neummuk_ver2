@@ -97,6 +97,7 @@ class RouteSearchState {
   const RouteSearchState({
     this.transport = 'walk',
     this.selectedTags = const {},
+    this.difficultyFilter = '전체',
     this.selectedRouteIdx = -1,
     this.allRoutes = const [],
     this.displayedRoutes = const [],
@@ -112,6 +113,9 @@ class RouteSearchState {
 
   /// 선택된 스팟 태그 (비어있으면 전체 선택)
   final Set<SpotTag> selectedTags;
+
+  /// 난이도 필터: '전체' | '쉬움' | '보통' | '어려움'
+  final String difficultyFilter;
 
   final int selectedRouteIdx;
   final List<TouristRouteEntity> allRoutes;
@@ -130,7 +134,16 @@ class RouteSearchState {
   /// place_detail_screen에서 "안내 시작"을 눌렀을 때 true → map_overlay에서 nav 시작
   final bool navPending;
 
-  bool get hasMore => displayedRoutes.length < allRoutes.length;
+  /// 난이도 필터 적용한 전체 목록
+  List<TouristRouteEntity> get filteredRoutes {
+    if (difficultyFilter == '전체') return allRoutes;
+    return allRoutes.where((r) {
+      if (r.tags.isEmpty) return true; // 태그 없는 코스는 포함
+      return r.tags.any((t) => t.contains(difficultyFilter));
+    }).toList();
+  }
+
+  bool get hasMore => displayedRoutes.length < filteredRoutes.length;
   List<TouristRouteEntity> get routes => displayedRoutes;
 
   TouristRouteEntity? get selectedRoute {
@@ -146,6 +159,7 @@ class RouteSearchState {
   RouteSearchState copyWith({
     String? transport,
     Set<SpotTag>? selectedTags,
+    String? difficultyFilter,
     int? selectedRouteIdx,
     List<TouristRouteEntity>? allRoutes,
     List<TouristRouteEntity>? displayedRoutes,
@@ -159,6 +173,7 @@ class RouteSearchState {
       RouteSearchState(
         transport: transport ?? this.transport,
         selectedTags: selectedTags ?? this.selectedTags,
+        difficultyFilter: difficultyFilter ?? this.difficultyFilter,
         selectedRouteIdx: selectedRouteIdx ?? this.selectedRouteIdx,
         allRoutes: allRoutes ?? this.allRoutes,
         displayedRoutes: displayedRoutes ?? this.displayedRoutes,
@@ -279,7 +294,7 @@ class RouteSearch extends _$RouteSearch {
     state = state.copyWith(isLoadingMore: true);
 
     final nextStart = state.displayedRoutes.length;
-    final nextBatch = state.allRoutes.skip(nextStart).take(_pageSize).toList();
+    final nextBatch = state.filteredRoutes.skip(nextStart).take(_pageSize).toList();
 
     state = state.copyWith(
       displayedRoutes: [...state.displayedRoutes, ...nextBatch],
@@ -287,6 +302,22 @@ class RouteSearch extends _$RouteSearch {
     );
 
     _enrichAndUpdate(startIdx: nextStart, batch: nextBatch);
+  }
+
+  // ── 난이도 필터 ─────────────────────────────────────────────────────
+
+  void setDifficultyFilter(String filter) {
+    final filtered = filter == '전체'
+        ? state.allRoutes
+        : state.allRoutes.where((r) {
+            if (r.tags.isEmpty) return true;
+            return r.tags.any((t) => t.contains(filter));
+          }).toList();
+    state = state.copyWith(
+      difficultyFilter: filter,
+      selectedRouteIdx: -1,
+      displayedRoutes: filtered.take(_pageSize).toList(),
+    );
   }
 
   Future<void> _enrichAndUpdate({
