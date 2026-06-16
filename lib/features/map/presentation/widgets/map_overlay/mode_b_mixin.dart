@@ -6,6 +6,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   final _sheetBCtrl = DraggableScrollableController();
   Map<String, NOverlayImage>? _modeBMarkerIcons;
 
+  /// _ModeBNavOverlayMixin에서 구현 — 단계별 모드 활성 여부
+  bool get _modeBNavStepMode;
+
   // 경로 화살표 마커 추적
   final _arrowCounts = <String, int>{};
   List<NLatLng> _lastGeneratedRoutePoints = [];
@@ -802,6 +805,35 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     _arrowCounts[idPrefix] = arrowIdx;
   }
 
+  // ── 교차로 방향 마커 그리기 ───────────────────────────────────
+
+  /// GPX 코스 안내 시작 시 각 교차로에 방향 아이콘 마커를 표시.
+  /// 도착 포인트와 직진은 제외하고 좌/우/유턴만 표시.
+  Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || !mounted) return;
+
+    for (int i = 0; i < turns.length; i++) {
+      final turn = turns[i];
+      if (turn.type == _TurnType.straight || turn.type == _TurnType.arrival) continue;
+
+      final icon = await NOverlayImage.fromWidget(
+        widget: _TurnDirectionMarker(type: turn.type),
+        size: const Size(28, 28),
+        context: context,
+      );
+      if (!mounted) break;
+
+      await ctrl.addOverlay(NMarker(
+        id: 'turn_$i',
+        position: NLatLng(turn.lat, turn.lng),
+        icon: icon,
+        anchor: const NPoint(0.5, 0.5),
+        isHideCollidedMarkers: false,
+      ));
+    }
+  }
+
   // ── 네비게이션 폴리라인 점진적 트리밍 ────────────────────────────
 
   /// 이동하며 지나간 경로 구간을 폴리라인에서 지워 남은 경로만 표시.
@@ -828,6 +860,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final c = context.colors;
 
     if (!route.isGenerated && navState.gpxPoints.isNotEmpty) {
+      // 단계별 모드에서는 step_segment가 폴리라인을 관리 — 전체 경로 트리밍 건너뜀
+      if (_modeBNavStepMode) return;
+
       // GPX 코스: nearestGpxPtIdx 이후 포인트만 남김
       final startIdx = navState.nearestGpxPtIdx;
       if (startIdx <= 0) return;
@@ -839,6 +874,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       polylineId = 'route_path';
       polylineColor = route.type == '자전거' ? c.warn : c.primary;
     } else if (route.isGenerated && _lastGeneratedRoutePoints.isNotEmpty) {
+      // 단계별 모드에서는 step_segment가 폴리라인을 관리
+      if (_modeBNavStepMode) return;
+
       // 생성 코스: 현재 위치와 가장 가까운 포인트 이후만 남김
       final pts = _lastGeneratedRoutePoints;
       int nearestIdx = 0;

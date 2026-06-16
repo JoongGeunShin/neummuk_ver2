@@ -16,6 +16,18 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// 생성 코스 이탈 시작 시각 (30초 유지 시 재경로)
   DateTime? _offRouteStartTime;
 
+  /// 단계별 안내 모드 (GPX 코스 + 생성 코스 공통)
+  bool _modeBNavStepMode = false;
+
+  /// 경로에서 추출한 방향 전환 포인트 목록 (GPX 또는 생성 코스 도로 경로)
+  List<_TurnPoint> _modeBTurnPoints = [];
+
+  /// 단계별 세그먼트 폴리라인 마지막 갱신 시각 (스로틀)
+  DateTime? _lastStepSegmentUpdate;
+
+  /// 생성 코스 도로 경로(_lastGeneratedRoutePoints) 상의 현재 위치 인덱스
+  int _modeBRoadNearestPtIdx = 0;
+
   NaverMapController? get _ctrl;
   Position? get _position;
 
@@ -28,6 +40,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   List<NLatLng> get _lastGeneratedRoutePoints;
   Future<void> _rerouteGeneratedCourse(
       Position p, TouristRouteEntity route, int wpIdx);
+  Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns);
 
   void _disposeModeBNav() {
     // nothing to dispose currently
@@ -57,7 +70,28 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         _modeBNavCameraUpdating = false;
         _modeBNavLastBearing = 0.0;
         _modeBNavPrevPosition = null;
+        _modeBNavStepMode = false;
       });
+    }
+
+    // 방향 전환 포인트 계산 — GPX 코스 또는 생성 코스 도로 경로
+    if (!route.isGenerated && gpxPoints.isNotEmpty) {
+      final pts = gpxPoints
+          .map((p) => (lat: p.latitude, lng: p.longitude))
+          .toList();
+      _modeBTurnPoints = _computeTurnPoints(pts);
+    } else if (route.isGenerated && _lastGeneratedRoutePoints.isNotEmpty) {
+      final pts = _lastGeneratedRoutePoints
+          .map((p) => (lat: p.latitude, lng: p.longitude))
+          .toList();
+      _modeBTurnPoints = _computeTurnPoints(pts);
+      _modeBRoadNearestPtIdx = 0;
+    } else {
+      _modeBTurnPoints = [];
+    }
+    // 실제 교차로 turn 포인트가 있을 때만 맵에 마커 그리기
+    if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
+      unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
     }
 
     // 시트 접기
@@ -93,6 +127,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _modeBNavPrevPosition = null;
       _modeBNorthUpMode = false;
       _modeBNavWaypointPageIdx = 0;
+      _modeBNavStepMode = false;
+      _modeBTurnPoints = [];
+      _lastStepSegmentUpdate = null;
+      _modeBRoadNearestPtIdx = 0;
     });
 
     // 카메라 초기화
@@ -144,9 +182,19 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     _modeBNavPrevPosition = p;
 
     if (_modeBNavCameraFollow) {
-      // north-up 모드: bearing=0 고정, heading-up 모드: 나침반 방위각 사용
       final cameraBearing = _modeBNorthUpMode ? 0.0 : _compassHeading;
       _followModeBCamera(p.latitude, p.longitude, cameraBearing);
+    }
+
+    // 생성 코스: 도로 경로 상의 현재 위치 인덱스 추적 (단계별 모드용)
+    if ((navState.route?.isGenerated ?? false) && _lastGeneratedRoutePoints.isNotEmpty) {
+      _updateRoadNearestPtIdx(p.latitude, p.longitude);
+    }
+
+    // 단계별 모드: 현재 세그먼트 폴리라인 갱신
+    if (_modeBNavStepMode && _modeBTurnPoints.any((t) => t.type != _TurnType.arrival)) {
+      final updatedState = ref.read(modeBNavProvider);
+      unawaited(_updateStepModeSegment(updatedState));
     }
 
     // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로
@@ -178,12 +226,280 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   void _toggleNorthUpMode() {
     if (!mounted) return;
     setState(() => _modeBNorthUpMode = !_modeBNorthUpMode);
-    // 즉시 카메라 bearing 반영
     final pos = _position;
     if (pos != null && _modeBNavCameraFollow) {
       final bearing = _modeBNorthUpMode ? 0.0 : _modeBNavLastBearing;
       _followModeBCamera(pos.latitude, pos.longitude, bearing);
     }
+  }
+
+  // ── 단계별 안내 모드 토글 ─────────────────────────────────────
+
+  Future<void> _toggleNavStepMode() async {
+    if (!mounted) return;
+    final navState = ref.read(modeBNavProvider);
+    final isGenerated = navState.route?.isGenerated ?? false;
+    setState(() => _modeBNavStepMode = !_modeBNavStepMode);
+
+    if (_modeBNavStepMode) {
+      unawaited(_updateStepModeSegment(navState));
+    } else {
+      // 전체 경로 복원
+      final ctrl = _ctrl;
+      if (ctrl == null) return;
+      await ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
+      ).catchError((_) {});
+      if (!mounted) return;
+      final c = context.colors;
+
+      if (isGenerated) {
+        // 생성 코스: generated_course 복원 (현재 위치 이후 구간)
+        final pts = _lastGeneratedRoutePoints;
+        if (pts.length > 1) {
+          final from = _modeBRoadNearestPtIdx.clamp(0, pts.length - 1);
+          final remaining = from > 0 ? pts.sublist(from) : pts;
+          await ctrl.addOverlay(NPolylineOverlay(
+            id: 'generated_course',
+            coords: remaining,
+            color: c.accent,
+            width: 5,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ));
+        }
+      } else {
+        // GPX 코스: route_path 복원
+        final pts = navState.gpxPoints;
+        final startIdx = navState.nearestGpxPtIdx;
+        if (pts.length > startIdx + 1) {
+          final remaining = pts.sublist(startIdx).map((p) => NLatLng(p.lat, p.lng)).toList();
+          final routeColor = navState.route?.type == '자전거' ? c.warn : c.primary;
+          await ctrl.addOverlay(NPolylineOverlay(
+            id: 'route_path',
+            coords: remaining,
+            color: routeColor,
+            width: 5,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ));
+        }
+      }
+    }
+  }
+
+  Future<void> _updateStepModeSegment(ModeBNavState navState) async {
+    final now = DateTime.now();
+    if (_lastStepSegmentUpdate != null &&
+        now.difference(_lastStepSegmentUpdate!).inSeconds < 3) {
+      return;
+    }
+    _lastStepSegmentUpdate = now;
+
+    final ctrl = _ctrl;
+    if (ctrl == null || !mounted) return;
+    if (_modeBTurnPoints.isEmpty) return;
+
+    final pts = _activeNavPts(navState);
+    if (pts.isEmpty) return;
+
+    final nearestIdx = _activeNearestIdx(navState);
+    final nextTurnGpxIdx = _getNextTurnGpxIdx(nearestIdx);
+    final endIdx = (nextTurnGpxIdx > 0 ? nextTurnGpxIdx : pts.length - 1)
+        .clamp(0, pts.length - 1);
+    final startIdx = nearestIdx.clamp(0, pts.length - 1);
+    if (endIdx - startIdx < 1) return;
+
+    final segment = pts
+        .sublist(startIdx, endIdx + 1)
+        .map((p) => NLatLng(p.lat, p.lng))
+        .toList();
+
+    final isGenerated = navState.route?.isGenerated ?? false;
+    final mainId = isGenerated ? 'generated_course' : 'route_path';
+
+    await ctrl.deleteOverlay(
+      NOverlayInfo(type: NOverlayType.polylineOverlay, id: mainId),
+    ).catchError((_) {});
+    await ctrl.deleteOverlay(
+      NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
+    ).catchError((_) {});
+    if (!mounted) return;
+
+    final c = context.colors;
+    final routeColor = isGenerated
+        ? c.accent
+        : (navState.route?.type == '자전거' ? c.warn : c.primary);
+    await ctrl.addOverlay(NPolylineOverlay(
+      id: 'step_segment',
+      coords: segment,
+      color: routeColor,
+      width: 5,
+      lineCap: NLineCap.round,
+      lineJoin: NLineJoin.round,
+    ));
+  }
+
+  int _getNextTurnGpxIdx(int nearestIdx) {
+    for (final t in _modeBTurnPoints) {
+      if (t.gpxIdx > nearestIdx) return t.gpxIdx;
+    }
+    return -1;
+  }
+
+  /// GPX 코스: navState.gpxPoints, 생성 코스: _lastGeneratedRoutePoints
+  List<({double lat, double lng})> _activeNavPts(ModeBNavState navState) {
+    if (navState.route?.isGenerated ?? false) {
+      return _lastGeneratedRoutePoints
+          .map((p) => (lat: p.latitude, lng: p.longitude))
+          .toList();
+    }
+    return navState.gpxPoints;
+  }
+
+  /// GPX 코스: navState.nearestGpxPtIdx, 생성 코스: _modeBRoadNearestPtIdx
+  int _activeNearestIdx(ModeBNavState navState) {
+    return (navState.route?.isGenerated ?? false)
+        ? _modeBRoadNearestPtIdx
+        : navState.nearestGpxPtIdx;
+  }
+
+  /// 생성 코스 도로 경로(_lastGeneratedRoutePoints) 상의 현재 위치 인덱스를 업데이트.
+  /// 현재 인덱스 기준 앞 200포인트 내에서 가장 가까운 포인트를 탐색.
+  void _updateRoadNearestPtIdx(double lat, double lng) {
+    final pts = _lastGeneratedRoutePoints;
+    if (pts.isEmpty) return;
+    final searchEnd = (pts.length).clamp(0, _modeBRoadNearestPtIdx + 200);
+    int best = _modeBRoadNearestPtIdx;
+    double bestDist = double.infinity;
+    for (int i = _modeBRoadNearestPtIdx; i < searchEnd; i++) {
+      const toRad = pi / 180;
+      final dLat = (pts[i].latitude - lat) * toRad;
+      final dLng = (pts[i].longitude - lng) * toRad;
+      final cosLat = cos(lat * toRad);
+      final d = 6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    if (best > _modeBRoadNearestPtIdx) _modeBRoadNearestPtIdx = best;
+  }
+
+  // ── 방향 전환 포인트 계산 ──────────────────────────────────────
+
+  /// GPX 포인트 목록에서 교차로 방향 전환 지점을 추출.
+  /// 인덱스 기반이 아닌 실거리(m) 기반 윈도우를 사용해 GPX 밀도에 무관하게 동작.
+  List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts) {
+    if (pts.length < 6) return [];
+
+    // 누적 거리(m) 계산
+    const toRad = pi / 180;
+    final cumDist = List<double>.filled(pts.length, 0.0);
+    for (int i = 1; i < pts.length; i++) {
+      final dLat = (pts[i].lat - pts[i - 1].lat) * toRad;
+      final dLng = (pts[i].lng - pts[i - 1].lng) * toRad;
+      final cosLat = cos(pts[i - 1].lat * toRad);
+      cumDist[i] = cumDist[i - 1] +
+          6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+    }
+
+    final totalDist = cumDist.last;
+    if (totalDist < 50) return [];
+
+    // 25m 윈도우로 접근/이탈 방향 비교, 40m 간격 유지
+    const segLen = 25.0;
+    const turnThreshold = 25.0;
+    const uTurnThreshold = 120.0;
+    const minDistSpacing = 40.0;
+
+    final turns = <_TurnPoint>[];
+    double lastTurnDist = -minDistSpacing;
+
+    for (int i = 0; i < pts.length; i++) {
+      final d = cumDist[i];
+      if (d < segLen || d > totalDist - segLen) continue;
+
+      // 접근 기준점: 현재보다 segLen 뒤
+      int iA = i;
+      while (iA > 0 && cumDist[iA] > d - segLen) { iA--; }
+      // 이탈 기준점: 현재보다 segLen 앞
+      int iL = i;
+      while (iL < pts.length - 1 && cumDist[iL] < d + segLen) { iL++; }
+
+      if (iA == i || iL == i) continue;
+
+      final approachBearing = _calcModeBBearing(
+          pts[iA].lat, pts[iA].lng, pts[i].lat, pts[i].lng);
+      final leaveBearing = _calcModeBBearing(
+          pts[i].lat, pts[i].lng, pts[iL].lat, pts[iL].lng);
+
+      double delta = leaveBearing - approachBearing;
+      while (delta > 180) { delta -= 360; }
+      while (delta < -180) { delta += 360; }
+      final absD = delta.abs();
+
+      if (absD > turnThreshold && d - lastTurnDist >= minDistSpacing) {
+        final type = absD >= uTurnThreshold
+            ? _TurnType.uTurn
+            : delta > 0
+                ? _TurnType.right
+                : _TurnType.left;
+        final instruction = absD >= uTurnThreshold
+            ? '유턴하세요'
+            : delta > 0
+                ? '오른쪽 길로 계속 진행'
+                : '왼쪽 길로 계속 진행';
+
+        turns.add(_TurnPoint(
+          type: type,
+          gpxIdx: i,
+          lat: pts[i].lat,
+          lng: pts[i].lng,
+          instruction: instruction,
+        ));
+        lastTurnDist = d;
+      }
+    }
+
+    // 도착 포인트
+    turns.add(_TurnPoint(
+      type: _TurnType.arrival,
+      gpxIdx: pts.length - 1,
+      lat: pts.last.lat,
+      lng: pts.last.lng,
+      instruction: '목적지에 도착합니다',
+    ));
+
+    debugPrint('[TurnDetect] pts=${pts.length} totalDist=${totalDist.round()}m turns=${turns.length - 1}');
+    return turns;
+  }
+
+  /// 단계별 모드에서 다음 턴까지의 거리 계산 (GPX + 생성 코스 공통)
+  String _distToNextTurn(ModeBNavState navState) {
+    if (_modeBTurnPoints.isEmpty) return navState.remainingLabel;
+    final pts = _activeNavPts(navState);
+    if (pts.isEmpty) return navState.remainingLabel;
+    final nearestIdx = _activeNearestIdx(navState);
+    final nextTurnGpxIdx = _getNextTurnGpxIdx(nearestIdx);
+    if (nextTurnGpxIdx < 0) return navState.remainingLabel;
+
+    final endIdx = nextTurnGpxIdx.clamp(0, pts.length - 1);
+    double dist = 0;
+    for (int i = nearestIdx; i < endIdx && i < pts.length - 1; i++) {
+      const toRad = pi / 180;
+      final dLat = (pts[i + 1].lat - pts[i].lat) * toRad;
+      final dLng = (pts[i + 1].lng - pts[i].lng) * toRad;
+      final cosLat = cos(pts[i].lat * toRad);
+      dist += 6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+    }
+    return dist < 1000 ? '${dist.round()}m' : '${(dist / 1000).toStringAsFixed(1)}km';
+  }
+
+  /// 현재 위치 기준 다음 턴 포인트 (GPX + 생성 코스 공통)
+  _TurnPoint? _currentTurnPoint(ModeBNavState navState) {
+    final nearestIdx = _activeNearestIdx(navState);
+    for (final t in _modeBTurnPoints) {
+      if (t.gpxIdx > nearestIdx) return t;
+    }
+    return _modeBTurnPoints.isNotEmpty ? _modeBTurnPoints.last : null;
   }
 
   // ── 카메라 팔로우 ──────────────────────────────────────────────
@@ -395,27 +711,65 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
     final route = navState.route!;
 
+    // 단계별 모드용 현재 턴 정보 계산 (GPX + 생성 코스 공통)
+    final bool hasRealTurns = _modeBTurnPoints.any((t) => t.type != _TurnType.arrival);
+    final _TurnType curTurnType;
+    final String curTurnInstruction;
+    final String distToTurn;
+    if (_modeBNavStepMode && hasRealTurns) {
+      final tp = _currentTurnPoint(navState);
+      curTurnType = tp?.type ?? _TurnType.straight;
+      curTurnInstruction = tp?.instruction ?? '경로를 따라 이동하세요';
+      distToTurn = _distToNextTurn(navState);
+    } else {
+      curTurnType = _TurnType.straight;
+      curTurnInstruction = '';
+      distToTurn = '';
+    }
+
     return [
-      // 상단 카드 / 스팟 캐러셀
+      // 상단 카드 / 스팟 캐러셀 / 단계별 안내 카드
       Positioned(
         top: MediaQuery.paddingOf(context).top + 8,
         left: 12,
         right: 12,
         child: route.isGenerated && route.waypoints.isNotEmpty
-            ? _ModeBNavSpotCarousel(
-                waypoints: route.waypoints,
-                activeIdx: _modeBNavWaypointPageIdx,
-                navState: navState,
-                onPageChanged: (idx) {
-                  setState(() {
-                    _modeBNavWaypointPageIdx = idx;
-                    _modeBNavCameraFollow = false;
-                  });
-                  _panToWaypoint(idx, route.waypoints);
-                },
-                onStop: _stopModeBNavigation,
-              )
-            : _ModeBNavTopCard(navState: navState),
+            ? (_modeBNavStepMode
+                ? _ModeBTurnBar(
+                    turnType: curTurnType,
+                    distanceLabel: distToTurn,
+                    instruction: curTurnInstruction,
+                    navState: navState,
+                    onStop: _stopModeBNavigation,
+                    onOverview: _toggleNavStepMode,
+                  )
+                : _ModeBNavSpotCarousel(
+                    waypoints: route.waypoints,
+                    activeIdx: _modeBNavWaypointPageIdx,
+                    navState: navState,
+                    onPageChanged: (idx) {
+                      setState(() {
+                        _modeBNavWaypointPageIdx = idx;
+                        _modeBNavCameraFollow = false;
+                      });
+                      _panToWaypoint(idx, route.waypoints);
+                    },
+                    onStop: _stopModeBNavigation,
+                    onStepMode: hasRealTurns ? _toggleNavStepMode : null,
+                  ))
+            : (_modeBNavStepMode
+                ? _ModeBTurnBar(
+                    turnType: curTurnType,
+                    distanceLabel: distToTurn,
+                    instruction: curTurnInstruction,
+                    navState: navState,
+                    onStop: _stopModeBNavigation,
+                    onOverview: _toggleNavStepMode,
+                  )
+                : _ModeBNavTopCard(
+                    navState: navState,
+                    onStepMode: hasRealTurns ? _toggleNavStepMode : null,
+                  )),
       ),
 
       // 하단 스트립
@@ -429,7 +783,16 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         ),
       ),
 
-      // 나침반 버튼 (항상 표시 — 탭하면 north-up / heading-up 전환)
+    ];
+  }
+
+  // ── Mode B 네비 플로팅 버튼 (줌 컨트롤 위에 렌더링해야 클릭 가능) ──────
+
+  /// build()에서 _buildZoomControls 이후에 호출해야 줌 컨트롤에 가려지지 않음.
+  /// 호출 전에 isNavigating 확인 필요.
+  List<Widget> _buildModeBNavFloatingButtons(double bottomPad) {
+    return [
+      // 나침반 버튼 (탭하면 north-up / heading-up 전환)
       Positioned(
         right: 12,
         bottom: 96 + bottomPad + 16 + 56,
@@ -439,9 +802,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: _modeBNorthUpMode
-                  ? const Color(0xFF4A90E2)
-                  : kMapPanel,
+              color: _modeBNorthUpMode ? const Color(0xFF4A90E2) : kMapPanel,
               shape: BoxShape.circle,
               border: Border.all(
                 color: _modeBNorthUpMode
@@ -454,10 +815,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             ),
             child: Center(
               child: Transform.rotate(
-                // north-up 모드에서는 북쪽(0°), heading-up에서는 현재 bearing만큼 회전
                 angle: _modeBNorthUpMode
                     ? 0
-                    : -_modeBNavLastBearing * (3.14159 / 180),
+                    : -_modeBNavLastBearing * (pi / 180),
                 child: Icon(
                   Icons.navigation_rounded,
                   size: 22,
@@ -468,7 +828,6 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           ),
         ),
       ),
-
       // 재센터 버튼
       if (!_modeBNavCameraFollow)
         Positioned(

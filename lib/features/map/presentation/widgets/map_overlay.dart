@@ -661,21 +661,23 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         // ── Zoom controls ──────────────────────────────────────
         _buildZoomControls(context, mode, bottomPad, modeAState, navState),
 
+        // ── Mode B nav 플로팅 버튼 (줌 위에 렌더링) ────────────
+        if (mode == MapMode.modeB && modeBNavState.isNavigating)
+          ..._buildModeBNavFloatingButtons(bottomPad),
+
         // ── Compass ──────────────────────────────────────────────
-        Positioned(
-          right: 12,
-          top: () {
-            final statusH = MediaQuery.paddingOf(context).top;
-            if (navState.isNavigating || modeBNavState.isNavigating) {
-              return statusH + 8.0 + 120.0 + 12.0;
-            }
-            return statusH + 12.0;
-          }(),
-          child: _MapCompassWidget(
-            bearing: _currentCameraBearing,
-            onTap: _resetCameraNorthUp,
+        // Mode B 네비 중에는 하단 nav compass로 통합 — 전역 나침반 숨김
+        if (!modeBNavState.isNavigating)
+          Positioned(
+            right: 12,
+            top: navState.isNavigating
+                ? MediaQuery.paddingOf(context).top + 8.0 + 120.0 + 12.0
+                : MediaQuery.paddingOf(context).top + 12.0,
+            child: _MapCompassWidget(
+              bearing: _currentCameraBearing,
+              onTap: _resetCameraNorthUp,
+            ),
           ),
-        ),
 
         // ── Mode toggle (탐색 중 또는 경로 결과 시트·안내 중이면 숨김) ──
         if (mode != MapMode.modeB &&

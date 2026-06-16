@@ -1,13 +1,69 @@
 part of '../map_overlay.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ── 방향 안내 타입
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum _TurnType { straight, right, left, uTurn, arrival }
+
+class _TurnPoint {
+  const _TurnPoint({
+    required this.type,
+    required this.gpxIdx,
+    required this.lat,
+    required this.lng,
+    required this.instruction,
+  });
+  final _TurnType type;
+  final int gpxIdx;
+  final double lat;
+  final double lng;
+  final String instruction;
+}
+
+/// 맵 위에 그려지는 교차로 방향 마커 아이콘
+class _TurnDirectionMarker extends StatelessWidget {
+  const _TurnDirectionMarker({required this.type});
+  final _TurnType type;
+
+  IconData get _icon => switch (type) {
+    _TurnType.right   => Icons.turn_right_rounded,
+    _TurnType.left    => Icons.turn_left_rounded,
+    _TurnType.uTurn   => Icons.u_turn_right_rounded,
+    _TurnType.arrival => Icons.flag_rounded,
+    _TurnType.straight => Icons.straight_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: const BoxDecoration(
+        color: Color(0xFF4A90E2),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Center(child: Icon(_icon, size: 16, color: Colors.white)),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ── Mode B 네비게이션 상단 카드
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _ModeBNavTopCard extends StatelessWidget {
-  const _ModeBNavTopCard({required this.navState});
+  const _ModeBNavTopCard({
+    required this.navState,
+    this.onStepMode,
+  });
 
   final ModeBNavState navState;
+  /// null이면 단계별 전환 버튼 숨김 (생성 코스에서는 사용 안 함)
+  final VoidCallback? onStepMode;
 
   Color get _accentColor {
     final route = navState.route;
@@ -100,6 +156,34 @@ class _ModeBNavTopCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onStepMode != null) ...[
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: onStepMode,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.route_rounded, size: 16, color: kMapWhite45),
+                          SizedBox(height: 2),
+                          Text(
+                            '단계별',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: kMapWhite45,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -259,6 +343,7 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
     required this.navState,
     required this.onPageChanged,
     required this.onStop,
+    this.onStepMode,
   });
 
   final List<SpotWaypoint> waypoints;
@@ -266,6 +351,8 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
   final ModeBNavState navState;
   final ValueChanged<int> onPageChanged;
   final VoidCallback onStop;
+  /// null이면 단계별 버튼 숨김 (교차로 turn 미감지 시)
+  final VoidCallback? onStepMode;
 
   @override
   State<_ModeBNavSpotCarousel> createState() => _ModeBNavSpotCarouselState();
@@ -322,10 +409,12 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
               widget.onPageChanged(idx);
             },
             itemBuilder: (ctx, i) {
-              final cur = widget.activeIdx.clamp(0, wps.length - 1);
-              final status = i < cur
+              final viewedPage = widget.activeIdx.clamp(0, wps.length - 1);
+              // GPS 진행 기준 status (text/icon 용)
+              final navCur = widget.navState.currentWaypointIdx.clamp(0, wps.length - 1);
+              final navStatus = i < navCur
                   ? _SpotStatus.done
-                  : i == cur
+                  : i == navCur
                       ? _SpotStatus.active
                       : _SpotStatus.upcoming;
               return Padding(
@@ -334,8 +423,10 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                   waypoint: wps[i],
                   index: i,
                   total: wps.length,
-                  status: status,
-                  instruction: status == _SpotStatus.active
+                  status: navStatus,
+                  isViewedInCarousel: i == viewedPage,
+                  // GPS 목표 카드에만 실거리 instruction 표시
+                  instruction: i == navCur
                       ? widget.navState.nextInstruction
                       : null,
                   onStop: widget.onStop,
@@ -345,23 +436,58 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
           ),
         ),
         const SizedBox(height: 7),
-        if (wps.length > 1)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (int i = 0; i < wps.length; i++)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  width: i == _visiblePage ? 18 : 5,
-                  height: 5,
+        Row(
+          children: [
+            // dot indicator (flex로 중앙 배치)
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (wps.length > 1)
+                    for (int i = 0; i < wps.length; i++)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        width: i == _visiblePage ? 18 : 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: i == _visiblePage ? accent : Colors.white24,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+            // 단계별 버튼 (교차로 turn이 있을 때만)
+            if (widget.onStepMode != null)
+              GestureDetector(
+                onTap: widget.onStepMode,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                   decoration: BoxDecoration(
-                    color: i == _visiblePage ? accent : Colors.white24,
-                    borderRadius: BorderRadius.circular(3),
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.route_rounded, size: 13, color: kMapWhite45),
+                      SizedBox(width: 4),
+                      Text(
+                        '단계별',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: kMapWhite45,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
+        ),
         // 칼로리 게이지바
         if (widget.navState.foodKcal > 0) ...[
           const SizedBox(height: 8),
@@ -382,6 +508,7 @@ class _SpotWaypointCard extends StatelessWidget {
     required this.status,
     required this.onStop,
     this.instruction,
+    this.isViewedInCarousel = false,
   });
 
   final SpotWaypoint waypoint;
@@ -390,10 +517,15 @@ class _SpotWaypointCard extends StatelessWidget {
   final _SpotStatus status;
   final String? instruction;
   final VoidCallback onStop;
+  /// 캐러셀에서 현재 보고 있는 카드 여부 — border 하이라이트에만 사용
+  final bool isViewedInCarousel;
 
   @override
   Widget build(BuildContext context) {
     const accent = Color(0xFFFF4D6D);
+    // border/강조는 GPS 목표 카드 OR 캐러셀에서 현재 보고 있는 카드
+    final bool isHighlighted = status == _SpotStatus.active || isViewedInCarousel;
+
     final Color iconBg;
     final Color iconColor;
     final IconData icon;
@@ -411,8 +543,10 @@ class _SpotWaypointCard extends StatelessWidget {
         icon = Icons.place_rounded;
         statusLabel = '현재 목적지';
       case _SpotStatus.upcoming:
-        iconBg = Colors.white.withValues(alpha: 0.05);
-        iconColor = kMapWhite45;
+        iconBg = isViewedInCarousel
+            ? accent.withValues(alpha: 0.10)
+            : Colors.white.withValues(alpha: 0.05);
+        iconColor = isViewedInCarousel ? accent.withValues(alpha: 0.75) : kMapWhite45;
         icon = Icons.radio_button_unchecked_rounded;
         statusLabel = '예정';
     }
@@ -422,10 +556,8 @@ class _SpotWaypointCard extends StatelessWidget {
         color: kMapPanel,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: status == _SpotStatus.active
-              ? accent.withValues(alpha: 0.6)
-              : Colors.white12,
-          width: status == _SpotStatus.active ? 1.5 : 1.0,
+          color: isHighlighted ? accent.withValues(alpha: 0.6) : Colors.white12,
+          width: isHighlighted ? 1.5 : 1.0,
         ),
         boxShadow: const [
           BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
@@ -462,7 +594,7 @@ class _SpotWaypointCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w900,
-                        color: status == _SpotStatus.active ? accent : kMapWhite45,
+                        color: isHighlighted ? accent : kMapWhite45,
                         height: 1,
                       ),
                     ),
@@ -616,6 +748,195 @@ class _KcalGaugeBar extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 단계별 방향 안내 카드 (GPX 코스 step-by-step 모드)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ModeBTurnBar extends StatelessWidget {
+  const _ModeBTurnBar({
+    required this.turnType,
+    required this.distanceLabel,
+    required this.instruction,
+    required this.navState,
+    required this.onStop,
+    required this.onOverview,
+  });
+
+  final _TurnType turnType;
+  final String distanceLabel;
+  final String instruction;
+  final ModeBNavState navState;
+  final VoidCallback onStop;
+  final VoidCallback onOverview;
+
+  Color get _accentColor {
+    final route = navState.route;
+    if (route?.isGenerated ?? false) return const Color(0xFFFF4D6D);
+    return route?.type == '자전거' ? const Color(0xFFFFB547) : const Color(0xFF4A90E2);
+  }
+
+  IconData get _turnIcon => switch (turnType) {
+    _TurnType.right    => Icons.turn_right_rounded,
+    _TurnType.left     => Icons.turn_left_rounded,
+    _TurnType.uTurn    => Icons.u_turn_right_rounded,
+    _TurnType.arrival  => Icons.flag_rounded,
+    _TurnType.straight => Icons.straight_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _accentColor;
+    final kcalPct = (navState.kcalProgress * 100).toStringAsFixed(0);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: kMapPanel,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(_turnIcon, size: 30, color: accent),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        instruction,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: kMapWhite87,
+                          letterSpacing: -0.3,
+                          height: 1.25,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Text(
+                          distanceLabel,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: accent,
+                            letterSpacing: -1,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '약 ${navState.remainingMinutes}분',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: kMapWhite45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // 전체 경로 보기 전환 버튼
+                GestureDetector(
+                  onTap: onOverview,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.map_outlined, size: 16, color: accent),
+                        const SizedBox(height: 2),
+                        Text(
+                          '전체',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: accent,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: onStop,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.close_rounded, size: 16, color: kMapWhite45),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 칼로리 진행 바
+          Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF2C2C2E),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Column(
+              children: [
+                Row(children: [
+                  const Icon(Icons.local_fire_department_rounded,
+                      size: 13, color: kMapWhite45),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '${navState.elapsedKcal.round()} / ${navState.foodKcal} kcal  ($kcalPct%)',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: kMapWhite45,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: navState.kcalProgress,
+                    backgroundColor: Colors.white12,
+                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                    minHeight: 5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
