@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/bottom_nav.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
@@ -33,6 +34,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _openMap() {
     ref.read(mapModeProvider.notifier).set(MapMode.explore);
     context.push('/map');
+  }
+
+  @override
+  void initState() {
+    debugCheckSharedPreferences();
+    super.initState();
   }
 
   void _handleTabChange(NavTab tab) {
@@ -641,6 +648,18 @@ class _ToggleChip extends StatelessWidget {
 String _formatSteps(int n) {
   if (n < 1000) return '$n';
   return '${n ~/ 1000},${(n % 1000).toString().padLeft(3, '0')}';
+}
+
+// 2026-06-16 내장 캐시데이터(SP) 확인용
+Future<void> debugCheckSharedPreferences() async {
+  final prefs = await SharedPreferences.getInstance();
+  final keys = prefs.getKeys();
+
+  print("———————————————————Shared Preferences 캐시 데이터 목록———————————————————");
+  for (String key in keys) {
+    print("$key: ${prefs.get(key)}");
+  }
+  print("——————————————————————————————————끝———————————————————————————————————");
 }
 
 class _QuickStat extends StatelessWidget {
