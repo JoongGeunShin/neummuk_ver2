@@ -132,35 +132,33 @@ class _ModeBBottomPanel extends StatelessWidget {
     required this.scrollController,
     required this.state,
     required this.food,
-    required this.pos,
+    required this.cartCount,
     required this.isLocating,
-    required this.onSearch,
-    required this.onSearchFromCenter,
     required this.onLoadMore,
     required this.onTransportChange,
+    required this.onSpotTagTap,
+    required this.onNearbyCourseTap,
+    required this.onSpotItemTap,
     required this.onCardTap,
     required this.onStartNav,
-    required this.onTagToggle,
-    required this.onGenerateCourse,
     required this.onGeneratedCourseTap,
-    required this.onDifficultyFilter,
+    required this.onGenerateCourse,
   });
 
   final ScrollController scrollController;
   final RouteSearchState state;
   final FoodEntity food;
-  final Position? pos;
+  final int cartCount;
   final bool isLocating;
-  final VoidCallback onSearch;
-  final VoidCallback onSearchFromCenter;
   final VoidCallback onLoadMore;
   final void Function(String) onTransportChange;
+  final void Function(SpotTag) onSpotTagTap;
+  final VoidCallback onNearbyCourseTap;
+  final void Function(int, SpotEntity) onSpotItemTap;
   final void Function(int, TouristRouteEntity) onCardTap;
   final void Function(TouristRouteEntity) onStartNav;
-  final void Function(SpotTag) onTagToggle;
-  final VoidCallback onGenerateCourse;
   final void Function(TouristRouteEntity) onGeneratedCourseTap;
-  final void Function(String) onDifficultyFilter;
+  final VoidCallback onGenerateCourse;
 
   @override
   Widget build(BuildContext context) {
@@ -170,200 +168,225 @@ class _ModeBBottomPanel extends StatelessWidget {
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       child: ColoredBox(
         color: c.bg,
-        child: CustomScrollView(
-          controller: scrollController,
-          slivers: [
-            // ── 핸들 + 이동수단 토글 + 태그 ───────────────────────────────
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                        color: c.outline, borderRadius: BorderRadius.circular(2)),
-                  ),
-                  const SizedBox(height: 10),
-                  if (!state.isLoading && !isLocating) ...[
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
-                      child: Row(
-                        children: [
-                          Expanded(
+        child: Column(
+          children: [
+            // ── 스크롤 영역 ─────────────────────────────────────────
+            Expanded(
+              child: CustomScrollView(
+                controller: scrollController,
+                slivers: [
+                  // ── 핸들 + 이동수단 토글 + 태그 ───────────────────
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 10),
+                        Container(
+                          width: 40, height: 4,
+                          decoration: BoxDecoration(
+                              color: c.outline, borderRadius: BorderRadius.circular(2)),
+                        ),
+                        const SizedBox(height: 10),
+                        if (!state.isLoading && !isLocating) ...[
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
                             child: _TransportToggle(
-                                value: state.transport, onChanged: onTransportChange),
-                          ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: onSearchFromCenter,
-                            child: Container(
-                              width: 44,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: c.surfaceAlt,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: c.outline),
-                              ),
-                              child: Center(
-                                child: Icon(Icons.my_location_rounded, size: 18, color: c.primary),
-                              ),
+                              value: state.transport,
+                              onChanged: onTransportChange,
                             ),
                           ),
+                          // ── 태그 선택 ─────────────────────────────
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 10),
+                            child: _SpotTagRow(
+                              activeSpotTag: state.activeSpotTag,
+                              nearbyCoursesActive: state.nearbyCoursesActive,
+                              isFetching: state.isFetchingSpots || state.isLoading,
+                              onSpotTagTap: onSpotTagTap,
+                              onNearbyCourseTap: onNearbyCourseTap,
+                            ),
+                          ),
+                          // ── 생성된 코스 카드 (있을 때) ────────────
+                          if (state.generatedCourse != null)
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
+                              child: _GeneratedCourseCard(
+                                course: state.generatedCourse!,
+                                isSelected: state.generatedCourseSelected,
+                                onTap: () => onGeneratedCourseTap(state.generatedCourse!),
+                                onStart: () => onStartNav(state.generatedCourse!),
+                              ),
+                            ),
                         ],
-                      ),
+                      ],
                     ),
-                    // ── 태그 선택 ───────────────────────────────────────
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 6),
-                      child: _SpotTagRow(
-                        selectedTags: state.selectedTags,
-                        onToggle: onTagToggle,
-                        onGenerateCourse: onGenerateCourse,
-                        isFetching: state.isFetchingSpots,
+                  ),
+
+                  // ── 콘텐츠 영역 ────────────────────────────────────
+                  if (isLocating)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Text('위치를 확인하는 중...',
+                            style: TextStyle(
+                                color: c.textMuted, fontSize: 14, fontWeight: FontWeight.w600)),
                       ),
-                    ),
-                    // ── 난이도 필터 ─────────────────────────────────────
-                    if (state.allRoutes.isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
-                        child: _DifficultyFilterRow(
-                          selected: state.difficultyFilter,
-                          onSelect: onDifficultyFilter,
+                    )
+                  else if (state.isLoading || state.isFetchingSpots)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: CircularProgressIndicator(color: c.primary, strokeWidth: 2),
+                      ),
+                    )
+                  // ── 스팟 목록 (스팟 태그 선택 시) ─────────────────
+                  else if (state.activeSpotTag != null) ...[
+                    if (state.searchedSpots.isEmpty)
+                      SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.search_off_rounded, size: 36, color: c.textMuted),
+                              const SizedBox(height: 12),
+                              Text('주변에 ${state.activeSpotTag!.label}이 없어요',
+                                  style: TextStyle(
+                                      color: c.textMuted,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (ctx, i) {
+                              final spot = state.searchedSpots[i];
+                              return _SpotListItem(
+                                spot: spot,
+                                isSelected: i == state.selectedSpotIdx,
+                                onTap: () => onSpotItemTap(i, spot),
+                              );
+                            },
+                            childCount: state.searchedSpots.length,
+                          ),
                         ),
                       ),
-                    // ── 생성된 코스 카드 (있을 때) ──────────────────────────
-                    if (state.generatedCourse != null)
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 4),
-                        child: _GeneratedCourseCard(
-                          course: state.generatedCourse!,
-                          isSelected: state.generatedCourseSelected,
-                          onTap: () => onGeneratedCourseTap(state.generatedCourse!),
-                          onStart: () => onStartNav(state.generatedCourse!),
+                    SliverToBoxAdapter(child: SizedBox(height: context.bottomPadding + 8)),
+                  ]
+                  // ── 기성 코스 목록 (주변 코스 선택 시) ────────────
+                  else if (state.nearbyCoursesActive) ...[
+                    if (state.routes.isEmpty)
+                      SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map_outlined, size: 36, color: c.textMuted),
+                              const SizedBox(height: 12),
+                              Text('주변 코스를 찾는 중이에요',
+                                  style: TextStyle(
+                                      color: c.textMuted,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else ...[
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (ctx, i) {
+                              final route = state.routes[i];
+                              final isSelected = i == state.selectedRouteIdx;
+                              return _RouteCard(
+                                route: route,
+                                transport: state.transport,
+                                isSelected: isSelected,
+                                onTap: () => onCardTap(i, route),
+                                onStart: isSelected ? () => onStartNav(route) : null,
+                              );
+                            },
+                            childCount: state.routes.length,
+                          ),
                         ),
                       ),
-                  ],
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(12, 4, 12, context.bottomPadding + 12),
+                          child: state.isLoadingMore
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    child: CircularProgressIndicator(
+                                        color: c.primary, strokeWidth: 2),
+                                  ),
+                                )
+                              : state.hasMore
+                                  ? GestureDetector(
+                                      onTap: onLoadMore,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: c.surfaceAlt,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: c.outline),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.expand_more_rounded,
+                                                size: 18, color: c.textMuted),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '코스 더 보기 (${state.allRoutes.length - state.displayedRoutes.length}개 남음)',
+                                              style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: c.textMuted),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox(height: 8),
+                        ),
+                      ),
+                    ],
+                  ]
+                  // ── 빈 상태 (아무것도 선택 안 됨) ─────────────────
+                  else
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.touch_app_rounded, size: 36, color: c.textMuted),
+                            const SizedBox(height: 12),
+                            Text('태그를 선택해 스팟을 찾아보세요',
+                                style: TextStyle(
+                                    color: c.textMuted,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 6),
+                            Text('또는 🔍 주변 코스로 기성 코스를 검색해보세요',
+                                style: TextStyle(fontSize: 11, color: c.textFaint)),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
 
-            // ── 콘텐츠 ─────────────────────────────────────────────
-            if (isLocating)
-              SliverFillRemaining(
-                child: Center(
-                  child: Text('위치를 확인하는 중...',
-                      style: TextStyle(
-                          color: c.textMuted, fontSize: 14, fontWeight: FontWeight.w600)),
-                ),
-              )
-            else if (state.isLoading)
-              SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(color: c.primary, strokeWidth: 2),
-                ),
-              )
-            else if (state.routes.isEmpty)
-              SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.map_outlined, size: 36, color: c.textMuted),
-                      const SizedBox(height: 12),
-                      Text('현재 위치 주변 코스를 찾아보세요',
-                          style: TextStyle(
-                              color: c.textMuted, fontSize: 13, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: onSearch,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: c.primary, borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.search_rounded, size: 18, color: c.onPrimary),
-                              const SizedBox(width: 8),
-                              Text('주변 코스 검색',
-                                  style: TextStyle(
-                                      fontSize: 14, fontWeight: FontWeight.w800,
-                                      color: c.onPrimary)),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        pos != null ? '현재 위치 기준으로 검색합니다' : 'GPS 권한이 없어 기본 위치를 사용합니다',
-                        style: TextStyle(fontSize: 11, color: c.textFaint),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else ...[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (ctx, i) {
-                      final route = state.routes[i];
-                      final isSelected = i == state.selectedRouteIdx;
-                      return _RouteCard(
-                        route: route,
-                        transport: state.transport,
-                        isSelected: isSelected,
-                        onTap: () => onCardTap(i, route),
-                        onStart: isSelected ? () => onStartNav(route) : null,
-                      );
-                    },
-                    childCount: state.routes.length,
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, 4, 12, context.bottomPadding + 12),
-                  child: state.isLoadingMore
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: CircularProgressIndicator(
-                                color: c.primary, strokeWidth: 2),
-                          ),
-                        )
-                      : state.hasMore
-                          ? GestureDetector(
-                              onTap: onLoadMore,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: c.surfaceAlt,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: c.outline),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.expand_more_rounded, size: 18, color: c.textMuted),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '코스 더 보기 (${state.allRoutes.length - state.displayedRoutes.length}개 남음)',
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: c.textMuted),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : const SizedBox(height: 8),
-                ),
-              ),
-            ],
+            // ── 하단 고정 코스 생성 버튼 ────────────────────────────
+            _CourseGenerateBar(
+              cartCount: cartCount,
+              isGenerating: state.isFetchingSpots,
+              onGenerate: onGenerateCourse,
+            ),
           ],
         ),
       ),
@@ -451,16 +474,18 @@ class _ToggleItem extends StatelessWidget {
 
 class _SpotTagRow extends StatelessWidget {
   const _SpotTagRow({
-    required this.selectedTags,
-    required this.onToggle,
-    required this.onGenerateCourse,
+    required this.activeSpotTag,
+    required this.nearbyCoursesActive,
     required this.isFetching,
+    required this.onSpotTagTap,
+    required this.onNearbyCourseTap,
   });
 
-  final Set<SpotTag> selectedTags;
-  final void Function(SpotTag) onToggle;
-  final VoidCallback onGenerateCourse;
+  final SpotTag? activeSpotTag;
+  final bool nearbyCoursesActive;
   final bool isFetching;
+  final void Function(SpotTag) onSpotTagTap;
+  final VoidCallback onNearbyCourseTap;
 
   @override
   Widget build(BuildContext context) {
@@ -471,56 +496,27 @@ class _SpotTagRow extends StatelessWidget {
         Text('스팟 태그',
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.textMuted)),
         const SizedBox(height: 6),
-        Row(children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final tag in SpotTag.values) ...[
-                    _SpotTagChip(
-                      tag: tag,
-                      selected: selectedTags.isEmpty || selectedTags.contains(tag),
-                      onTap: () => onToggle(tag),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final tag in SpotTag.values) ...[
+                _SpotTagChip(
+                  tag: tag,
+                  selected: activeSpotTag == tag,
+                  onTap: isFetching ? () {} : () => onSpotTagTap(tag),
+                ),
+                const SizedBox(width: 6),
+              ],
+              // 주변 코스 특수 태그
+              _NearbyCoursesChip(
+                selected: nearbyCoursesActive,
+                isFetching: isFetching && nearbyCoursesActive,
+                onTap: isFetching && nearbyCoursesActive ? () {} : onNearbyCourseTap,
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: isFetching ? null : onGenerateCourse,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: isFetching ? c.surfaceAlt : c.accent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: isFetching
-                  ? SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: c.textMuted),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.auto_awesome_rounded, size: 13, color: c.onPrimary),
-                        const SizedBox(width: 4),
-                        Text('코스 생성',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: c.onPrimary)),
-                      ],
-                    ),
-            ),
-          ),
-        ]),
+        ),
       ],
     );
   }
@@ -543,10 +539,10 @@ class _SpotTagChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? c.primarySoft : c.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected ? c.primary : c.outline,
             width: selected ? 1.5 : 1,
@@ -555,12 +551,156 @@ class _SpotTagChip extends StatelessWidget {
         child: Text(
           '${tag.emoji} ${tag.label}',
           style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: selected ? c.primary : c.textMuted),
         ),
       ),
     );
+  }
+}
+
+class _NearbyCoursesChip extends StatelessWidget {
+  const _NearbyCoursesChip({
+    required this.selected,
+    required this.isFetching,
+    required this.onTap,
+  });
+  final bool selected;
+  final bool isFetching;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? c.accent.withValues(alpha: 0.15) : c.surfaceAlt,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? c.accent : c.outline,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: isFetching
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: c.accent),
+              )
+            : Text(
+                '🔍 주변 코스',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? c.accent : c.textMuted),
+              ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── Spot list item
+// ════════════════════════════════════════════════════════════════════════════
+
+class _SpotListItem extends StatelessWidget {
+  const _SpotListItem({
+    required this.spot,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final SpotEntity spot;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? c.primarySoft : c.surfaceAlt,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? c.primary : c.outline,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: isSelected ? c.primary.withValues(alpha: 0.15) : c.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  _tagEmoji(spot.type),
+                  style: const TextStyle(fontSize: 18),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    spot.name,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? c.primary : c.text),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (spot.address != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      spot.address!,
+                      style: TextStyle(fontSize: 11, color: c.textMuted),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (spot.distanceFromUserM != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      spot.distanceFromUserM! < 1000
+                          ? '${spot.distanceFromUserM}m'
+                          : '${(spot.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
+                      style: TextStyle(
+                          fontSize: 11, color: c.primary, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: c.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _tagEmoji(String type) {
+    switch (type) {
+      case 'tourist_sight': return '🏛️';
+      case 'culture': return '🎭';
+      case 'event': return '🎉';
+      case 'sports': return '⛹️';
+      case 'shopping': return '🛍️';
+      default: return '📍';
+    }
   }
 }
 
@@ -671,57 +811,80 @@ class _GeneratedCourseCard extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── Difficulty filter row
+// ── 코스 생성 하단 바
 // ════════════════════════════════════════════════════════════════════════════
 
-class _DifficultyFilterRow extends StatelessWidget {
-  const _DifficultyFilterRow({
-    required this.selected,
-    required this.onSelect,
+class _CourseGenerateBar extends StatelessWidget {
+  const _CourseGenerateBar({
+    required this.cartCount,
+    required this.isGenerating,
+    required this.onGenerate,
   });
 
-  final String selected;
-  final void Function(String) onSelect;
-
-  static const _filters = ['전체', '쉬움', '보통', '어려움'];
-  static const _icons = ['📋', '🟢', '🟡', '🔴'];
+  final int cartCount;
+  final bool isGenerating;
+  final VoidCallback onGenerate;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Row(
-      children: [
-        Text('난이도',
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700, color: c.textMuted)),
-        const SizedBox(width: 8),
-        for (var i = 0; i < _filters.length; i++) ...[
-          GestureDetector(
-            onTap: () => onSelect(_filters[i]),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: selected == _filters[i] ? c.primarySoft : c.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: selected == _filters[i] ? c.primary : c.outline,
-                  width: selected == _filters[i] ? 1.5 : 1,
-                ),
-              ),
-              child: Text(
-                '${_icons[i]} ${_filters[i]}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: selected == _filters[i] ? c.primary : c.textMuted,
-                ),
-              ),
-            ),
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, context.bottomPadding + 10),
+      decoration: BoxDecoration(
+        color: c.bg,
+        border: Border(top: BorderSide(color: c.outline, width: 0.5)),
+      ),
+      child: GestureDetector(
+        onTap: isGenerating ? null : onGenerate,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isGenerating ? c.surfaceAlt : c.primary,
+            borderRadius: BorderRadius.circular(14),
           ),
-          if (i < _filters.length - 1) const SizedBox(width: 4),
-        ],
-      ],
+          child: isGenerating
+              ? Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: c.textMuted),
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 16, color: c.onPrimary),
+                    const SizedBox(width: 8),
+                    Text(
+                      cartCount > 0 ? '담은 스팟으로 코스 생성' : '스팟으로 코스 생성',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: c.onPrimary),
+                    ),
+                    if (cartCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: c.onPrimary.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$cartCount개',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: c.onPrimary),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }
@@ -787,6 +950,108 @@ class _ModeBKcalMiniBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 장바구니 FAB
+// ════════════════════════════════════════════════════════════════════════════
+
+class _CartFab extends StatefulWidget {
+  const _CartFab({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  State<_CartFab> createState() => _CartFabState();
+}
+
+class _CartFabState extends State<_CartFab> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _scale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.35, end: 0.88), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.88, end: 1.0), weight: 30),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(_CartFab old) {
+    super.didUpdateWidget(old);
+    if (old.count != widget.count && widget.count > old.count) {
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: c.bg,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+            border: Border.all(color: c.outline, width: 0.5),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(Icons.shopping_cart_rounded, color: c.primary, size: 22),
+              ),
+              if (widget.count > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: c.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${widget.count}',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: c.onPrimary),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

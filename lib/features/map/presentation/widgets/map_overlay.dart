@@ -26,6 +26,7 @@ import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../../mode_b/domain/entities/food_entity.dart';
 import '../../../mode_b/domain/entities/spot_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
+import '../../../mode_b/presentation/providers/cart_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../../record/presentation/providers/record_provider.dart';
@@ -357,7 +358,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       case MapMode.modeB:
         _resetModeAFocusState();
         final modeBState = ref.read(routeSearchProvider);
-        if (modeBState.routes.isNotEmpty) _updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx);
+        if (_currentSearchedSpots.isNotEmpty) {
+          unawaited(_drawSearchedSpotMarkers(_currentSearchedSpots));
+        } else if (modeBState.searchedSpots.isNotEmpty) {
+          unawaited(_drawSearchedSpotMarkers(modeBState.searchedSpots));
+        } else if (modeBState.routes.isNotEmpty) {
+          _updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx);
+        }
     }
   }
 
@@ -515,6 +522,19 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     });
 
     ref.listen<RouteSearchState>(routeSearchProvider, (prev, next) {
+      // 스팟 검색 결과 변경 → 마커 갱신
+      if (!identical(prev?.searchedSpots, next.searchedSpots) &&
+          next.searchedSpots.isNotEmpty) {
+        unawaited(_drawSearchedSpotMarkers(next.searchedSpots));
+      }
+      // 태그/주변코스 해제 시 마커 정리
+      if ((prev?.activeSpotTag != null && next.activeSpotTag == null) ||
+          ((prev?.nearbyCoursesActive ?? false) && !next.nearbyCoursesActive)) {
+        if (!next.nearbyCoursesActive && next.activeSpotTag == null) {
+          _ctrl?.clearOverlays(type: NOverlayType.marker);
+          _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+        }
+      }
       // 기성 코스 목록 변경 시 마커 갱신 (생성 코스 선택 중에는 기성 마커 갱신 생략)
       if (!next.isLoading && next.routes != prev?.routes && !next.generatedCourseSelected) {
         _updateModeBMarkers(next.routes, selectedIdx: next.selectedRouteIdx);
@@ -536,9 +556,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         final route = next.selectedRoute;
         if (route != null) _onStartModeBCourse(route);
       }
-      // 스팟 검색 완료 후 코스 생성 실패 → 피드백
+      // 스팟 검색 완료 후 코스 생성 실패 피드백
       final fetchDone = (prev?.isFetchingSpots ?? false) && !next.isFetchingSpots;
-      if (fetchDone && next.generatedCourse == null && mounted) {
+      if (fetchDone && next.generatedCourse == null && next.searchedSpots.isEmpty && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('주변에 코스를 만들 스팟이 부족해요. 태그를 바꾸거나 지도를 이동 후 다시 시도해보세요.'),

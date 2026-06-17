@@ -11,6 +11,8 @@ import '../../features/mode_b/presentation/screens/mode_b_search_screen.dart';
 import '../../features/event/presentation/screens/event_detail_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_detail_screen.dart';
 import '../../features/map/presentation/screens/place_detail_screen.dart';
+import '../../features/mode_b/domain/entities/spot_entity.dart';
+import '../../features/mode_b/presentation/screens/spot_detail_screen.dart';
 import '../../features/explore/presentation/screens/explore_screen.dart';
 import '../../features/record/presentation/screens/my_record_screen.dart';
 import '../../features/user/presentation/screen/user_info_screen.dart';
@@ -68,6 +70,11 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/place-detail',
       builder: (_, state) => PlaceDetailScreen(extra: state.extra),
+    ),
+    // Mode B 스팟 상세 화면
+    GoRoute(
+      path: '/spot-detail',
+      builder: (_, state) => SpotDetailScreen(spot: state.extra as SpotEntity),
     ),
     GoRoute(
       path: '/record',

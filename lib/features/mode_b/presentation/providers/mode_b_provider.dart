@@ -96,8 +96,11 @@ class SelectedFood extends _$SelectedFood {
 class RouteSearchState {
   const RouteSearchState({
     this.transport = 'walk',
-    this.selectedTags = const {},
+    this.activeSpotTag,
+    this.nearbyCoursesActive = false,
+    this.searchedSpots = const [],
     this.difficultyFilter = '전체',
+    this.selectedSpotIdx = -1,
     this.selectedRouteIdx = -1,
     this.allRoutes = const [],
     this.displayedRoutes = const [],
@@ -111,8 +114,17 @@ class RouteSearchState {
 
   final String transport;
 
-  /// 선택된 스팟 태그 (비어있으면 전체 선택)
-  final Set<SpotTag> selectedTags;
+  /// 현재 활성 스팟 태그 (null = 아무것도 선택 안 됨)
+  final SpotTag? activeSpotTag;
+
+  /// "주변 코스" 모드 활성 여부 (activeSpotTag와 배타적)
+  final bool nearbyCoursesActive;
+
+  /// 태그 검색으로 찾은 스팟 목록
+  final List<SpotEntity> searchedSpots;
+
+  /// 스팟 목록에서 선택된 인덱스
+  final int selectedSpotIdx;
 
   /// 난이도 필터: '전체' | '쉬움' | '보통' | '어려움'
   final String difficultyFilter;
@@ -138,7 +150,7 @@ class RouteSearchState {
   List<TouristRouteEntity> get filteredRoutes {
     if (difficultyFilter == '전체') return allRoutes;
     return allRoutes.where((r) {
-      if (r.tags.isEmpty) return true; // 태그 없는 코스는 포함
+      if (r.tags.isEmpty) return true;
       return r.tags.any((t) => t.contains(difficultyFilter));
     }).toList();
   }
@@ -158,7 +170,10 @@ class RouteSearchState {
 
   RouteSearchState copyWith({
     String? transport,
-    Set<SpotTag>? selectedTags,
+    Object? activeSpotTag = _kKeep,
+    bool? nearbyCoursesActive,
+    List<SpotEntity>? searchedSpots,
+    int? selectedSpotIdx,
     String? difficultyFilter,
     int? selectedRouteIdx,
     List<TouristRouteEntity>? allRoutes,
@@ -172,7 +187,12 @@ class RouteSearchState {
   }) =>
       RouteSearchState(
         transport: transport ?? this.transport,
-        selectedTags: selectedTags ?? this.selectedTags,
+        activeSpotTag: identical(activeSpotTag, _kKeep)
+            ? this.activeSpotTag
+            : activeSpotTag as SpotTag?,
+        nearbyCoursesActive: nearbyCoursesActive ?? this.nearbyCoursesActive,
+        searchedSpots: searchedSpots ?? this.searchedSpots,
+        selectedSpotIdx: selectedSpotIdx ?? this.selectedSpotIdx,
         difficultyFilter: difficultyFilter ?? this.difficultyFilter,
         selectedRouteIdx: selectedRouteIdx ?? this.selectedRouteIdx,
         allRoutes: allRoutes ?? this.allRoutes,
@@ -209,6 +229,10 @@ class RouteSearch extends _$RouteSearch {
       displayedRoutes: [],
       generatedCourse: null,
       generatedCourseSelected: false,
+      activeSpotTag: null,
+      nearbyCoursesActive: true,
+      searchedSpots: [],
+      selectedSpotIdx: -1,
     );
 
     final all = await ref.read(modeBRepositoryProvider).getTouristRoutes(
@@ -234,22 +258,102 @@ class RouteSearch extends _$RouteSearch {
     _enrichAndUpdate(startIdx: 0, batch: firstBatch);
   }
 
-  // ── 스팟 검색 + 코스 생성 ─────────────────────────────────────────
+  // ── 스팟 태그 선택 (단일 선택) ──────────────────────────────────
 
-  Future<void> generateCourseFromSpots(
-    FoodEntity food, {
+  void selectSpotTag(SpotTag tag) {
+    if (state.activeSpotTag == tag) {
+      // 같은 태그 재탭 → 해제
+      state = state.copyWith(
+        activeSpotTag: null,
+        nearbyCoursesActive: false,
+        searchedSpots: [],
+        selectedSpotIdx: -1,
+      );
+    } else {
+      state = state.copyWith(
+        activeSpotTag: tag,
+        nearbyCoursesActive: false,
+        searchedSpots: [],
+        selectedSpotIdx: -1,
+        allRoutes: [],
+        displayedRoutes: [],
+        selectedRouteIdx: -1,
+        generatedCourse: null,
+        generatedCourseSelected: false,
+      );
+    }
+  }
+
+  // ── "주변 코스" 모드 토글 ──────────────────────────────────────
+
+  void toggleNearbyCourses() {
+    if (state.nearbyCoursesActive) {
+      state = state.copyWith(
+        nearbyCoursesActive: false,
+        allRoutes: [],
+        displayedRoutes: [],
+        selectedRouteIdx: -1,
+      );
+    } else {
+      state = state.copyWith(
+        nearbyCoursesActive: true,
+        activeSpotTag: null,
+        searchedSpots: [],
+        selectedSpotIdx: -1,
+      );
+    }
+  }
+
+  // ── 스팟 검색 (태그 기반) ─────────────────────────────────────
+
+  Future<void> searchSpotsForActiveTag({
     double lat = 37.5635,
     double lng = 126.9869,
   }) async {
-    state = state.copyWith(isFetchingSpots: true, generatedCourse: null);
+    final tag = state.activeSpotTag;
+    if (tag == null) return;
+
+    state = state.copyWith(isFetchingSpots: true, searchedSpots: [], selectedSpotIdx: -1);
 
     try {
       final spots = await ref.read(modeBRepositoryProvider).searchSpots(
             latitude: lat,
             longitude: lng,
-            tags: state.selectedTags,
+            tags: {tag},
             transport: state.transport,
           );
+      state = state.copyWith(searchedSpots: spots, isFetchingSpots: false);
+    } catch (_) {
+      state = state.copyWith(isFetchingSpots: false);
+    }
+  }
+
+  // ── 스팟 선택 ──────────────────────────────────────────────────
+
+  void selectSpot(int idx) => state = state.copyWith(selectedSpotIdx: idx);
+
+  // ── 스팟 조합 코스 생성 ──────────────────────────────────────────
+
+  Future<void> generateCourseFromSpots(
+    FoodEntity food, {
+    double lat = 37.5635,
+    double lng = 126.9869,
+    List<SpotEntity> cartItems = const [],
+  }) async {
+    state = state.copyWith(isFetchingSpots: true, generatedCourse: null);
+
+    try {
+      final List<SpotEntity> spots;
+      if (cartItems.isNotEmpty) {
+        spots = cartItems;
+      } else {
+        spots = await ref.read(modeBRepositoryProvider).searchSpots(
+              latitude: lat,
+              longitude: lng,
+              tags: state.activeSpotTag != null ? {state.activeSpotTag!} : {},
+              transport: state.transport,
+            );
+      }
 
       if (spots.isEmpty) {
         state = state.copyWith(isFetchingSpots: false);
@@ -273,21 +377,7 @@ class RouteSearch extends _$RouteSearch {
     }
   }
 
-  // ── 태그 토글 ──────────────────────────────────────────────────────
-
-  void toggleTag(SpotTag tag) {
-    final current = Set<SpotTag>.from(state.selectedTags);
-    if (current.contains(tag)) {
-      current.remove(tag);
-    } else {
-      current.add(tag);
-    }
-    state = state.copyWith(selectedTags: current);
-  }
-
-  void selectAllTags() => state = state.copyWith(selectedTags: const {});
-
-  // ── 더 보기 ────────────────────────────────────────────────────────
+  // ── 더 보기 ────────────────────────────────────────────────────
 
   Future<void> loadMore() async {
     if (state.isLoadingMore || !state.hasMore) return;
@@ -304,7 +394,7 @@ class RouteSearch extends _$RouteSearch {
     _enrichAndUpdate(startIdx: nextStart, batch: nextBatch);
   }
 
-  // ── 난이도 필터 ─────────────────────────────────────────────────────
+  // ── 난이도 필터 ─────────────────────────────────────────────────
 
   void setDifficultyFilter(String filter) {
     final filtered = filter == '전체'
@@ -334,15 +424,19 @@ class RouteSearch extends _$RouteSearch {
     state = state.copyWith(displayedRoutes: updated);
   }
 
-  // ── Transport ─────────────────────────────────────────────────────
+  // ── Transport ─────────────────────────────────────────────────
 
   void setTransport(String t, FoodEntity food,
       {double lat = 37.5635, double lng = 126.9869}) {
     state = state.copyWith(transport: t, selectedRouteIdx: 0);
-    loadRoutes(food, lat: lat, lng: lng);
+    if (state.nearbyCoursesActive) {
+      loadRoutes(food, lat: lat, lng: lng);
+    } else if (state.activeSpotTag != null) {
+      searchSpotsForActiveTag(lat: lat, lng: lng);
+    }
   }
 
-  // ── 루트 선택 / 시작 ───────────────────────────────────────────────
+  // ── 루트 선택 / 시작 ───────────────────────────────────────────
 
   void selectRoute(int idx) => state = state.copyWith(
         selectedRouteIdx: idx,
@@ -355,7 +449,6 @@ class RouteSearch extends _$RouteSearch {
       );
 
   /// place_detail_screen에서 "안내 시작" 버튼 탭 시 호출
-  /// map_overlay의 ref.listen이 감지하여 _onStartModeBCourse를 실행
   void startRoute() => state = state.copyWith(navPending: true);
 
   void clearNavPending() => state = state.copyWith(navPending: false);

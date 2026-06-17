@@ -16,6 +16,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   // 네비게이션 중 폴리라인 트리밍 스로틀
   DateTime? _lastPolylineTrim;
 
+  // 검색된 스팟 목록 (마커 탭과 연결용)
+  List<SpotEntity> _currentSearchedSpots = [];
+
   NaverMapController? get _ctrl;
   Position? get _position;
 
@@ -149,6 +152,55 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
+  // ── 검색된 스팟 마커 (탭 핸들러 포함) ───────────────────────────
+
+  Future<void> _drawSearchedSpotMarkers(List<SpotEntity> spots) async {
+    _currentSearchedSpots = spots;
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    await ctrl.clearOverlays(type: NOverlayType.marker);
+    await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
+
+    final icons = await _getModeBMarkerIcons();
+    if (!mounted) return;
+
+    for (var i = 0; i < spots.length; i++) {
+      final spot = spots[i];
+      final marker = NMarker(
+        id: 'search_spot_$i',
+        position: NLatLng(spot.lat, spot.lng),
+        icon: icons['spot'],
+        caption: NOverlayCaption(
+          text: spot.name,
+          textSize: 11,
+          color: const Color(0xFFFF6B6B),
+          haloColor: Colors.black87,
+        ),
+        captionOffset: 4,
+        isHideCollidedCaptions: true,
+      );
+      final capturedSpot = spot;
+      final capturedIdx = i;
+      marker.setOnTapListener((_) {
+        ref.read(routeSearchProvider.notifier).selectSpot(capturedIdx);
+        _onSpotTap(capturedSpot);
+      });
+      await ctrl.addOverlay(marker);
+    }
+
+    // 스팟들이 보이도록 카메라 조정
+    if (spots.isNotEmpty) {
+      final coords = spots.map((s) => NLatLng(s.lat, s.lng)).toList();
+      if (coords.length == 1) {
+        await ctrl.updateCamera(NCameraUpdate.scrollAndZoomTo(
+          target: coords.first, zoom: 15,
+        ));
+      } else {
+        await MapCameraUtils.fitPoints(ctrl, coords, padding: const EdgeInsets.all(80));
+      }
+    }
+  }
+
   Future<void> _drawSpotWaypointMarkers(
     List<SpotWaypoint> waypoints,
     NOverlayImage? icon,
@@ -174,9 +226,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   /// 네비게이션 중 스팟 마커 표시
-  /// - currentIdx 이전: 방문 완료 (흐린 색)
-  /// - currentIdx: 현재 목적지 (강조, 별 아이콘)
-  /// - currentIdx 이후: 미방문 (일반 색)
   Future<void> _drawNavSpotMarkers(
     List<SpotWaypoint> waypoints, {
     required int currentIdx,
@@ -231,31 +280,70 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     );
   }
 
-  // ── 기성 코스 검색 (항상 맵 중심점 기준) ─────────────────────
+  // ── 스팟 태그 탭 ──────────────────────────────────────────────
 
-  Future<void> _onModeBSearch() async {
-    final food = ref.read(selectedFoodProvider);
-    if (food == null) return;
+  Future<void> _onSpotTagTap(SpotTag tag) async {
+    final notifier = ref.read(routeSearchProvider.notifier);
+    final currentTag = ref.read(routeSearchProvider).activeSpotTag;
+
+    if (currentTag == tag) {
+      // 같은 태그 재탭 → 해제 + 마커 제거
+      notifier.selectSpotTag(tag);
+      _currentSearchedSpots = [];
+      await _ctrl?.clearOverlays(type: NOverlayType.marker);
+      await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+      return;
+    }
+
+    // 새 태그 선택
+    notifier.selectSpotTag(tag);
     final center = await _getMapCenter();
-    await ref.read(routeSearchProvider.notifier).loadRoutes(
-          food,
-          lat: center.lat,
-          lng: center.lng,
-        );
+    await notifier.searchSpotsForActiveTag(lat: center.lat, lng: center.lng);
+    // ref.listen이 searchedSpots 변경을 감지 → _drawSearchedSpotMarkers 자동 호출
   }
 
-  // ── 스팟 기반 코스 생성 (맵 중심점 기준) ─────────────────────
+  // ── "주변 코스" 탭 ────────────────────────────────────────────
+
+  Future<void> _onNearbyCourseTap() async {
+    final food = ref.read(selectedFoodProvider);
+    if (food == null) return;
+    final notifier = ref.read(routeSearchProvider.notifier);
+    final isActive = ref.read(routeSearchProvider).nearbyCoursesActive;
+
+    if (isActive) {
+      // 이미 활성 → 해제
+      notifier.toggleNearbyCourses();
+      _currentSearchedSpots = [];
+      await _ctrl?.clearOverlays(type: NOverlayType.marker);
+      await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+      return;
+    }
+
+    notifier.toggleNearbyCourses();
+    final center = await _getMapCenter();
+    await notifier.loadRoutes(food, lat: center.lat, lng: center.lng);
+  }
+
+  // ── 스팟 탭 → 상세 페이지 ────────────────────────────────────
+
+  void _onSpotTap(SpotEntity spot) {
+    if (!mounted) return;
+    context.push('/spot-detail', extra: spot);
+  }
+
+  // ── 스팟 기반 코스 생성 ───────────────────────────────────────
 
   Future<void> _onGenerateCourseFromSpots() async {
     final food = ref.read(selectedFoodProvider);
     if (food == null) return;
     final center = await _getMapCenter();
+    final cartItems = ref.read(cartProvider);
     await ref.read(routeSearchProvider.notifier).generateCourseFromSpots(
           food,
           lat: center.lat,
           lng: center.lng,
+          cartItems: cartItems,
         );
-    // ref.listen이 generatedCourse 변경을 감지해서 자동으로 지도에 표시
   }
 
   Future<void> _drawGeneratedCourseOnMap(TouristRouteEntity course) async {
@@ -267,11 +355,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
     final courseStartLat = course.startLat!;
     final courseStartLng = course.startLng!;
-    // 사용자 GPS 위치가 있으면 거기서 폴리라인 시작, 없으면 맵 중심점 사용
     final originLat = _position?.latitude ?? courseStartLat;
     final originLng = _position?.longitude ?? courseStartLng;
 
-    // Kakao Mobility로 도로 경로 조회 (실패 시 직선으로 fallback)
     setState(() => _gpxLoading = true);
     try {
       final roadPoints = await _fetchRoadRouteForGeneratedCourse(
@@ -285,7 +371,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
       final List<NLatLng> drawCoords;
       if (roadPoints.isNotEmpty) {
-        // 사용자 실제 위치를 첫 점으로 강제 삽입 (API snap 보정)
         final userPos = NLatLng(originLat, originLng);
         final snapDist = Geolocator.distanceBetween(
           originLat, originLng,
@@ -315,7 +400,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       if (mounted) setState(() => _gpxLoading = false);
     }
 
-    // 스팟 마커 + 경로 화살표 (polyline 그린 후 별도로 그려야 지워지지 않음)
     final icons = await _getModeBMarkerIcons();
     if (!mounted) return;
     await ctrl.clearOverlays(type: NOverlayType.marker);
@@ -353,7 +437,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         'searchOption=0',
       ];
       if (intermediates.isNotEmpty) {
-        // TMAP pedestrian API: passList max 5 waypoints
         const maxPass = 5;
         final capped = intermediates.length <= maxPass
             ? intermediates
@@ -423,7 +506,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   }) async {
     if (waypoints.isEmpty) return [];
 
-    // OSRM 도보 경로 우선
     final pedestrianPts = await _fetchPedestrianRoute(
       startLat: startLat,
       startLng: startLng,
@@ -431,7 +513,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     );
     if (pedestrianPts.isNotEmpty) return pedestrianPts;
 
-    // Kakao Mobility fallback
     try {
       final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
       if (key.isEmpty) return [];
@@ -491,12 +572,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   Future<void> _onModeBCardTap(int idx, TouristRouteEntity route) async {
     ref.read(routeSearchProvider.notifier).selectRoute(idx);
-    // GPX 로드는 백그라운드로, place-detail은 즉시 이동
     unawaited(_loadModeBRouteGpx(idx));
     if (mounted) context.push('/place-detail', extra: route);
   }
 
-  // ── 생성 코스 탭: 별도 경로 ───────────────────────────────────
+  // ── 생성 코스 탭 ─────────────────────────────────────────────
 
   Future<void> _onGeneratedCourseTap(TouristRouteEntity course) async {
     ref.read(routeSearchProvider.notifier).selectGeneratedCourse();
@@ -555,27 +635,22 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final ctrl = _ctrl;
     final pos = _position;
 
-    // 시트 접기
     if (_sheetBCtrl.isAttached) {
       _sheetBCtrl.animateTo(0.13,
           duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
 
-    // 마커 정리 (polyline은 아직 건드리지 않음)
     await ctrl?.clearOverlays(type: NOverlayType.marker);
 
     List<NLatLng> gpxPoints = [];
 
     if (route.isGenerated) {
-      // 생성된 코스: 기존 도로경로 polyline 유지, 접근선 없이 바로 시작
       await _drawNavSpotMarkers(route.waypoints, currentIdx: 0);
-      // clearOverlays(marker)로 화살표가 삭제됐으므로 재그리기
       if (mounted && _lastGeneratedRoutePoints.isNotEmpty) {
         await _drawRouteArrows(
             _lastGeneratedRoutePoints, context.colors.accent, 'gen');
       }
     } else {
-      // 기성 코스: GPX 경로 + 접근 경로
       if (route.gpxpath != null) {
         setState(() => _gpxLoading = true);
         try {
@@ -602,13 +677,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       }
     }
 
-    // 네비게이션 시작
     await _startModeBNavigation(route, gpxPoints);
   }
-
-  // ── 맵 중심 재검색 (동일 로직 사용) ──────────────────────────
-
-  Future<void> _onModeBSearchFromMapCenter() => _onModeBSearch();
 
   // ── 접근 경로 (OSRM 우선 → Kakao Mobility fallback) ────────────
 
@@ -618,14 +688,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     required double toLat,
     required double toLng,
   }) async {
-    // OSRM 도보 경로 우선
     final pedestrianPts = await _fetchPedestrianRoute(
       startLat: fromLat,
       startLng: fromLng,
       waypointCoords: [(lat: toLat, lng: toLng)],
     );
     if (pedestrianPts.isNotEmpty) {
-      // 시작점은 사용자 실제 위치로 고정
       final snapDist = Geolocator.distanceBetween(
         fromLat, fromLng,
         pedestrianPts.first.latitude, pedestrianPts.first.longitude,
@@ -635,7 +703,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           : pedestrianPts;
     }
 
-    // Kakao Mobility fallback
     try {
       final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
       if (key.isEmpty) return [];
@@ -776,7 +843,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final totalLen = _totalPolylineLength(points);
     if (totalLen < 100) return;
 
-    // 100m마다 화살표, 최소 4개 최대 25개 (네이버 스타일)
     final count = (totalLen / 100).clamp(4.0, 25.0).round();
     final spacing = totalLen / (count + 1);
 
@@ -805,10 +871,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     _arrowCounts[idPrefix] = arrowIdx;
   }
 
-  // ── 교차로 방향 마커 그리기 ───────────────────────────────────
+  // ── 교차로 방향 마커 ───────────────────────────────────────────
 
-  /// GPX 코스 안내 시작 시 각 교차로에 방향 아이콘 마커를 표시.
-  /// 도착 포인트와 직진은 제외하고 좌/우/유턴만 표시.
   Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns) async {
     final ctrl = _ctrl;
     if (ctrl == null || !mounted) return;
@@ -836,8 +900,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 네비게이션 폴리라인 점진적 트리밍 ────────────────────────────
 
-  /// 이동하며 지나간 경로 구간을 폴리라인에서 지워 남은 경로만 표시.
-  /// GPS 업데이트마다 호출되지만 3초 스로틀로 실제 처리 빈도를 제한.
   Future<void> _trimNavPolylineToRemaining(
     Position p,
     ModeBNavState navState,
@@ -860,10 +922,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final c = context.colors;
 
     if (!route.isGenerated && navState.gpxPoints.isNotEmpty) {
-      // 단계별 모드에서는 step_segment가 폴리라인을 관리 — 전체 경로 트리밍 건너뜀
       if (_modeBNavStepMode) return;
 
-      // GPX 코스: nearestGpxPtIdx 이후 포인트만 남김
       final startIdx = navState.nearestGpxPtIdx;
       if (startIdx <= 0) return;
       final pts = navState.gpxPoints;
@@ -874,10 +934,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       polylineId = 'route_path';
       polylineColor = route.type == '자전거' ? c.warn : c.primary;
     } else if (route.isGenerated && _lastGeneratedRoutePoints.isNotEmpty) {
-      // 단계별 모드에서는 step_segment가 폴리라인을 관리
       if (_modeBNavStepMode) return;
 
-      // 생성 코스: 현재 위치와 가장 가까운 포인트 이후만 남김
       final pts = _lastGeneratedRoutePoints;
       int nearestIdx = 0;
       double nearestSqDist = double.infinity;
@@ -930,13 +988,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   ) {
     if (mode != MapMode.modeB) return const [];
 
-    // 앱 재시작 복원 시 food가 null이어도 nav 상태의 음식명으로 topbar 표시
     final navState = ref.read(modeBNavProvider);
     final showNavTopBar = food == null &&
         navState.isNavigating &&
         navState.foodName.isNotEmpty;
 
     final walkKcal = ref.watch(walkSessionProvider).caloriesKcal;
+    final cartItems = ref.watch(cartProvider);
+    final cartCount = cartItems.length;
 
     return [
       // Top bar
@@ -949,7 +1008,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ModeBTopBar(food: food, onBack: () => context.pop()),
-              // 오늘 칼로리 미니바 (탐색 중 상시 표시)
               _ModeBKcalMiniBar(
                 todayKcal: walkKcal,
                 targetKcal: food.kcal,
@@ -976,6 +1034,22 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           right: 0,
           child: const Center(child: MapLoadingChip('경로 불러오는 중...')),
         ),
+      // 장바구니 FAB (탐색 중, 네비게이션 아닐 때)
+      if (food != null)
+        AnimatedBuilder(
+          animation: _sheetBCtrl,
+          builder: (ctx, child) {
+            final screenH = MediaQuery.sizeOf(ctx).height;
+            final sheetH = _sheetBCtrl.isAttached
+                ? _sheetBCtrl.size * screenH
+                : screenH * 0.46;
+            return Positioned(left: 16, bottom: sheetH + 16, child: child!);
+          },
+          child: _CartFab(
+            count: cartCount,
+            onTap: () => _showCartSheet(context, cartItems),
+          ),
+        ),
       // Bottom panel
       if (food != null)
         DraggableScrollableSheet(
@@ -989,10 +1063,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             scrollController: sc,
             state: modeBState,
             food: food,
-            pos: _position,
+            cartCount: cartCount,
             isLocating: locating,
-            onSearch: _onModeBSearch,
-            onSearchFromCenter: _onModeBSearchFromMapCenter,
             onLoadMore: () => ref.read(routeSearchProvider.notifier).loadMore(),
             onTransportChange: (v) {
               final notifier = ref.read(routeSearchProvider.notifier);
@@ -1001,16 +1073,129 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
                   lng: _position?.longitude ?? 126.9869);
               _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
             },
+            onSpotTagTap: _onSpotTagTap,
+            onNearbyCourseTap: _onNearbyCourseTap,
+            onSpotItemTap: (idx, spot) {
+              ref.read(routeSearchProvider.notifier).selectSpot(idx);
+              _onSpotTap(spot);
+            },
             onCardTap: _onModeBCardTap,
             onStartNav: _onStartModeBCourse,
-            onTagToggle: (tag) =>
-                ref.read(routeSearchProvider.notifier).toggleTag(tag),
-            onGenerateCourse: _onGenerateCourseFromSpots,
             onGeneratedCourseTap: _onGeneratedCourseTap,
-            onDifficultyFilter: (filter) =>
-                ref.read(routeSearchProvider.notifier).setDifficultyFilter(filter),
+            onGenerateCourse: _onGenerateCourseFromSpots,
           ),
         ),
     ];
+  }
+
+  // ── 장바구니 바텀시트 ─────────────────────────────────────────
+
+  void _showCartSheet(BuildContext context, List<SpotEntity> cartItems) {
+    final c = context.colors;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: c.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Consumer(
+        builder: (ctx, ref, _) {
+          final items = ref.watch(cartProvider);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: c.outline, borderRadius: BorderRadius.circular(2)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Text('코스 장바구니',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: c.text)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: c.primarySoft, borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('${items.length}개',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: c.primary)),
+                    ),
+                    const Spacer(),
+                    if (items.isNotEmpty)
+                      GestureDetector(
+                        onTap: () => ref.read(cartProvider.notifier).clear(),
+                        child: Text('전체 삭제',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: c.textMuted,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                  ],
+                ),
+              ),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Text('아직 담은 스팟이 없어요',
+                      style: TextStyle(color: c.textMuted, fontSize: 14)),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => Divider(color: c.outline, height: 1),
+                  itemBuilder: (_, i) {
+                    final spot = items[i];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      leading: Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: c.surfaceAlt, borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(child: Text(_spotTypeEmoji(spot.type), style: const TextStyle(fontSize: 18))),
+                      ),
+                      title: Text(spot.name,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
+                      subtitle: spot.address != null
+                          ? Text(spot.address!, style: TextStyle(fontSize: 11, color: c.textMuted))
+                          : null,
+                      trailing: GestureDetector(
+                        onTap: () => ref.read(cartProvider.notifier).remove(spot.id),
+                        child: Icon(Icons.remove_circle_outline_rounded, color: c.textMuted, size: 20),
+                      ),
+                    );
+                  },
+                ),
+              SizedBox(height: MediaQuery.paddingOf(context).bottom + 16),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _spotTypeEmoji(String type) {
+    switch (type) {
+      case 'tourist_sight': return '🏛️';
+      case 'culture': return '🎭';
+      case 'event': return '🎉';
+      case 'sports': return '⛹️';
+      case 'shopping': return '🛍️';
+      default: return '📍';
+    }
   }
 }
