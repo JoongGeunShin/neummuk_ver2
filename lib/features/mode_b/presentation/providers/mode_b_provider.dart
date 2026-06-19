@@ -343,11 +343,11 @@ class RouteSearch extends _$RouteSearch {
     state = state.copyWith(isFetchingSpots: true, generatedCourse: null);
 
     try {
-      final List<SpotEntity> spots;
+      List<SpotEntity> baseSpots;
       if (cartItems.isNotEmpty) {
-        spots = cartItems;
+        baseSpots = cartItems;
       } else {
-        spots = await ref.read(modeBRepositoryProvider).searchSpots(
+        baseSpots = await ref.read(modeBRepositoryProvider).searchSpots(
               latitude: lat,
               longitude: lng,
               tags: state.activeSpotTag != null ? {state.activeSpotTag!} : {},
@@ -355,18 +355,53 @@ class RouteSearch extends _$RouteSearch {
             );
       }
 
-      if (spots.isEmpty) {
+      if (baseSpots.isEmpty) {
         state = state.copyWith(isFetchingSpots: false);
         return;
       }
 
-      final course = ref.read(modeBRepositoryProvider).generateCourse(
-            spots: spots,
+      // 카트 기반: 선택 스팟 전부 포함(TSP) / 앱 자동: 반경 내 자동 선택(최대 5개)
+      var course = ref.read(modeBRepositoryProvider).generateCourse(
+            spots: cartItems.isNotEmpty ? const [] : baseSpots,
             userLat: lat,
             userLng: lng,
             targetKcal: food.kcal,
             transport: state.transport,
+            mandatorySpots: cartItems.isNotEmpty ? baseSpots : const [],
+            // forceAll은 사용하지 않음 — mandatorySpots/auto 경로로 분기
           );
+
+      // 카트 기반 코스가 칼로리 80% 미달 시 → 동일 태그 스팟을 optional 풀로 보충
+      // 카트 스팟은 mandatorySpots로 전달해 항상 포함 보장
+      if (cartItems.isNotEmpty &&
+          (course == null || course.kcal < food.kcal * 0.8)) {
+        final extraTags = cartItems
+            .map((s) => _spotTypeToTag(s.type))
+            .whereType<SpotTag>()
+            .toSet();
+
+        if (extraTags.isNotEmpty) {
+          final extraSpots = await ref.read(modeBRepositoryProvider).searchSpots(
+                latitude: lat,
+                longitude: lng,
+                tags: extraTags,
+                transport: state.transport,
+              );
+
+          final cartIds = baseSpots.map((s) => s.id).toSet();
+          final optionalPool = extraSpots.where((s) => !cartIds.contains(s.id)).toList();
+
+          // 카트 스팟 = mandatory(항상 포함), 추가 스팟 = optional(자동 선택 보충)
+          course = ref.read(modeBRepositoryProvider).generateCourse(
+                spots: optionalPool,
+                userLat: lat,
+                userLng: lng,
+                targetKcal: food.kcal,
+                transport: state.transport,
+                mandatorySpots: baseSpots,
+              );
+        }
+      }
 
       state = state.copyWith(
         generatedCourse: course,
@@ -376,6 +411,15 @@ class RouteSearch extends _$RouteSearch {
       state = state.copyWith(isFetchingSpots: false);
     }
   }
+
+  SpotTag? _spotTypeToTag(String type) => switch (type) {
+        'tourist_sight' => SpotTag.touristSight,
+        'culture' => SpotTag.culture,
+        'event' => SpotTag.event,
+        'sports' => SpotTag.sports,
+        'shopping' => SpotTag.shopping,
+        _ => null,
+      };
 
   // ── 더 보기 ────────────────────────────────────────────────────
 
@@ -452,6 +496,23 @@ class RouteSearch extends _$RouteSearch {
   void startRoute() => state = state.copyWith(navPending: true);
 
   void clearNavPending() => state = state.copyWith(navPending: false);
+
+  /// 폴리라인 페치 후 실제 도로 거리 기반으로 거리/시간/칼로리 갱신
+  void updateGeneratedCourseMetrics({
+    required double distanceKm,
+    required int durationMinutes,
+    required int kcal,
+  }) {
+    final course = state.generatedCourse;
+    if (course == null) return;
+    state = state.copyWith(
+      generatedCourse: course.copyWith(
+        distanceKm: distanceKm,
+        durationMinutes: durationMinutes,
+        kcal: kcal,
+      ),
+    );
+  }
 
   void reset() => state = const RouteSearchState();
 }

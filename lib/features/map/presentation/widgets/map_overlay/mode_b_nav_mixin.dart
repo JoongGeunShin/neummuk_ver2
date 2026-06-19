@@ -25,8 +25,14 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// 단계별 세그먼트 폴리라인 마지막 갱신 시각 (스로틀)
   DateTime? _lastStepSegmentUpdate;
 
-  /// 생성 코스 도로 경로(_lastGeneratedRoutePoints) 상의 현재 위치 인덱스
+  /// 현재 구간 도로 경로 상의 현재 위치 인덱스 (단계별 모드용)
   int _modeBRoadNearestPtIdx = 0;
+
+  /// 네비게이션 시작 이후 누적 이동 거리 (자동 단계별 전환 트리거)
+  double _movedSinceNavStart = 0.0;
+
+  /// 도착 처리 중복 방지 플래그 (Bug 1)
+  bool _arrivalHandled = false;
 
   NaverMapController? get _ctrl;
   Position? get _position;
@@ -37,10 +43,14 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   // mode_b_mixin에서 구현
   DraggableScrollableController get _sheetBCtrl;
   Future<List<NLatLng>> _fetchGpxPoints(String gpxUrl);
-  List<NLatLng> get _lastGeneratedRoutePoints;
+  List<List<NLatLng>> get _segmentPolylines;
+  bool get _modeBShowAllSegments;
+  Future<void> _drawSegmentsOnMap(int currentWpIdx, {bool showAll = false});
+  void _toggleShowAllSegments(int currentWpIdx);
   Future<void> _rerouteGeneratedCourse(
       Position p, TouristRouteEntity route, int wpIdx);
   Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns);
+  Future<void> _drawNavSpotMarkers(List<SpotWaypoint> waypoints, {required int currentIdx});
 
   void _disposeModeBNav() {
     // nothing to dispose currently
@@ -50,8 +60,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
   Future<void> _startModeBNavigation(
     TouristRouteEntity route,
-    List<NLatLng> gpxPoints,
-  ) async {
+    List<NLatLng> gpxPoints, {
+    List<double> segmentDistancesM = const [],
+  }) async {
     final food = ref.read(selectedFoodProvider);
     final gpxPts = gpxPoints
         .map((p) => (lat: p.latitude, lng: p.longitude))
@@ -62,6 +73,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           gpxPoints: gpxPts,
           foodKcal: food?.kcal ?? 0,
           foodName: food?.name ?? '',
+          segmentDistancesM: segmentDistancesM,
         );
 
     if (mounted) {
@@ -71,20 +83,26 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         _modeBNavLastBearing = 0.0;
         _modeBNavPrevPosition = null;
         _modeBNavStepMode = false;
+        _modeBRoadNearestPtIdx = 0;
+        _movedSinceNavStart = 0.0;
+        _arrivalHandled = false; // Bug 1: 세션마다 초기화
       });
     }
 
-    // 방향 전환 포인트 계산 — GPX 코스 또는 생성 코스 도로 경로
+    // 방향 전환 포인트 계산 — GPX 코스: 전체, 생성 코스: 첫 번째 구간
     if (!route.isGenerated && gpxPoints.isNotEmpty) {
       final pts = gpxPoints
           .map((p) => (lat: p.latitude, lng: p.longitude))
           .toList();
       _modeBTurnPoints = _computeTurnPoints(pts);
-    } else if (route.isGenerated && _lastGeneratedRoutePoints.isNotEmpty) {
-      final pts = _lastGeneratedRoutePoints
-          .map((p) => (lat: p.latitude, lng: p.longitude))
-          .toList();
-      _modeBTurnPoints = _computeTurnPoints(pts);
+    } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
+      final firstSeg = _segmentPolylines[0];
+      if (firstSeg.isNotEmpty) {
+        final pts = firstSeg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+        _modeBTurnPoints = _computeTurnPoints(pts);
+      } else {
+        _modeBTurnPoints = [];
+      }
       _modeBRoadNearestPtIdx = 0;
     } else {
       _modeBTurnPoints = [];
@@ -133,6 +151,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _modeBRoadNearestPtIdx = 0;
     });
 
+    _arrivalHandled = false; // Bug 1: 수동 종료 시 초기화
+
     // 카메라 초기화
     final pos = _position;
     if (_ctrl != null && pos != null) {
@@ -167,17 +187,21 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final weightKg = profile?.weightKg ?? AppConstants.defaultWeightKg;
     final transport = navState.route?.type == '자전거' ? 'bike' : 'walk';
 
+    final prevWpIdx = navState.currentWaypointIdx;
     ref.read(modeBNavProvider.notifier).onPositionUpdate(
           p.latitude, p.longitude, weightKg, transport);
+    final updatedState = ref.read(modeBNavProvider);
+    final newWpIdx = updatedState.currentWaypointIdx;
 
     // 이동 방향 계산 (GPS 기반)
     final prev = _modeBNavPrevPosition;
+    double movedNow = 0.0;
     if (prev != null) {
       final bearing = _calcModeBBearing(
           prev.latitude, prev.longitude, p.latitude, p.longitude);
-      final moved = Geolocator.distanceBetween(
+      movedNow = Geolocator.distanceBetween(
           prev.latitude, prev.longitude, p.latitude, p.longitude);
-      if (moved >= 2.0) _modeBNavLastBearing = bearing;
+      if (movedNow >= 2.0) _modeBNavLastBearing = bearing;
     }
     _modeBNavPrevPosition = p;
 
@@ -186,27 +210,50 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _followModeBCamera(p.latitude, p.longitude, cameraBearing);
     }
 
-    // 생성 코스: 도로 경로 상의 현재 위치 인덱스 추적 (단계별 모드용)
-    if ((navState.route?.isGenerated ?? false) && _lastGeneratedRoutePoints.isNotEmpty) {
-      _updateRoadNearestPtIdx(p.latitude, p.longitude);
+    // 생성 코스: 현재 구간 내 위치 인덱스 갱신
+    if ((navState.route?.isGenerated ?? false) && _segmentPolylines.isNotEmpty) {
+      _updateRoadNearestPtIdx(p.latitude, p.longitude, newWpIdx);
     }
 
-    // 단계별 모드: 현재 세그먼트 폴리라인 갱신
-    if (_modeBNavStepMode && _modeBTurnPoints.any((t) => t.type != _TurnType.arrival)) {
-      final updatedState = ref.read(modeBNavProvider);
+    // 자동 단계별 전환: 생성 코스에서 50m 이동 시
+    if (!_modeBNavStepMode && (navState.route?.isGenerated ?? false)) {
+      if (movedNow >= 2.0) {
+        _movedSinceNavStart += movedNow;
+        if (_movedSinceNavStart >= 50.0) {
+          final hasRealTurns =
+              _modeBTurnPoints.any((t) => t.type != _TurnType.arrival);
+          if (hasRealTurns && mounted) {
+            setState(() => _modeBNavStepMode = true);
+          }
+        }
+      }
+    }
+
+    // 단계별 모드: GPX 코스 전용 세그먼트 갱신
+    if (_modeBNavStepMode && !((navState.route?.isGenerated) ?? false) &&
+        _modeBTurnPoints.any((t) => t.type != _TurnType.arrival)) {
       unawaited(_updateStepModeSegment(updatedState));
+    }
+
+    // 생성 코스: 다음 waypoint 도착 감지 → 구간 교체
+    if ((navState.route?.isGenerated ?? false) && newWpIdx != prevWpIdx) {
+      unawaited(_onGeneratedCourseWaypointAdvanced(
+          updatedState.route!, newWpIdx));
     }
 
     // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로
     final route = navState.route;
-    if (route != null && route.isGenerated) {
-      final pts = _lastGeneratedRoutePoints;
+    if (route != null && route.isGenerated && _segmentPolylines.isNotEmpty) {
+      final currentIdx =
+          navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
+      final pts = _segmentPolylines[currentIdx];
       if (pts.isNotEmpty) {
         double minDist = double.infinity;
-        for (var i = 0; i < pts.length; i += 5) {
+        for (var i = 0; i < pts.length; i++) { // Bug 7: 전체 포인트 검사
           final d = Geolocator.distanceBetween(
               p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
           if (d < minDist) minDist = d;
+          if (minDist < 20) break; // 충분히 가까우면 조기 종료
         }
         if (minDist > 100) {
           _offRouteStartTime ??= DateTime.now();
@@ -221,6 +268,34 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         }
       }
     }
+  }
+
+  // 생성 코스 waypoint 진행 시 호출 — 구간 교체 + 턴 포인트 재계산
+  Future<void> _onGeneratedCourseWaypointAdvanced(
+      TouristRouteEntity route, int newWpIdx) async {
+    if (!mounted) return;
+    if (newWpIdx >= route.waypoints.length) return;
+
+    // 폴리라인 교체
+    await _drawSegmentsOnMap(newWpIdx, showAll: _modeBShowAllSegments);
+
+    // 새 구간의 턴 포인트 계산
+    if (newWpIdx < _segmentPolylines.length) {
+      final seg = _segmentPolylines[newWpIdx];
+      if (seg.isNotEmpty) {
+        final pts = seg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+        _modeBTurnPoints = _computeTurnPoints(pts);
+      } else {
+        _modeBTurnPoints = [];
+      }
+    }
+    _modeBRoadNearestPtIdx = 0;
+
+    // 단계별 모드 중이면 턴 마커 갱신
+    if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
+      unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
+    }
+    // Bug 5: nav spot 마커는 modeBNavProvider listener에서 처리 — 중복 호출 제거
   }
 
   void _toggleNorthUpMode() {
@@ -241,40 +316,31 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final isGenerated = navState.route?.isGenerated ?? false;
     setState(() => _modeBNavStepMode = !_modeBNavStepMode);
 
-    if (_modeBNavStepMode) {
-      unawaited(_updateStepModeSegment(navState));
+    if (isGenerated) {
+      // 생성 코스: seg_N 폴리라인은 항상 유지 — 단계별 ON/OFF는 UI 카드만 전환
+      // 단계별 OFF 시 "전체 경로" 아이콘 버튼이 전체 보기 역할
+      await _drawSegmentsOnMap(navState.currentWaypointIdx,
+          showAll: _modeBShowAllSegments);
     } else {
-      // 전체 경로 복원
+      // GPX 코스: 단계별 ON → step_segment 추가, OFF → 제거하고 route_path 복원
       final ctrl = _ctrl;
       if (ctrl == null) return;
-      await ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
-      ).catchError((_) {});
-      if (!mounted) return;
-      final c = context.colors;
 
-      if (isGenerated) {
-        // 생성 코스: generated_course 복원 (현재 위치 이후 구간)
-        final pts = _lastGeneratedRoutePoints;
-        if (pts.length > 1) {
-          final from = _modeBRoadNearestPtIdx.clamp(0, pts.length - 1);
-          final remaining = from > 0 ? pts.sublist(from) : pts;
-          await ctrl.addOverlay(NPolylineOverlay(
-            id: 'generated_course',
-            coords: remaining,
-            color: c.accent,
-            width: 5,
-            lineCap: NLineCap.round,
-            lineJoin: NLineJoin.round,
-          ));
-        }
+      if (_modeBNavStepMode) {
+        unawaited(_updateStepModeSegment(navState));
       } else {
-        // GPX 코스: route_path 복원
+        await ctrl.deleteOverlay(
+          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
+        ).catchError((_) {});
+        if (!mounted) return;
+        final c = context.colors;
         final pts = navState.gpxPoints;
         final startIdx = navState.nearestGpxPtIdx;
         if (pts.length > startIdx + 1) {
-          final remaining = pts.sublist(startIdx).map((p) => NLatLng(p.lat, p.lng)).toList();
-          final routeColor = navState.route?.type == '자전거' ? c.warn : c.primary;
+          final remaining =
+              pts.sublist(startIdx).map((p) => NLatLng(p.lat, p.lng)).toList();
+          final routeColor =
+              navState.route?.type == '자전거' ? c.warn : c.primary;
           await ctrl.addOverlay(NPolylineOverlay(
             id: 'route_path',
             coords: remaining,
@@ -289,6 +355,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   Future<void> _updateStepModeSegment(ModeBNavState navState) async {
+    // 생성 코스는 seg_N 폴리라인이 항상 표시됨 — 별도 step_segment 불필요
+    if (navState.route?.isGenerated ?? false) return;
+
     final now = DateTime.now();
     if (_lastStepSegmentUpdate != null &&
         now.difference(_lastStepSegmentUpdate!).inSeconds < 3) {
@@ -315,26 +384,20 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         .map((p) => NLatLng(p.lat, p.lng))
         .toList();
 
-    final isGenerated = navState.route?.isGenerated ?? false;
-    final mainId = isGenerated ? 'generated_course' : 'route_path';
-
-    await ctrl.deleteOverlay(
-      NOverlayInfo(type: NOverlayType.polylineOverlay, id: mainId),
-    ).catchError((_) {});
+    // GPX 코스: route_path는 건드리지 않고 step_segment를 위에 덧그림
     await ctrl.deleteOverlay(
       NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
     ).catchError((_) {});
     if (!mounted) return;
 
     final c = context.colors;
-    final routeColor = isGenerated
-        ? c.accent
-        : (navState.route?.type == '자전거' ? c.warn : c.primary);
+    final routeColor =
+        navState.route?.type == '자전거' ? c.warn : c.primary;
     await ctrl.addOverlay(NPolylineOverlay(
       id: 'step_segment',
       coords: segment,
       color: routeColor,
-      width: 5,
+      width: 6,
       lineCap: NLineCap.round,
       lineJoin: NLineJoin.round,
     ));
@@ -347,10 +410,14 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     return -1;
   }
 
-  /// GPX 코스: navState.gpxPoints, 생성 코스: _lastGeneratedRoutePoints
+  /// GPX 코스: navState.gpxPoints, 생성 코스: 현재 구간 포인트
   List<({double lat, double lng})> _activeNavPts(ModeBNavState navState) {
     if (navState.route?.isGenerated ?? false) {
-      return _lastGeneratedRoutePoints
+      final currentIdx = navState.currentWaypointIdx;
+      if (_segmentPolylines.isEmpty || currentIdx >= _segmentPolylines.length) {
+        return [];
+      }
+      return _segmentPolylines[currentIdx]
           .map((p) => (lat: p.latitude, lng: p.longitude))
           .toList();
     }
@@ -364,12 +431,12 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         : navState.nearestGpxPtIdx;
   }
 
-  /// 생성 코스 도로 경로(_lastGeneratedRoutePoints) 상의 현재 위치 인덱스를 업데이트.
-  /// 현재 인덱스 기준 앞 200포인트 내에서 가장 가까운 포인트를 탐색.
-  void _updateRoadNearestPtIdx(double lat, double lng) {
-    final pts = _lastGeneratedRoutePoints;
+  /// 현재 구간(_segmentPolylines[currentWpIdx]) 상의 위치 인덱스 갱신.
+  void _updateRoadNearestPtIdx(double lat, double lng, int currentWpIdx) {
+    if (_segmentPolylines.isEmpty || currentWpIdx >= _segmentPolylines.length) return;
+    final pts = _segmentPolylines[currentWpIdx];
     if (pts.isEmpty) return;
-    final searchEnd = (pts.length).clamp(0, _modeBRoadNearestPtIdx + 200);
+    final searchEnd = pts.length.clamp(0, _modeBRoadNearestPtIdx + 200);
     int best = _modeBRoadNearestPtIdx;
     double bestDist = double.infinity;
     for (int i = _modeBRoadNearestPtIdx; i < searchEnd; i++) {
@@ -563,6 +630,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   // ── 도착 감지 ─────────────────────────────────────────────────
 
   Future<void> _checkModeBNavArrival(ModeBNavState navState) async {
+    if (_arrivalHandled) return; // Bug 1: 중복 저장 방지
     if (!navState.isNavigating) return;
     final route = navState.route;
     if (route == null) return;
@@ -572,6 +640,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         : navState.remainingDistanceM < 50;
 
     if (isArrived) {
+      _arrivalHandled = true; // Bug 1: 플래그 먼저 세트
       await _saveModeBRecord(navState);
       ref.read(modeBNavProvider.notifier).stop();
       _resetModeBNavCamera();
@@ -742,6 +811,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     navState: navState,
                     onStop: _stopModeBNavigation,
                     onOverview: _toggleNavStepMode,
+                    showAllSegments: _modeBShowAllSegments,
+                    onShowAllToggle: () => _toggleShowAllSegments(
+                        navState.currentWaypointIdx),
                   )
                 : _ModeBNavSpotCarousel(
                     waypoints: route.waypoints,
@@ -756,6 +828,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     },
                     onStop: _stopModeBNavigation,
                     onStepMode: hasRealTurns ? _toggleNavStepMode : null,
+                    showAllSegments: _modeBShowAllSegments,
+                    onShowAllToggle: () => _toggleShowAllSegments(
+                        navState.currentWaypointIdx),
                   ))
             : (_modeBNavStepMode
                 ? _ModeBTurnBar(

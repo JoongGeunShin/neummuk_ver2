@@ -200,12 +200,15 @@ class ModeBRepositoryImpl implements ModeBRepository {
   // ── 코스 생성 ────────────────────────────────────────────────────
 
   @override
+  @override
   TouristRouteEntity? generateCourse({
     required List<SpotEntity> spots,
     required double userLat,
     required double userLng,
     required int targetKcal,
     required String transport,
+    List<SpotEntity> mandatorySpots = const [],
+    bool forceAll = false,
   }) =>
       _generator.generate(
         spots: spots,
@@ -214,6 +217,8 @@ class ModeBRepositoryImpl implements ModeBRepository {
         targetKcal: targetKcal,
         transport: transport,
         weightKg: _weightKg,
+        mandatorySpots: mandatorySpots,
+        forceAll: forceAll,
       );
 
   // ── Enrichment ────────────────────────────────────────────────────

@@ -344,6 +344,8 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
     required this.onPageChanged,
     required this.onStop,
     this.onStepMode,
+    this.showAllSegments = false,
+    this.onShowAllToggle,
   });
 
   final List<SpotWaypoint> waypoints;
@@ -353,6 +355,10 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
   final VoidCallback onStop;
   /// null이면 단계별 버튼 숨김 (교차로 turn 미감지 시)
   final VoidCallback? onStepMode;
+  /// 전체 경로 표시 여부
+  final bool showAllSegments;
+  /// 전체/현재 구간 토글
+  final VoidCallback? onShowAllToggle;
 
   @override
   State<_ModeBNavSpotCarousel> createState() => _ModeBNavSpotCarouselState();
@@ -458,6 +464,40 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                 ],
               ),
             ),
+            // 전체 경로 토글 버튼
+            if (widget.onShowAllToggle != null)
+              GestureDetector(
+                onTap: widget.onShowAllToggle,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: widget.showAllSegments
+                        ? accent.withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: widget.showAllSegments
+                        ? Border.all(color: accent.withValues(alpha: 0.5))
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.map_outlined, size: 13,
+                          color: widget.showAllSegments ? accent : kMapWhite45),
+                      const SizedBox(width: 4),
+                      Text(
+                        '전체 경로',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: widget.showAllSegments ? accent : kMapWhite45,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // 단계별 버튼 (교차로 turn이 있을 때만)
             if (widget.onStepMode != null)
               GestureDetector(
@@ -767,6 +807,8 @@ class _ModeBTurnBar extends StatelessWidget {
     required this.navState,
     required this.onStop,
     required this.onOverview,
+    this.showAllSegments = false,
+    this.onShowAllToggle,
   });
 
   final _TurnType turnType;
@@ -775,6 +817,8 @@ class _ModeBTurnBar extends StatelessWidget {
   final ModeBNavState navState;
   final VoidCallback onStop;
   final VoidCallback onOverview;
+  final bool showAllSegments;
+  final VoidCallback? onShowAllToggle;
 
   Color get _accentColor {
     final route = navState.route;
@@ -864,32 +908,64 @@ class _ModeBTurnBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                // 전체 경로 보기 전환 버튼
-                GestureDetector(
-                  onTap: onOverview,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.map_outlined, size: 16, color: accent),
-                        const SizedBox(height: 2),
-                        Text(
-                          '전체',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: accent,
-                            fontWeight: FontWeight.w700,
+                // 전체 경로 토글 버튼 (생성 코스) 또는 개요 복귀 버튼 (GPX)
+                if (onShowAllToggle != null)
+                  GestureDetector(
+                    onTap: onShowAllToggle,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: showAllSegments
+                            ? accent.withValues(alpha: 0.25)
+                            : accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: showAllSegments
+                            ? Border.all(color: accent.withValues(alpha: 0.5))
+                            : null,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.map_outlined, size: 16, color: accent),
+                          const SizedBox(height: 2),
+                          Text(
+                            '전체',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: accent,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    onTap: onOverview,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.map_outlined, size: 16, color: accent),
+                          const SizedBox(height: 2),
+                          Text(
+                            '개요',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(width: 4),
                 GestureDetector(
                   onTap: onStop,

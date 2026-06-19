@@ -214,7 +214,8 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       final modeBNavState = ref.read(modeBNavProvider);
       if (modeBNavState.isNavigating) {
         _onModeBNavPositionUpdate(p, modeBNavState);
-        unawaited(_trimNavPolylineToRemaining(p, modeBNavState));
+        // Bug 4: position update 후 갱신된 상태로 폴리라인 트리밍
+        unawaited(_trimNavPolylineToRemaining(p, ref.read(modeBNavProvider)));
       }
     });
 
@@ -251,13 +252,27 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   Future<void> _restoreGeneratedCourseNav(ModeBNavState navState) async {
     final route = navState.route!;
     if (route.waypoints.isEmpty) return;
+    // 세그먼트 폴리라인 페치 (generated_course preview는 지우고 seg_* 로 교체)
     await _drawGeneratedCourseOnMap(route);
-    if (mounted) {
-      await _drawNavSpotMarkers(
-        route.waypoints,
-        currentIdx: navState.currentWaypointIdx,
+    if (!mounted) return;
+
+    // 복원 후 seg_* 구간 형식으로 재그리기 (전체 경로 표시)
+    if (_segmentPolylines.length == route.waypoints.length) {
+      setState(() => _modeBShowAllSegments = true);
+      await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+      await _drawSegmentsOnMap(
+        navState.currentWaypointIdx.clamp(0, route.waypoints.length - 1),
+        showAll: true,
       );
+      final dists = _segmentPolylines.map(_totalPolylineLength).toList();
+      ref.read(modeBNavProvider.notifier).updateSegmentDistances(dists);
     }
+
+    if (!mounted) return;
+    await _drawNavSpotMarkers(
+      route.waypoints,
+      currentIdx: navState.currentWaypointIdx,
+    );
   }
 
   // ── Map events ────────────────────────────────────────────────
@@ -545,9 +560,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           next.routes.isNotEmpty) {
         _loadModeBRouteGpx(next.selectedRouteIdx);
       }
-      // 생성 코스 완성 → 자동으로 지도에 표시
-      if (!identical(prev?.generatedCourse, next.generatedCourse) &&
+      // 생성 코스 완성 → 자동으로 지도에 표시 (id 비교: 메트릭 업데이트는 재드로우 제외)
+      if (prev?.generatedCourse?.id != next.generatedCourse?.id &&
           next.generatedCourse != null) {
+        _segmentPolylines = []; // Bug 2: 이전 코스 구간 캐시 초기화
         unawaited(_drawGeneratedCourseOnMap(next.generatedCourse!));
       }
       // place_detail_screen에서 "안내 시작" 탭 → navPending 감지

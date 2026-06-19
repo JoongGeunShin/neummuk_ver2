@@ -31,6 +31,7 @@ class ModeBNavState {
     this.elapsedKcal = 0.0,
     this.foodKcal = 0,
     this.foodName = '',
+    this.segmentDistancesM = const [],
   });
 
   final bool isNavigating;
@@ -45,6 +46,8 @@ class ModeBNavState {
   final double elapsedKcal;
   final int foodKcal;
   final String foodName;
+  /// 생성 코스 구간별 실제 도로 거리(m). segmentDistancesM[i] = 구간 i의 도로 거리
+  final List<double> segmentDistancesM;
 
   String get remainingLabel => remainingDistanceM < 1000
       ? '${remainingDistanceM}m'
@@ -75,6 +78,7 @@ class ModeBNavState {
     double? elapsedKcal,
     int? foodKcal,
     String? foodName,
+    List<double>? segmentDistancesM,
   }) =>
       ModeBNavState(
         isNavigating: isNavigating ?? this.isNavigating,
@@ -89,6 +93,7 @@ class ModeBNavState {
         elapsedKcal: elapsedKcal ?? this.elapsedKcal,
         foodKcal: foodKcal ?? this.foodKcal,
         foodName: foodName ?? this.foodName,
+        segmentDistancesM: segmentDistancesM ?? this.segmentDistancesM,
       );
 }
 
@@ -110,10 +115,11 @@ class ModeBNav extends _$ModeBNav {
     required List<({double lat, double lng})> gpxPoints,
     required int foodKcal,
     required String foodName,
+    List<double> segmentDistancesM = const [],
   }) async {
     final isBike = route.type == '자전거';
     final speedMs = isBike ? 4.17 : 1.25;
-    final totalM = _calcTotalDistanceM(route, gpxPoints);
+    final totalM = _calcTotalDistanceM(route, gpxPoints, segmentDistancesM);
     final firstInstruction = _buildFirstInstruction(route);
     _lastUpdateTime = null;
 
@@ -129,6 +135,7 @@ class ModeBNav extends _$ModeBNav {
       elapsedKcal: 0.0,
       foodKcal: foodKcal,
       foodName: foodName,
+      segmentDistancesM: segmentDistancesM,
     );
 
     await _persist();
@@ -148,6 +155,12 @@ class ModeBNav extends _$ModeBNav {
 
   void setGpxPoints(List<({double lat, double lng})> pts) {
     state = state.copyWith(gpxPoints: pts);
+  }
+
+  /// 앱 복원 후 도로 폴리라인 재계산 시 구간 거리 갱신
+  void updateSegmentDistances(List<double> distancesM) {
+    if (!state.isNavigating) return;
+    state = state.copyWith(segmentDistancesM: distancesM);
   }
 
   void onPositionUpdate(double lat, double lng, double weightKg, String transport) {
@@ -228,6 +241,7 @@ class ModeBNav extends _$ModeBNav {
 
     if (curIdx >= wps.length) {
       state = state.copyWith(
+        currentWaypointIdx: curIdx, // Bug 9: 명시적 설정 (_checkModeBNavArrival 트리거 보장)
         remainingDistanceM: 0,
         remainingSec: 0,
         nextInstruction: '모든 스팟을 방문했어요! 🎉',
@@ -247,22 +261,38 @@ class ModeBNav extends _$ModeBNav {
     if (distToTarget < 50) {
       curIdx++;
       if (curIdx < wps.length) {
-        instruction = '${target.name} 도착! ➡ ${wps[curIdx].name}으로 이동';
+        final next = wps[curIdx];
+        // 출발지 귀환 waypoint로 이동 시 메시지 구분
+        final isNextOrigin = next.type == '출발지';
+        instruction = isNextOrigin
+            ? '${target.name} 도착! ➡ 출발지로 귀환'
+            : '${target.name} 도착! ➡ ${next.name}으로 이동';
       } else {
-        instruction = '${target.name} 도착! 코스 완료 🎉';
+        final isOriginReturn = target.type == '출발지';
+        instruction = isOriginReturn ? '출발지 귀환 완료! 🎉' : '${target.name} 도착! 코스 완료 🎉';
       }
     } else {
       final distLabel = distToTarget < 1000
           ? '${distToTarget.round()}m'
           : '${(distToTarget / 1000).toStringAsFixed(1)}km';
-      instruction = '${target.name}까지 $distLabel';
+      final isOrigin = target.type == '출발지';
+      instruction = isOrigin ? '출발지까지 $distLabel' : '${target.name}까지 $distLabel';
     }
 
+    // 현재 구간: 현재 위치 → 다음 waypoint 직선 (근사)
+    // 이후 구간: 실제 도로 거리(segmentDistancesM)가 있으면 사용, 없으면 직선 폴백
     double remM = curIdx < wps.length
         ? _dist(lat, lng, wps[curIdx].lat, wps[curIdx].lng)
         : 0;
-    for (int i = curIdx; i < wps.length - 1; i++) {
-      remM += _dist(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
+    final segs = state.segmentDistancesM;
+    if (segs.isNotEmpty) {
+      for (int i = curIdx + 1; i < wps.length && i < segs.length; i++) {
+        remM += segs[i];
+      }
+    } else {
+      for (int i = curIdx; i < wps.length - 1; i++) {
+        remM += _dist(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
+      }
     }
 
     state = state.copyWith(
@@ -354,7 +384,11 @@ class ModeBNav extends _$ModeBNav {
   int _calcTotalDistanceM(
     TouristRouteEntity route,
     List<({double lat, double lng})> gpxPoints,
+    List<double> segmentDistancesM,
   ) {
+    if (route.isGenerated && segmentDistancesM.isNotEmpty) {
+      return segmentDistancesM.fold(0.0, (a, b) => a + b).round();
+    }
     if (route.isGenerated && route.waypoints.isNotEmpty) {
       double d = 0;
       double prevLat = route.startLat ?? 0;
