@@ -26,7 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // ── 드래그 가능한 지도 FAB ──────────────────────────────────
   static const double _fabSize = 56;
-  Offset? _fabPos;          // null → 첫 빌드 시 우하단으로 초기화
+  Offset? _fabPos; // null → 첫 빌드 시 우하단으로 초기화
   bool _fabDragging = false;
   Offset _fabDragOrigin = Offset.zero; // long press 시작 시 FAB 위치 스냅샷
   final GlobalKey _fabKey = GlobalKey();
@@ -134,303 +134,400 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return DoubleBackToExit(
       child: Scaffold(
-      backgroundColor: c.bg,
-      body: Stack(
-        children: [
-        // ── 메인 콘텐츠 ──────────────────────────────────────
-        Column(
-        children: [
-          Expanded(
-            child: CustomScrollView(
-              slivers: [
-                // App bar
-                SliverToBoxAdapter(
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                          context.wp(5), context.hp(1.5), context.wp(5), 0),
-                      child: Row(
-                        children: [
-                          BrandLogo(size: context.wp(9)),
-                          SizedBox(width: context.wp(2.5)),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: c.textMuted,
-                                      letterSpacing: 0.2)),
-                              Text('오늘 어디까지 걸어볼까요?',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      color: c.text,
-                                      letterSpacing: -0.2)),
-                            ],
-                          ),
-                          const Spacer(),
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: c.surface,
-                                  border: Border.all(color: c.outline),
-                                ),
-                                child: Icon(Icons.notifications_rounded,
-                                    size: 20, color: c.text),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 9,
-                                child: Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: c.secondary,
-                                    border:
-                                        Border.all(color: c.surface, width: 2),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Mode toggle
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(2), context.wp(5), 0),
-                    child: SegmentedControl(
-                      value: _mode,
-                      options: const [
-                        SegmentOption(value: 'A', label: '움직인 만큼 먹는다', icon: Icons.directions_walk_rounded),
-                        SegmentOption(value: 'B', label: '먹기 위해 움직인다', icon: Icons.restaurant_rounded),
-                      ],
-                      onChanged: (v) => setState(() => _mode = v),
-                    ),
-                  ),
-                ),
-
-                // Hero CTA
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.8), context.wp(5), 0),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (_mode == 'A') {
-                          ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                          context.push('/map');
-                        } else {
-                          context.go('/explore');
-                        }
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [c.primary, c.secondary],
-                          ),
-                          boxShadow: [
-                            BoxShadow(color: c.primaryGlow, blurRadius: 30, offset: const Offset(0, 10)),
-                          ],
-                        ),
-                        padding: EdgeInsets.all(context.wp(5)),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned(
-                              top: -30,
-                              right: -20,
-                              child: Container(
-                                width: 140,
-                                height: 140,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0x1FFFFFFF),
-                                ),
-                              ),
+        backgroundColor: c.bg,
+        body: Stack(
+          children: [
+            // ── 메인 콘텐츠 ──────────────────────────────────────
+            Column(
+              children: [
+                Expanded(
+                  child: CustomScrollView(
+                    slivers: [
+                      // App bar
+                      SliverToBoxAdapter(
+                        child: SafeArea(
+                          bottom: false,
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              context.wp(5),
+                              context.hp(1.5),
+                              context.wp(5),
+                              0,
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(100),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(_mode == 'A' ? Icons.directions_walk_rounded : Icons.restaurant_rounded,
-                                          size: 12, color: Colors.white),
-                                      const SizedBox(width: 4),
-                                      Text('MODE $_mode',
-                                          style: const TextStyle(
-                                              fontSize: 11, fontWeight: FontWeight.w800,
-                                              color: Colors.white, letterSpacing: 0.2)),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(height: context.hp(1)),
-                                Text(
-                                  _mode == 'A'
-                                      ? '출발→도착 입력하고\n딱 맞는 맛집 만나기'
-                                      : '먹고 싶은 음식 골라\n최적의 산책 코스 찾기',
-                                  style: TextStyle(
-                                    fontSize: context.wp(6),
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    letterSpacing: -0.5,
-                                    height: 1.2,
-                                  ),
-                                ),
-                                SizedBox(height: context.hp(0.8)),
-                                Text(
-                                  _mode == 'A'
-                                      ? '이동 칼로리 ±20% 범위 맛집 추천'
-                                      : '음식 칼로리를 상쇄할 관광 루트 추천',
-                                  style: const TextStyle(
-                                      fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600, height: 1.4),
-                                ),
-                                SizedBox(height: context.hp(1.2)),
-                                Row(
+                                BrandLogo(size: context.wp(9)),
+                                SizedBox(width: context.wp(2.5)),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _mode == 'A' ? '경로 입력하기' : '음식 고르기',
-                                      style: const TextStyle(
-                                          fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                                      '',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: c.textMuted,
+                                        letterSpacing: 0.2,
+                                      ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.arrow_forward_rounded,
-                                        size: 18, color: Colors.white),
+                                    Text(
+                                      '오늘 어디까지 걸어볼까요?',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: c.text,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Spacer(),
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: c.surface,
+                                        border: Border.all(color: c.outline),
+                                      ),
+                                      child: Icon(
+                                        Icons.notifications_rounded,
+                                        size: 20,
+                                        color: c.text,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 8,
+                                      right: 9,
+                                      child: Container(
+                                        width: 7,
+                                        height: 7,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: c.secondary,
+                                          border: Border.all(
+                                            color: c.surface,
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+
+                      // Mode toggle
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            context.wp(5),
+                            context.hp(2),
+                            context.wp(5),
+                            0,
+                          ),
+                          child: SegmentedControl(
+                            value: _mode,
+                            options: const [
+                              SegmentOption(
+                                value: 'A',
+                                label: '움직인 만큼 먹는다',
+                                icon: Icons.directions_walk_rounded,
+                              ),
+                              SegmentOption(
+                                value: 'B',
+                                label: '먹기 위해 움직인다',
+                                icon: Icons.restaurant_rounded,
+                              ),
+                            ],
+                            onChanged: (v) => setState(() => _mode = v),
+                          ),
+                        ),
+                      ),
+
+                      // Hero CTA
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            context.wp(5),
+                            context.hp(1.8),
+                            context.wp(5),
+                            0,
+                          ),
+                          child: GestureDetector(
+                            onTap: () {
+                              if (_mode == 'A') {
+                                ref
+                                    .read(mapModeProvider.notifier)
+                                    .set(MapMode.modeA);
+                                context.push('/map');
+                              } else {
+                                context.go('/explore');
+                              }
+                            },
+                            onHorizontalDragEnd: (details) {
+                              if (details.primaryVelocity == null) return;
+                              if (details.primaryVelocity! > 0) {
+                                if (_mode != 'B') {
+                                  setState(() {
+                                    _mode = 'B';
+                                  });
+                                }
+                              }
+                              // primaryVelocity < 0 이면 왼쪽 스와이프
+                              else if (details.primaryVelocity! < 0) {
+                                if (_mode != 'A') {
+                                  setState(() {
+                                    _mode = 'A';
+                                  });
+                                }
+                              }
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [c.primary, c.secondary],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: c.primaryGlow,
+                                    blurRadius: 30,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              padding: EdgeInsets.all(context.wp(5)),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Positioned(
+                                    top: -30,
+                                    right: -20,
+                                    child: Container(
+                                      width: 140,
+                                      height: 140,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Color(0x1FFFFFFF),
+                                      ),
+                                    ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            100,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              _mode == 'A'
+                                                  ? Icons
+                                                        .directions_walk_rounded
+                                                  : Icons.restaurant_rounded,
+                                              size: 12,
+                                              color: Colors.white,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'MODE $_mode',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.white,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(height: context.hp(1)),
+                                      Text(
+                                        _mode == 'A'
+                                            ? '출발→도착 입력하고\n딱 맞는 맛집 만나기'
+                                            : '먹고 싶은 음식 골라\n최적의 산책 코스 찾기',
+                                        style: TextStyle(
+                                          fontSize: context.wp(6),
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                          letterSpacing: -0.5,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                      SizedBox(height: context.hp(0.8)),
+                                      Text(
+                                        _mode == 'A'
+                                            ? '이동 칼로리 ±20% 범위 맛집 추천'
+                                            : '음식 칼로리를 상쇄할 관광 루트 추천',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      SizedBox(height: context.hp(1.2)),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            _mode == 'A' ? '경로 입력하기' : '음식 고르기',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Icon(
+                                            Icons.arrow_forward_rounded,
+                                            size: 18,
+                                            color: Colors.white,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Quick stats
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            context.wp(5),
+                            context.hp(2.5),
+                            context.wp(5),
+                            0,
+                          ),
+                          child: Row(
+                            children: [
+                              _QuickStat(
+                                icon: Icons.local_fire_department_rounded,
+                                label: '오늘 소모',
+                                value: walk.caloriesKcal.round().toString(),
+                                unit: 'kcal',
+                                color: c.primary,
+                              ),
+                              SizedBox(width: context.wp(2.5)),
+                              _QuickStat(
+                                icon: Icons.directions_walk_rounded,
+                                label: '걸음',
+                                value: _formatSteps(walk.steps),
+                                unit: '보',
+                                color: c.success,
+                              ),
+                              SizedBox(width: context.wp(2.5)),
+                              _QuickStat(
+                                icon: Icons.route_rounded,
+                                label: '이동거리',
+                                value: (walk.distanceM / 1000).toStringAsFixed(
+                                  1,
+                                ),
+                                unit: 'km',
+                                color: c.secondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Events section
+                      _EventsSection(),
+                    ],
                   ),
                 ),
-
-                // Quick stats
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(2.5), context.wp(5), 0),
-                    child: Row(
-                      children: [
-                        _QuickStat(
-                          icon: Icons.local_fire_department_rounded,
-                          label: '오늘 소모',
-                          value: walk.caloriesKcal.round().toString(),
-                          unit: 'kcal',
-                          color: c.primary,
+                AppBottomNav(
+                  activeTab: _activeTab,
+                  onChanged: _handleTabChange,
+                ),
+              ],
+            ), // Column
+            // ── 드래그 가능한 지도 FAB ───────────────────────────
+            Positioned(
+              left: _fabPos!.dx,
+              top: _fabPos!.dy,
+              child: GestureDetector(
+                onTap: _openMap,
+                onLongPressStart: (d) {
+                  setState(() {
+                    _fabDragging = true;
+                    _fabDragOrigin = _fabPos!;
+                  });
+                },
+                onLongPressMoveUpdate: (d) {
+                  final newX = (_fabDragOrigin.dx + d.offsetFromOrigin.dx)
+                      .clamp(0.0, screenSize.width - _fabSize);
+                  final newY = (_fabDragOrigin.dy + d.offsetFromOrigin.dy)
+                      .clamp(0.0, screenSize.height - _fabSize);
+                  setState(() => _fabPos = Offset(newX, newY));
+                },
+                onLongPressEnd: (_) => setState(() => _fabDragging = false),
+                onLongPressCancel: () => setState(() => _fabDragging = false),
+                child: AnimatedScale(
+                  scale: _fabDragging ? 1.12 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  child: AnimatedContainer(
+                    key: _fabKey,
+                    duration: const Duration(milliseconds: 180),
+                    width: _fabSize,
+                    height: _fabSize,
+                    decoration: BoxDecoration(
+                      color: c.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: c.primary.withValues(
+                            alpha: _fabDragging ? 0.55 : 0.35,
+                          ),
+                          blurRadius: _fabDragging ? 20 : 10,
+                          spreadRadius: _fabDragging ? 3 : 0,
+                          offset: const Offset(0, 4),
                         ),
-                        SizedBox(width: context.wp(2.5)),
-                        _QuickStat(
-                          icon: Icons.directions_walk_rounded,
-                          label: '걸음',
-                          value: _formatSteps(walk.steps),
-                          unit: '보',
-                          color: c.success,
-                        ),
-                        SizedBox(width: context.wp(2.5)),
-                        _QuickStat(
-                          icon: Icons.route_rounded,
-                          label: '이동거리',
-                          value: (walk.distanceM / 1000).toStringAsFixed(1),
-                          unit: 'km',
-                          color: c.secondary,
+                        const BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
+                    child: const Icon(
+                      Icons.map_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
                   ),
-                ),
-
-                // Events section
-                _EventsSection(),
-              ],
-            ),
-          ),
-          AppBottomNav(activeTab: _activeTab, onChanged: _handleTabChange),
-        ],
-        ), // Column
-
-        // ── 드래그 가능한 지도 FAB ───────────────────────────
-        Positioned(
-          left: _fabPos!.dx,
-          top: _fabPos!.dy,
-          child: GestureDetector(
-            onTap: _openMap,
-            onLongPressStart: (d) {
-              setState(() {
-                _fabDragging = true;
-                _fabDragOrigin = _fabPos!;
-              });
-            },
-            onLongPressMoveUpdate: (d) {
-              final newX = (_fabDragOrigin.dx + d.offsetFromOrigin.dx)
-                  .clamp(0.0, screenSize.width - _fabSize);
-              final newY = (_fabDragOrigin.dy + d.offsetFromOrigin.dy)
-                  .clamp(0.0, screenSize.height - _fabSize);
-              setState(() => _fabPos = Offset(newX, newY));
-            },
-            onLongPressEnd: (_) => setState(() => _fabDragging = false),
-            onLongPressCancel: () => setState(() => _fabDragging = false),
-            child: AnimatedScale(
-              scale: _fabDragging ? 1.12 : 1.0,
-              duration: const Duration(milliseconds: 180),
-              child: AnimatedContainer(
-                key: _fabKey,
-                duration: const Duration(milliseconds: 180),
-                width: _fabSize,
-                height: _fabSize,
-                decoration: BoxDecoration(
-                  color: c.primary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: c.primary.withValues(
-                          alpha: _fabDragging ? 0.55 : 0.35),
-                      blurRadius: _fabDragging ? 20 : 10,
-                      spreadRadius: _fabDragging ? 3 : 0,
-                      offset: const Offset(0, 4),
-                    ),
-                    const BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.map_rounded,
-                  color: Colors.white,
-                  size: 26,
                 ),
               ),
             ),
-          ),
-        ),
-        ], // Stack children
-      ), // Stack
-    )); // Scaffold, DoubleBackToExit
+          ], // Stack children
+        ), // Stack
+      ),
+    ); // Scaffold, DoubleBackToExit
   }
 }
 
@@ -449,7 +546,11 @@ class _EventsSection extends ConsumerWidget {
           // 헤더
           Padding(
             padding: EdgeInsets.fromLTRB(
-                context.wp(5), context.hp(3), context.wp(5), 0),
+              context.wp(5),
+              context.hp(3),
+              context.wp(5),
+              0,
+            ),
             child: Row(
               children: [
                 Text(
@@ -474,33 +575,36 @@ class _EventsSection extends ConsumerWidget {
             child: eventsState.isLoading && eventsState.events.isEmpty
                 ? _EventsLoadingShimmer()
                 : eventsState.events.isEmpty
-                    ? _EventsEmpty()
-                    : ListView.separated(
-                        padding: EdgeInsets.fromLTRB(context.wp(5),
-                            context.hp(1.5), context.wp(5), context.hp(3)),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: eventsState.events.length,
-                        separatorBuilder: (_, __) =>
-                            SizedBox(width: context.wp(3)),
-                        itemBuilder: (ctx, i) {
-                          final event = eventsState.events[i];
-                          return EventCard(
-                            event: event,
-                            onTap: event.isEnded
-                                ? () => ScaffoldMessenger.of(ctx).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('종료된 행사입니다'),
-                                        duration: Duration(seconds: 2),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    )
-                                : () => ctx.push(
-                          '/event/${event.contentId}',
-                          extra: event.imageUrl,
-                        ),
-                          );
-                        },
-                      ),
+                ? _EventsEmpty()
+                : ListView.separated(
+                    padding: EdgeInsets.fromLTRB(
+                      context.wp(5),
+                      context.hp(1.5),
+                      context.wp(5),
+                      context.hp(3),
+                    ),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: eventsState.events.length,
+                    separatorBuilder: (_, __) => SizedBox(width: context.wp(3)),
+                    itemBuilder: (ctx, i) {
+                      final event = eventsState.events[i];
+                      return EventCard(
+                        event: event,
+                        onTap: event.isEnded
+                            ? () => ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('종료된 행사입니다'),
+                                  duration: Duration(seconds: 2),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              )
+                            : () => ctx.push(
+                                '/event/${event.contentId}',
+                                extra: event.imageUrl,
+                              ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -513,8 +617,12 @@ class _EventsLoadingShimmer extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return ListView.separated(
-      padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.5),
-          context.wp(5), context.hp(3)),
+      padding: EdgeInsets.fromLTRB(
+        context.wp(5),
+        context.hp(1.5),
+        context.wp(5),
+        context.hp(3),
+      ),
       scrollDirection: Axis.horizontal,
       itemCount: 3,
       separatorBuilder: (_, __) => SizedBox(width: context.wp(3)),
@@ -540,11 +648,14 @@ class _EventsEmpty extends StatelessWidget {
         children: [
           Icon(Icons.festival_rounded, size: 32, color: c.textFaint),
           const SizedBox(height: 8),
-          Text('근처 행사 정보가 없습니다',
-              style: TextStyle(
-                  color: c.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            '근처 행사 정보가 없습니다',
+            style: TextStyle(
+              color: c.textMuted,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -567,7 +678,9 @@ class _EventLocationToggle extends ConsumerWidget {
           label: '전국',
           active: !s.hasLocation,
           loading: s.isLoading && !s.hasLocation,
-          onTap: s.hasLocation && !s.isLoading ? notifier.resetToUpcoming : null,
+          onTap: s.hasLocation && !s.isLoading
+              ? notifier.resetToUpcoming
+              : null,
         ),
         const SizedBox(width: 6),
         if (s.canRequestLocation)
@@ -593,6 +706,7 @@ class _ToggleChip extends StatelessWidget {
     this.loading = false,
     this.onTap,
   });
+
   final String label;
   final bool active;
   final IconData? icon;
@@ -623,7 +737,9 @@ class _ToggleChip extends StatelessWidget {
                   width: 10,
                   height: 10,
                   child: CircularProgressIndicator(
-                      strokeWidth: 1.5, color: textColor),
+                    strokeWidth: 1.5,
+                    color: textColor,
+                  ),
                 ),
               )
             else if (icon != null) ...[
@@ -659,7 +775,9 @@ Future<void> debugCheckSharedPreferences() async {
   for (String key in keys) {
     print("$key: ${prefs.get(key)}");
   }
-  print("——————————————————————————————————끝———————————————————————————————————");
+  print(
+    "——————————————————————————————————끝———————————————————————————————————",
+  );
 }
 
 class _QuickStat extends StatelessWidget {
@@ -670,6 +788,7 @@ class _QuickStat extends StatelessWidget {
     required this.unit,
     required this.color,
   });
+
   final IconData icon;
   final String label;
   final String value;
@@ -692,20 +811,40 @@ class _QuickStat extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(height: 6),
-            Text(label,
-                style: TextStyle(color: c.textMuted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+            Text(
+              label,
+              style: TextStyle(
+                color: c.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
             const SizedBox(height: 2),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Flexible(
-                  child: Text(value,
-                      style: TextStyle(
-                          color: c.text, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5),
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: c.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                Text(unit, style: TextStyle(color: c.textMuted, fontSize: 10, fontWeight: FontWeight.w700)),
+                Text(
+                  unit,
+                  style: TextStyle(
+                    color: c.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ],
