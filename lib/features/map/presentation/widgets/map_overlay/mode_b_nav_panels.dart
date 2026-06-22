@@ -342,7 +342,6 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
     required this.activeIdx,
     required this.navState,
     required this.onPageChanged,
-    required this.onStop,
     this.onStepMode,
     this.showAllSegments = false,
     this.onShowAllToggle,
@@ -352,7 +351,6 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
   final int activeIdx;
   final ModeBNavState navState;
   final ValueChanged<int> onPageChanged;
-  final VoidCallback onStop;
   /// null이면 단계별 버튼 숨김 (교차로 turn 미감지 시)
   final VoidCallback? onStepMode;
   /// 전체 경로 표시 여부
@@ -435,7 +433,6 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                   instruction: i == navCur
                       ? widget.navState.nextInstruction
                       : null,
-                  onStop: widget.onStop,
                 ),
               );
             },
@@ -546,7 +543,6 @@ class _SpotWaypointCard extends StatelessWidget {
     required this.index,
     required this.total,
     required this.status,
-    required this.onStop,
     this.instruction,
     this.isViewedInCarousel = false,
   });
@@ -556,7 +552,6 @@ class _SpotWaypointCard extends StatelessWidget {
   final int total;
   final _SpotStatus status;
   final String? instruction;
-  final VoidCallback onStop;
   /// 캐러셀에서 현재 보고 있는 카드 여부 — border 하이라이트에만 사용
   final bool isViewedInCarousel;
 
@@ -603,95 +598,80 @@ class _SpotWaypointCard extends StatelessWidget {
           BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
         ],
       ),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 44, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: iconBg,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: status == _SpotStatus.active
-                              ? accent.withValues(alpha: 0.5)
-                              : Colors.white12,
-                        ),
-                      ),
-                      child: Icon(icon, size: 28, color: iconColor),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: status == _SpotStatus.active
+                          ? accent.withValues(alpha: 0.5)
+                          : Colors.white12,
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${index + 1}/$total',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: isHighlighted ? accent : kMapWhite45,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                  ),
+                  child: Icon(icon, size: 28, color: iconColor),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        waypoint.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: kMapWhite87,
-                          letterSpacing: -0.4,
-                          height: 1.15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        instruction != null && instruction!.isNotEmpty
-                            ? instruction!
-                            : statusLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: status == _SpotStatus.active
-                              ? accent.withValues(alpha: 0.85)
-                              : kMapWhite45,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                const SizedBox(height: 3),
+                Text(
+                  '${index + 1}/$total',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: isHighlighted ? accent : kMapWhite45,
+                    height: 1,
                   ),
                 ),
               ],
             ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GestureDetector(
-              onTap: onStop,
-              child: const Padding(
-                padding: EdgeInsets.all(11),
-                child: Icon(Icons.close_rounded, size: 16, color: kMapWhite45),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    waypoint.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: kMapWhite87,
+                      letterSpacing: -0.4,
+                      height: 1.15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    instruction != null && instruction!.isNotEmpty
+                        ? instruction!
+                        : statusLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: status == _SpotStatus.active
+                          ? accent.withValues(alpha: 0.85)
+                          : kMapWhite45,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -805,20 +785,14 @@ class _ModeBTurnBar extends StatelessWidget {
     required this.distanceLabel,
     required this.instruction,
     required this.navState,
-    required this.onStop,
     required this.onOverview,
-    this.showAllSegments = false,
-    this.onShowAllToggle,
   });
 
   final _TurnType turnType;
   final String distanceLabel;
   final String instruction;
   final ModeBNavState navState;
-  final VoidCallback onStop;
   final VoidCallback onOverview;
-  final bool showAllSegments;
-  final VoidCallback? onShowAllToggle;
 
   Color get _accentColor {
     final route = navState.route;
@@ -908,70 +882,29 @@ class _ModeBTurnBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                // 전체 경로 토글 버튼 (생성 코스) 또는 개요 복귀 버튼 (GPX)
-                if (onShowAllToggle != null)
-                  GestureDetector(
-                    onTap: onShowAllToggle,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: showAllSegments
-                            ? accent.withValues(alpha: 0.25)
-                            : accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: showAllSegments
-                            ? Border.all(color: accent.withValues(alpha: 0.5))
-                            : null,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.map_outlined, size: 16, color: accent),
-                          const SizedBox(height: 2),
-                          Text(
-                            '전체',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: accent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  GestureDetector(
-                    onTap: onOverview,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.map_outlined, size: 16, color: accent),
-                          const SizedBox(height: 2),
-                          Text(
-                            '개요',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: accent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 4),
                 GestureDetector(
-                  onTap: onStop,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(Icons.close_rounded, size: 16, color: kMapWhite45),
+                  onTap: onOverview,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.map_outlined, size: 16, color: accent),
+                        const SizedBox(height: 2),
+                        Text(
+                          '개요',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: accent,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

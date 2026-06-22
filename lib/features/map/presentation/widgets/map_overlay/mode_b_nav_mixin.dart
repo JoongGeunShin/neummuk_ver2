@@ -809,11 +809,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     distanceLabel: distToTurn,
                     instruction: curTurnInstruction,
                     navState: navState,
-                    onStop: _stopModeBNavigation,
                     onOverview: _toggleNavStepMode,
-                    showAllSegments: _modeBShowAllSegments,
-                    onShowAllToggle: () => _toggleShowAllSegments(
-                        navState.currentWaypointIdx),
                   )
                 : _ModeBNavSpotCarousel(
                     waypoints: route.waypoints,
@@ -826,7 +822,6 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                       });
                       _panToWaypoint(idx, route.waypoints);
                     },
-                    onStop: _stopModeBNavigation,
                     onStepMode: hasRealTurns ? _toggleNavStepMode : null,
                     showAllSegments: _modeBShowAllSegments,
                     onShowAllToggle: () => _toggleShowAllSegments(
@@ -838,7 +833,6 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     distanceLabel: distToTurn,
                     instruction: curTurnInstruction,
                     navState: navState,
-                    onStop: _stopModeBNavigation,
                     onOverview: _toggleNavStepMode,
                   )
                 : _ModeBNavTopCard(

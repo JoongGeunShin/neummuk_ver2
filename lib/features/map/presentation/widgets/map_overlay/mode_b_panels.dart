@@ -359,6 +359,7 @@ class _ModeBBottomPanel extends StatelessWidget {
                   // ── 빈 상태 (아무것도 선택 안 됨) ─────────────────
                   else
                     SliverFillRemaining(
+
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
