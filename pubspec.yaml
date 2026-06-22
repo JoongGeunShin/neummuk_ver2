@@ -39,6 +39,7 @@ dependencies:
 
   # HTTP
   http: ^1.2.1
+  url_launcher: ^6.3.0
 
   # Image
   cached_network_image: ^3.4.1
