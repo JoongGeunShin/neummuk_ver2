@@ -162,7 +162,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '',
+                                      '내움먹',
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
@@ -171,7 +171,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       ),
                                     ),
                                     Text(
-                                      '오늘 어디까지 걸어볼까요?',
+                                      '죄책감 없이 먹어볼까요?',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w800,
