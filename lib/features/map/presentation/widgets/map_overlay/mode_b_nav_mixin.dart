@@ -51,9 +51,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       Position p, TouristRouteEntity route, int wpIdx);
   Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns);
   Future<void> _drawNavSpotMarkers(List<SpotWaypoint> waypoints, {required int currentIdx});
+  void _clearNavPolylineCache();
 
   void _disposeModeBNav() {
-    // nothing to dispose currently
+    _clearNavPolylineCache();
   }
 
   // ── Navigation 시작 ───────────────────────────────────────────
@@ -152,6 +153,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     });
 
     _arrivalHandled = false; // Bug 1: 수동 종료 시 초기화
+    _clearNavPolylineCache();
 
     // 카메라 초기화
     final pos = _position;
@@ -241,6 +243,13 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           updatedState.route!, newWpIdx));
     }
 
+    // GPX 코스 이탈 감지 → 이탈 전환 시점에 스낵바 (폴리라인 색상은 trim에서 처리)
+    if (!(navState.route?.isGenerated ?? true) &&
+        !navState.isOffRoute &&
+        updatedState.isOffRoute) {
+      _showModeBOffRouteSnackBar();
+    }
+
     // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로
     final route = navState.route;
     if (route != null && route.isGenerated && _segmentPolylines.isNotEmpty) {
@@ -259,9 +268,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           _offRouteStartTime ??= DateTime.now();
           if (DateTime.now().difference(_offRouteStartTime!).inSeconds >= 30) {
             _offRouteStartTime = null;
-            _showModeBOffRouteSnackBar();
-            unawaited(
-                _rerouteGeneratedCourse(p, route, navState.currentWaypointIdx));
+            _showGeneratedOffRouteDialog(p, route, navState.currentWaypointIdx);
           }
         } else {
           _offRouteStartTime = null;
@@ -440,11 +447,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     int best = _modeBRoadNearestPtIdx;
     double bestDist = double.infinity;
     for (int i = _modeBRoadNearestPtIdx; i < searchEnd; i++) {
-      const toRad = pi / 180;
-      final dLat = (pts[i].latitude - lat) * toRad;
-      final dLng = (pts[i].longitude - lng) * toRad;
-      final cosLat = cos(lat * toRad);
-      final d = 6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+      final d = _fastDistM(lat, lng, pts[i].latitude, pts[i].longitude);
       if (d < bestDist) { bestDist = d; best = i; }
     }
     if (best > _modeBRoadNearestPtIdx) _modeBRoadNearestPtIdx = best;
@@ -457,15 +460,11 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts) {
     if (pts.length < 6) return [];
 
-    // 누적 거리(m) 계산
-    const toRad = pi / 180;
+    // 누적 거리(m) 계산 — 고밀도 GPX 포인트이므로 Equirectangular 근사로 충분
     final cumDist = List<double>.filled(pts.length, 0.0);
     for (int i = 1; i < pts.length; i++) {
-      final dLat = (pts[i].lat - pts[i - 1].lat) * toRad;
-      final dLng = (pts[i].lng - pts[i - 1].lng) * toRad;
-      final cosLat = cos(pts[i - 1].lat * toRad);
       cumDist[i] = cumDist[i - 1] +
-          6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+          _fastDistM(pts[i - 1].lat, pts[i - 1].lng, pts[i].lat, pts[i].lng);
     }
 
     final totalDist = cumDist.last;
@@ -551,11 +550,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final endIdx = nextTurnGpxIdx.clamp(0, pts.length - 1);
     double dist = 0;
     for (int i = nearestIdx; i < endIdx && i < pts.length - 1; i++) {
-      const toRad = pi / 180;
-      final dLat = (pts[i + 1].lat - pts[i].lat) * toRad;
-      final dLng = (pts[i + 1].lng - pts[i].lng) * toRad;
-      final cosLat = cos(pts[i].lat * toRad);
-      dist += 6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+      dist += _fastDistM(pts[i].lat, pts[i].lng, pts[i + 1].lat, pts[i + 1].lng);
     }
     return dist < 1000 ? '${dist.round()}m' : '${(dist / 1000).toStringAsFixed(1)}km';
   }
@@ -571,14 +566,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 카메라 팔로우 ──────────────────────────────────────────────
 
-  double _calcModeBBearing(double lat1, double lng1, double lat2, double lng2) {
-    const toRad = pi / 180;
-    final dLng = (lng2 - lng1) * toRad;
-    final y = sin(dLng) * cos(lat2 * toRad);
-    final x = cos(lat1 * toRad) * sin(lat2 * toRad) -
-        sin(lat1 * toRad) * cos(lat2 * toRad) * cos(dLng);
-    return (atan2(y, x) * 180 / pi + 360) % 360;
-  }
+  double _calcModeBBearing(double lat1, double lng1, double lat2, double lng2) =>
+      _bearingDeg(lat1, lng1, lat2, lng2);
 
   Future<void> _followModeBCamera(double lat, double lng, double bearing) async {
     if (!_modeBNavCameraFollow || _ctrl == null) return;
@@ -642,9 +631,11 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (isArrived) {
       _arrivalHandled = true; // Bug 1: 플래그 먼저 세트
       await _saveModeBRecord(navState);
+      // stop() 전에 표시용 데이터 캡처 — stop()이 state를 ModeBNavState()로 리셋하므로
+      final arrivedNavState = navState;
       ref.read(modeBNavProvider.notifier).stop();
       _resetModeBNavCamera();
-      _showModeBNavArrivalMessage(route.name);
+      _showModeBNavArrivalMessage(route.name, arrivedNavState);
     }
   }
 
@@ -669,38 +660,129 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     );
   }
 
-  void _showModeBNavArrivalMessage(String routeName) {
+  void _showModeBNavArrivalMessage(String routeName, ModeBNavState navState) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF4A90E2),
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Row(children: [
-          const Icon(Icons.flag_rounded, color: Colors.white, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('$routeName 완료!',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14)),
-                const Text('목표 칼로리 소모 완료 🎉',
-                    style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500)),
-              ],
-            ),
+    final kcal = navState.elapsedKcal.toInt();
+    final distKm = (navState.route?.distanceKm ?? 0.0) * navState.kcalProgress;
+    final route = navState.route;
+    final spotCount = route?.waypoints.where((w) => w.type != '출발지').length ?? 0;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFF1E2030),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🎉', style: TextStyle(fontSize: 44)),
+              const SizedBox(height: 10),
+              Text(
+                '$routeName\n완료!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                _ArrivalStatChip(
+                    icon: Icons.local_fire_department_rounded,
+                    value: '${kcal}kcal',
+                    color: const Color(0xFFFF6B35)),
+                _ArrivalStatChip(
+                    icon: Icons.straighten_rounded,
+                    value: '${distKm.toStringAsFixed(1)}km',
+                    color: const Color(0xFF4A90E2)),
+                if (spotCount > 0)
+                  _ArrivalStatChip(
+                      icon: Icons.place_rounded,
+                      value: '스팟 $spotCount곳',
+                      color: const Color(0xFFFF4D6D)),
+              ]),
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: () => Navigator.of(ctx).pop(),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4A90E2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text('확인',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15)),
+                ),
+              ),
+            ],
           ),
-        ]),
+        ),
       ),
     );
+  }
+
+  void _showGeneratedOffRouteDialog(Position p, TouristRouteEntity route, int wpIdx) {
+    if (!mounted) return;
+    // 중복 다이얼로그 방지
+    _offRouteStartTime = null;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2030),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.warning_amber_rounded, color: Color(0xFFE67E22), size: 22),
+          SizedBox(width: 8),
+          Text('경로 이탈',
+              style: TextStyle(
+                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: const Text(
+          '현재 경로에서 벗어났어요.\n새로운 경로를 찾을까요?',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('현재 경로 유지',
+                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              unawaited(_rerouteGeneratedCourse(p, route, wpIdx));
+            },
+            child: const Text('재경로',
+                style: TextStyle(
+                    color: Color(0xFF4A90E2), fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToSpotFromWaypoint(SpotWaypoint wp) {
+    if (!mounted) return;
+    final spot = SpotEntity(
+      id: 'nav_${wp.name}_${wp.lat}_${wp.lng}',
+      name: wp.name,
+      lat: wp.lat,
+      lng: wp.lng,
+      type: wp.type ?? 'tourist_sight',
+      source: 'tour_api',
+    );
+    context.push('/spot-detail', extra: spot);
   }
 
   // ── 완주 기록 저장 ────────────────────────────────────────────
@@ -826,6 +908,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     showAllSegments: _modeBShowAllSegments,
                     onShowAllToggle: () => _toggleShowAllSegments(
                         navState.currentWaypointIdx),
+                    onSpotTap: _navigateToSpotFromWaypoint,
                   ))
             : (_modeBNavStepMode
                 ? _ModeBTurnBar(

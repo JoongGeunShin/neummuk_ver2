@@ -54,6 +54,9 @@ class KakaoLocalSpotsDatasource {
 
           final dist = int.tryParse(doc['distance']?.toString() ?? '') ?? 0;
 
+          final phone = doc['phone']?.toString() ?? '';
+          final placeUrl = doc['place_url']?.toString() ?? '';
+
           results.add(SpotEntity(
             id: 'kakao_${code}_$id',
             name: name,
@@ -66,6 +69,8 @@ class KakaoLocalSpotsDatasource {
                 ? doc['road_address_name']?.toString()
                 : doc['address_name']?.toString(),
             distanceFromUserM: dist,
+            tel: phone.isNotEmpty ? phone : null,
+            placeUrl: placeUrl.isNotEmpty ? placeUrl : null,
           ));
         }
       } catch (e) {

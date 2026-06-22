@@ -142,7 +142,8 @@ class _ModeBBottomPanel extends StatelessWidget {
     required this.onCardTap,
     required this.onStartNav,
     required this.onGeneratedCourseTap,
-    required this.onGenerateCourse,
+    required this.onHandleTap,
+    required this.generateBarHeight,
   });
 
   final ScrollController scrollController;
@@ -158,7 +159,10 @@ class _ModeBBottomPanel extends StatelessWidget {
   final void Function(int, TouristRouteEntity) onCardTap;
   final void Function(TouristRouteEntity) onStartNav;
   final void Function(TouristRouteEntity) onGeneratedCourseTap;
-  final VoidCallback onGenerateCourse;
+  /// sheet 최소화 상태에서 핸들 탭 시 호출 — sheet를 기본 크기로 올림
+  final VoidCallback onHandleTap;
+  /// 외부 CourseGenerateBar 높이 (하단 패딩용)
+  final double generateBarHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -180,12 +184,19 @@ class _ModeBBottomPanel extends StatelessWidget {
                     child: Column(
                       children: [
                         const SizedBox(height: 10),
-                        Container(
-                          width: 40, height: 4,
-                          decoration: BoxDecoration(
-                              color: c.outline, borderRadius: BorderRadius.circular(2)),
+                        GestureDetector(
+                          onTap: onHandleTap,
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 6),
+                            child: Container(
+                              width: 40, height: 4,
+                              decoration: BoxDecoration(
+                                  color: c.outline, borderRadius: BorderRadius.circular(2)),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 4),
                         if (!state.isLoading && !isLocating) ...[
                           Padding(
                             padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
@@ -272,7 +283,7 @@ class _ModeBBottomPanel extends StatelessWidget {
                           ),
                         ),
                       ),
-                    SliverToBoxAdapter(child: SizedBox(height: context.bottomPadding + 8)),
+                    SliverToBoxAdapter(child: SizedBox(height: context.bottomPadding + generateBarHeight + 8)),
                   ]
                   // ── 기성 코스 목록 (주변 코스 선택 시) ────────────
                   else if (state.nearbyCoursesActive) ...[
@@ -315,7 +326,7 @@ class _ModeBBottomPanel extends StatelessWidget {
                       ),
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(12, 4, 12, context.bottomPadding + 12),
+                          padding: EdgeInsets.fromLTRB(12, 4, 12, context.bottomPadding + generateBarHeight + 12),
                           child: state.isLoadingMore
                               ? Center(
                                   child: Padding(
@@ -382,12 +393,6 @@ class _ModeBBottomPanel extends StatelessWidget {
               ),
             ),
 
-            // ── 하단 고정 코스 생성 버튼 ────────────────────────────
-            _CourseGenerateBar(
-              cartCount: cartCount,
-              isGenerating: state.isFetchingSpots,
-              onGenerate: onGenerateCourse,
-            ),
           ],
         ),
       ),
@@ -774,10 +779,26 @@ class _GeneratedCourseCard extends StatelessWidget {
                   label: '~${course.kcal}kcal'),
               const Spacer(),
               if (course.waypoints.isNotEmpty)
-                Text('${course.waypoints.length}개 스팟',
+                Text('${course.waypoints.where((w) => w.type != '출발지').length}개 스팟',
                     style: TextStyle(
                         fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w600)),
             ]),
+            if (course.waypoints.where((w) => w.type != '출발지').isNotEmpty) ...[
+              const SizedBox(height: 5),
+              Text(
+                course.waypoints
+                    .where((w) => w.type != '출발지')
+                    .map((w) => w.name)
+                    .join(' → '),
+                style: TextStyle(
+                    fontSize: 11,
+                    color: c.textMuted,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             if (isSelected) ...[
               const SizedBox(height: 10),
               GestureDetector(

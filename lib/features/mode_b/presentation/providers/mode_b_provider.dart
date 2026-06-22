@@ -8,6 +8,7 @@ import '../../domain/entities/food_entity.dart';
 import '../../domain/entities/spot_entity.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 import '../../domain/repositories/mode_b_repository.dart';
+import 'cart_provider.dart';
 
 part 'mode_b_provider.g.dart';
 
@@ -368,11 +369,11 @@ class RouteSearch extends _$RouteSearch {
             targetKcal: food.kcal,
             transport: state.transport,
             mandatorySpots: cartItems.isNotEmpty ? baseSpots : const [],
-            // forceAll은 사용하지 않음 — mandatorySpots/auto 경로로 분기
           );
 
       // 카트 기반 코스가 칼로리 80% 미달 시 → 동일 태그 스팟을 optional 풀로 보충
       // 카트 스팟은 mandatorySpots로 전달해 항상 포함 보장
+      List<SpotEntity> optionalPool = [];
       if (cartItems.isNotEmpty &&
           (course == null || course.kcal < food.kcal * 0.8)) {
         final extraTags = cartItems
@@ -389,9 +390,8 @@ class RouteSearch extends _$RouteSearch {
               );
 
           final cartIds = baseSpots.map((s) => s.id).toSet();
-          final optionalPool = extraSpots.where((s) => !cartIds.contains(s.id)).toList();
+          optionalPool = extraSpots.where((s) => !cartIds.contains(s.id)).toList();
 
-          // 카트 스팟 = mandatory(항상 포함), 추가 스팟 = optional(자동 선택 보충)
           course = ref.read(modeBRepositoryProvider).generateCourse(
                 spots: optionalPool,
                 userLat: lat,
@@ -400,6 +400,20 @@ class RouteSearch extends _$RouteSearch {
                 transport: state.transport,
                 mandatorySpots: baseSpots,
               );
+        }
+      }
+
+      // 코스에 자동 추가된 스팟을 장바구니에 동기화
+      // (waypoint 좌표는 SpotEntity에서 그대로 복사되므로 정확히 매칭됨)
+      if (course != null) {
+        final candidateMap = <String, SpotEntity>{
+          for (final s in [...baseSpots, ...optionalPool]) '${s.lat}_${s.lng}': s,
+        };
+        final cartNotifier = ref.read(cartProvider.notifier);
+        for (final wp in course.waypoints) {
+          if (wp.type == '출발지') continue;
+          final spot = candidateMap['${wp.lat}_${wp.lng}'];
+          if (spot != null) cartNotifier.add(spot);
         }
       }
 

@@ -54,6 +54,8 @@ class SpotEntity {
     this.address,
     this.imageUrl,
     this.distanceFromUserM,
+    this.tel,
+    this.placeUrl,
   });
 
   final String id;
@@ -66,4 +68,6 @@ class SpotEntity {
   final String? address;
   final String? imageUrl;
   final int? distanceFromUserM;
+  final String? tel; // 전화번호 (카카오: 검색 응답, TourAPI: detailCommon2 lazy load)
+  final String? placeUrl; // 카카오: place.map.kakao.com 링크
 }

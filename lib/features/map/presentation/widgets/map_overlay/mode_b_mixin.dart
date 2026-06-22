@@ -1,5 +1,45 @@
 part of '../map_overlay.dart';
 
+/// 코스 생성 버튼의 기본 높이 (bottomPadding 제외) — 스크롤 패딩 계산용
+const double _kGenerateBarHeight = 68.0;
+
+// ── 공유 지오 헬퍼 (mode_b_mixin / mode_b_nav_mixin 공용) ──────────────────
+//
+// 두 가지 거리 계산을 의도적으로 분리한다:
+//   • _preciseDistM  : Haversine — 구간 거리 합산 등 정밀 배치 계산
+//   • _fastDistM     : Equirectangular — GPS 틱마다 호출되는 실시간 근접점 탐색
+//                      (오차 ~0.1% 이내, 속도 우선)
+//   • Geolocator.distanceBetween : 플랫폼 정밀 계산 — 단발성 이동 감지에만 사용
+
+double _preciseDistM(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371000.0;
+  const toRad = pi / 180;
+  final dLat = (lat2 - lat1) * toRad;
+  final dLng = (lng2 - lng1) * toRad;
+  final a = sin(dLat / 2) * sin(dLat / 2) +
+      cos(lat1 * toRad) * cos(lat2 * toRad) * sin(dLng / 2) * sin(dLng / 2);
+  return r * 2 * atan2(sqrt(a), sqrt(1 - a));
+}
+
+double _fastDistM(double lat1, double lng1, double lat2, double lng2) {
+  const toRad = pi / 180;
+  final dLat = (lat2 - lat1) * toRad;
+  final dLng = (lng2 - lng1) * toRad;
+  final cosLat = cos(lat1 * toRad);
+  return 6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+}
+
+double _bearingDeg(double lat1, double lng1, double lat2, double lng2) {
+  const toRad = pi / 180;
+  final dLng = (lng2 - lng1) * toRad;
+  final y = sin(dLng) * cos(lat2 * toRad);
+  final x = cos(lat1 * toRad) * sin(lat2 * toRad) -
+      sin(lat1 * toRad) * cos(lat2 * toRad) * cos(dLng);
+  return (atan2(y, x) * 180 / pi + 360) % 360;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   // ── Mode B state ───────────────────────────────────────────────
   bool _gpxLoading = false;
@@ -8,9 +48,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   /// _ModeBNavOverlayMixin에서 구현 — 단계별 모드 활성 여부
   bool get _modeBNavStepMode;
-
-  // 경로 화살표 마커 추적
-  final _arrowCounts = <String, int>{};
 
   /// 생성 코스 구간별 도로 폴리라인 (인덱스 N = 이전 waypoint → waypoint[N])
   List<List<NLatLng>> _segmentPolylines = [];
@@ -21,8 +58,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   /// 전체 경로 표시 여부 (false = 현재 구간만, true = 완료+현재+예정)
   bool _modeBShowAllSegments = false;
 
-  // 네비게이션 중 폴리라인 트리밍 스로틀
-  DateTime? _lastPolylineTrim;
+  // BottomSheet 내부 ScrollController (최소화 시 스크롤 리셋용)
+  ScrollController? _sheetBScrollCtrl;
+  bool _sheetBListenerAdded = false;
+
+  // 네비게이션 폴리라인 실시간 트리밍 캐시
+  NPolylineOverlay? _cachedNavRoutePolyline;
+  final Map<int, NPolylineOverlay> _cachedNavSegPolylines = {};
+  int _lastTrimGpxIdx = -1;
+  int _lastTrimSegIdx = -1;
+  bool _lastTrimOffRoute = false;
 
   // 검색된 스팟 목록 (마커 탭과 연결용)
   List<SpotEntity> _currentSearchedSpots = [];
@@ -32,6 +77,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // nav mixin에서 구현
   Future<void> _startModeBNavigation(TouristRouteEntity route, List<NLatLng> gpxPoints, {List<double> segmentDistancesM = const []});
+  void _navigateToSpotFromWaypoint(SpotWaypoint wp);
 
   // ── 생성 코스 자동 재경로 ─────────────────────────────────────
 
@@ -119,6 +165,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     const upcomingColor = Color(0xFFB3E5FC);
     final accentColor = context.colors.accent;
 
+    // 구간 교체 시 트리밍 캐시 무효화 (새 폴리라인 인스턴스로 교체되므로)
+    _cachedNavSegPolylines.clear();
+    _lastTrimSegIdx = -1;
+    _lastTrimOffRoute = false;
+
     for (var i = 0; i < _segmentPolylines.length; i++) {
       await ctrl.deleteOverlay(
         NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_$i'),
@@ -134,7 +185,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         final isCurrent = i == currentWpIdx;
         final isDone = i < currentWpIdx;
 
-        await ctrl.addOverlay(NPolylineOverlay(
+        final poly = NPolylineOverlay(
           id: 'seg_$i',
           coords: pts,
           color: isCurrent
@@ -145,26 +196,68 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           width: isCurrent ? 5 : 3,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
-        ));
+        );
+        await ctrl.addOverlay(poly);
+        // 현재 구간만 트리밍 캐시 저장
+        if (isCurrent && mounted) _cachedNavSegPolylines[i] = poly;
       }
     } else {
       final idx = currentWpIdx.clamp(0, _segmentPolylines.length - 1);
       final pts = _segmentPolylines[idx];
       if (pts.length >= 2) {
-        await ctrl.addOverlay(NPolylineOverlay(
+        final poly = NPolylineOverlay(
           id: 'seg_$idx',
           coords: pts,
           color: accentColor,
           width: 5,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
-        ));
+        );
+        await ctrl.addOverlay(poly);
+        if (mounted) _cachedNavSegPolylines[idx] = poly;
       }
     }
   }
 
   void _disposeModeB() {
+    if (_sheetBListenerAdded) {
+      _sheetBCtrl.removeListener(_onSheetBSizeChanged);
+    }
     _sheetBCtrl.dispose();
+    _sheetBScrollCtrl = null;
+    _clearNavPolylineCache();
+  }
+
+  void _onSheetBSizeChanged() {
+    if (!_sheetBCtrl.isAttached) return;
+    if (_sheetBCtrl.size <= 0.14) {
+      // 최소화 시 내부 스크롤 리셋 → 다음 위로 드래그 시 sheet가 올라갈 수 있도록
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final sc = _sheetBScrollCtrl;
+        if (sc != null && sc.hasClients && sc.offset > 0) {
+          sc.jumpTo(0);
+        }
+      });
+    }
+  }
+
+  void _expandSheetB() {
+    if (_sheetBCtrl.isAttached) {
+      _sheetBCtrl.animateTo(
+        0.46,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _clearNavPolylineCache() {
+    _cachedNavRoutePolyline = null;
+    _cachedNavSegPolylines.clear();
+    _lastTrimGpxIdx = -1;
+    _lastTrimSegIdx = -1;
+    _lastTrimOffRoute = false;
   }
 
   double _modeBTopBarHeight(BuildContext context) =>
@@ -432,6 +525,10 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         isHideCollidedCaptions: !isCurrent,
       );
       if (isDone && !isOrigin) marker.setAlpha(0.4);
+      if (!isOrigin) {
+        final tappedWp = wp;
+        marker.setOnTapListener((_) => _navigateToSpotFromWaypoint(tappedWp));
+      }
       await ctrl.addOverlay(marker);
     }
   }
@@ -505,12 +602,22 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   Future<void> _onGenerateCourseFromSpots() async {
     final food = ref.read(selectedFoodProvider);
     if (food == null) return;
-    final center = await _getMapCenter();
+    final pos = _position;
+    final double lat;
+    final double lng;
+    if (pos != null) {
+      lat = pos.latitude;
+      lng = pos.longitude;
+    } else {
+      final center = await _getMapCenter();
+      lat = center.lat;
+      lng = center.lng;
+    }
     final cartItems = ref.read(cartProvider);
     await ref.read(routeSearchProvider.notifier).generateCourseFromSpots(
           food,
-          lat: center.lat,
-          lng: center.lng,
+          lat: lat,
+          lng: lng,
           cartItems: cartItems,
         );
   }
@@ -826,6 +933,24 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         await _drawSegmentsOnMap(0, showAll: true);
       }
       if (mounted) await _drawNavSpotMarkers(route.waypoints, currentIdx: 0);
+
+      // 생성 코스: 현재 위치 → 첫 번째 스팟 접근 경로
+      if (ctrl != null && pos != null && route.waypoints.isNotEmpty) {
+        final firstWp = route.waypoints.first;
+        final approachPoints = await _fetchApproachRoute(
+          fromLat: pos.latitude, fromLng: pos.longitude,
+          toLat: firstWp.lat, toLng: firstWp.lng,
+        );
+        if (mounted && approachPoints.isNotEmpty) {
+          final c = context.colors;
+          await ctrl.addOverlay(NPolylineOverlay(
+            id: 'approach_path',
+            coords: approachPoints,
+            color: c.pinUser,
+            width: 4,
+          ));
+        }
+      }
     } else {
       if (route.gpxpath != null) {
         setState(() => _gpxLoading = true);
@@ -969,25 +1094,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 경로 방향 화살표 ───────────────────────────────────────────
 
-  double _distLL(NLatLng a, NLatLng b) {
-    const r = 6371000.0;
-    final lat1 = a.latitude * pi / 180;
-    final lat2 = b.latitude * pi / 180;
-    final dLat = (b.latitude - a.latitude) * pi / 180;
-    final dLng = (b.longitude - a.longitude) * pi / 180;
-    final h = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1) * cos(lat2) * sin(dLng / 2) * sin(dLng / 2);
-    return r * 2 * atan2(sqrt(h), sqrt(1 - h));
-  }
+  double _distLL(NLatLng a, NLatLng b) =>
+      _preciseDistM(a.latitude, a.longitude, b.latitude, b.longitude);
 
-  double _bearingLL(NLatLng a, NLatLng b) {
-    final lat1 = a.latitude * pi / 180;
-    final lat2 = b.latitude * pi / 180;
-    final dLng = (b.longitude - a.longitude) * pi / 180;
-    final y = sin(dLng) * cos(lat2);
-    final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLng);
-    return (atan2(y, x) * 180 / pi + 360) % 360;
-  }
+  double _bearingLL(NLatLng a, NLatLng b) =>
+      _bearingDeg(a.latitude, a.longitude, b.latitude, b.longitude);
 
   double _totalPolylineLength(List<NLatLng> pts) {
     var total = 0.0;
@@ -1051,7 +1162,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       ));
       arrowIdx++;
     }
-    _arrowCounts[idPrefix] = arrowIdx;
   }
 
   // ── 교차로 방향 마커 ───────────────────────────────────────────
@@ -1082,46 +1192,74 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
-  // ── 네비게이션 폴리라인 점진적 트리밍 ────────────────────────────
+  // ── 네비게이션 폴리라인 실시간 트리밍 ───────────────────────────
+  // delete+add 대신 setCoords/setColor로 채널 메시지 최소화.
+  // 인덱스·이탈 상태 변화가 없으면 호출 자체를 skip.
 
   Future<void> _trimNavPolylineToRemaining(
     Position p,
     ModeBNavState navState,
   ) async {
-    final now = DateTime.now();
-    if (_lastPolylineTrim != null &&
-        now.difference(_lastPolylineTrim!).inSeconds < 3) {
-      return;
-    }
-
     final ctrl = _ctrl;
     if (ctrl == null || !mounted) return;
 
     final route = navState.route;
     if (route == null) return;
-
-    late List<NLatLng> trimmed;
-    late String polylineId;
-    late Color polylineColor;
     final c = context.colors;
+    const offRouteColor = Color(0xFFE67E22);
 
     if (!route.isGenerated && navState.gpxPoints.isNotEmpty) {
       if (_modeBNavStepMode) return;
 
       final startIdx = navState.nearestGpxPtIdx;
+      final isOffRoute = navState.isOffRoute;
+
+      // 인덱스도 이탈 상태도 바뀌지 않았으면 갱신 불필요
+      if (startIdx == _lastTrimGpxIdx && isOffRoute == _lastTrimOffRoute) return;
       if (startIdx <= 0) return;
+
       final pts = navState.gpxPoints;
       if (startIdx >= pts.length - 1) return;
-      trimmed = pts.sublist(startIdx)
+
+      final trimmed = pts
+          .sublist(startIdx)
           .map((pt) => NLatLng(pt.lat, pt.lng))
           .toList();
-      polylineId = 'route_path';
-      polylineColor = route.type == '자전거' ? c.warn : c.primary;
+      if (trimmed.length < 2) return;
+
+      final polylineColor =
+          isOffRoute ? offRouteColor : (route.type == '자전거' ? c.warn : c.primary);
+
+      final cached = _cachedNavRoutePolyline;
+      if (cached != null) {
+        if (startIdx != _lastTrimGpxIdx) cached.setCoords(trimmed);
+        if (isOffRoute != _lastTrimOffRoute) cached.setColor(polylineColor);
+      } else {
+        // 첫 호출: 기존 오버레이 교체 후 인스턴스 캐시
+        await ctrl.deleteOverlay(
+          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'route_path'),
+        ).catchError((_) {});
+        if (!mounted) return;
+        final poly = NPolylineOverlay(
+          id: 'route_path',
+          coords: trimmed,
+          color: polylineColor,
+          width: 5,
+          lineCap: NLineCap.round,
+          lineJoin: NLineJoin.round,
+        );
+        await ctrl.addOverlay(poly);
+        if (mounted) _cachedNavRoutePolyline = poly;
+      }
+
+      _lastTrimGpxIdx = startIdx;
+      _lastTrimOffRoute = isOffRoute;
+
     } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
       if (_modeBNavStepMode) return;
 
-      final currentIdx = navState.currentWaypointIdx
-          .clamp(0, _segmentPolylines.length - 1);
+      final currentIdx =
+          navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
       final pts = _segmentPolylines[currentIdx];
       if (pts.isEmpty) return;
 
@@ -1136,32 +1274,43 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           nearestIdx = i;
         }
       }
+
+      // 100m ≈ 위경도 0.001° → sq ≈ 0.000001 (경도 보정 없이 근사)
+      final isOffRoute = nearestSqDist > 8.1e-7; // ~90m
+
+      if (nearestIdx == _lastTrimSegIdx && isOffRoute == _lastTrimOffRoute) return;
       if (nearestIdx <= 0) return;
       if (nearestIdx >= pts.length - 1) return;
-      trimmed = pts.sublist(nearestIdx);
-      polylineId = 'seg_$currentIdx';
-      polylineColor = c.accent;
-    } else {
-      return;
+
+      final trimmed = pts.sublist(nearestIdx);
+      if (trimmed.length < 2) return;
+
+      final polylineColor = isOffRoute ? offRouteColor : c.accent;
+
+      final cached = _cachedNavSegPolylines[currentIdx];
+      if (cached != null) {
+        if (nearestIdx != _lastTrimSegIdx) cached.setCoords(trimmed);
+        if (isOffRoute != _lastTrimOffRoute) cached.setColor(polylineColor);
+      } else {
+        await ctrl.deleteOverlay(
+          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_$currentIdx'),
+        ).catchError((_) {});
+        if (!mounted) return;
+        final poly = NPolylineOverlay(
+          id: 'seg_$currentIdx',
+          coords: trimmed,
+          color: polylineColor,
+          width: 5,
+          lineCap: NLineCap.round,
+          lineJoin: NLineJoin.round,
+        );
+        await ctrl.addOverlay(poly);
+        if (mounted) _cachedNavSegPolylines[currentIdx] = poly;
+      }
+
+      _lastTrimSegIdx = nearestIdx;
+      _lastTrimOffRoute = isOffRoute;
     }
-
-    if (trimmed.length < 2) return;
-
-    _lastPolylineTrim = now;
-
-    await ctrl.deleteOverlay(
-      NOverlayInfo(type: NOverlayType.polylineOverlay, id: polylineId),
-    ).catchError((_) {});
-    if (!mounted) return;
-
-    await ctrl.addOverlay(NPolylineOverlay(
-      id: polylineId,
-      coords: trimmed,
-      color: polylineColor,
-      width: 5,
-      lineCap: NLineCap.round,
-      lineJoin: NLineJoin.round,
-    ));
   }
 
   // ── Mode B overlay widgets ─────────────────────────────────────
@@ -1238,8 +1387,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             onTap: () => _showCartSheet(context, cartItems),
           ),
         ),
-      // Bottom panel
-      if (food != null)
+      // Bottom panel + 코스 생성 버튼 (sheet 외부 고정)
+      if (food != null) ...[
         DraggableScrollableSheet(
           controller: _sheetBCtrl,
           initialChildSize: 0.46,
@@ -1247,32 +1396,53 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           maxChildSize: 0.80,
           snap: true,
           snapSizes: const [0.13, 0.46, 0.80],
-          builder: (ctx, sc) => _ModeBBottomPanel(
-            scrollController: sc,
-            state: modeBState,
-            food: food,
+          builder: (ctx, sc) {
+            // scroll ctrl 저장 + listener 최초 1회 등록
+            _sheetBScrollCtrl = sc;
+            if (!_sheetBListenerAdded) {
+              _sheetBListenerAdded = true;
+              _sheetBCtrl.addListener(_onSheetBSizeChanged);
+            }
+            return _ModeBBottomPanel(
+              scrollController: sc,
+              state: modeBState,
+              food: food,
+              cartCount: cartCount,
+              isLocating: locating,
+              onLoadMore: () => ref.read(routeSearchProvider.notifier).loadMore(),
+              onTransportChange: (v) {
+                final notifier = ref.read(routeSearchProvider.notifier);
+                notifier.setTransport(v, food,
+                    lat: _position?.latitude ?? 37.5635,
+                    lng: _position?.longitude ?? 126.9869);
+                _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+              },
+              onSpotTagTap: _onSpotTagTap,
+              onNearbyCourseTap: _onNearbyCourseTap,
+              onSpotItemTap: (idx, spot) {
+                ref.read(routeSearchProvider.notifier).selectSpot(idx);
+                _onSpotTap(spot);
+              },
+              onCardTap: _onModeBCardTap,
+              onStartNav: _onStartModeBCourse,
+              onGeneratedCourseTap: _onGeneratedCourseTap,
+              onHandleTap: _expandSheetB,
+              generateBarHeight: _kGenerateBarHeight,
+            );
+          },
+        ),
+        // 코스 생성 버튼 — sheet 크기와 무관하게 항상 화면 하단 고정
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _CourseGenerateBar(
             cartCount: cartCount,
-            isLocating: locating,
-            onLoadMore: () => ref.read(routeSearchProvider.notifier).loadMore(),
-            onTransportChange: (v) {
-              final notifier = ref.read(routeSearchProvider.notifier);
-              notifier.setTransport(v, food,
-                  lat: _position?.latitude ?? 37.5635,
-                  lng: _position?.longitude ?? 126.9869);
-              _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
-            },
-            onSpotTagTap: _onSpotTagTap,
-            onNearbyCourseTap: _onNearbyCourseTap,
-            onSpotItemTap: (idx, spot) {
-              ref.read(routeSearchProvider.notifier).selectSpot(idx);
-              _onSpotTap(spot);
-            },
-            onCardTap: _onModeBCardTap,
-            onStartNav: _onStartModeBCourse,
-            onGeneratedCourseTap: _onGeneratedCourseTap,
-            onGenerateCourse: _onGenerateCourseFromSpots,
+            isGenerating: modeBState.isFetchingSpots,
+            onGenerate: _onGenerateCourseFromSpots,
           ),
         ),
+      ],
     ];
   }
 
@@ -1283,12 +1453,17 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     showModalBottomSheet(
       context: context,
       backgroundColor: c.bg,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+      ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => Consumer(
         builder: (ctx, ref, _) {
           final items = ref.watch(cartProvider);
+          final bottomPad = MediaQuery.paddingOf(ctx).bottom;
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1334,41 +1509,40 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
               ),
               if (items.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  padding: EdgeInsets.fromLTRB(0, 32, 0, bottomPad + 32),
                   child: Text('아직 담은 스팟이 없어요',
                       style: TextStyle(color: c.textMuted, fontSize: 14)),
                 )
               else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => Divider(color: c.outline, height: 1),
-                  itemBuilder: (_, i) {
-                    final spot = items[i];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                      leading: Container(
-                        width: 38, height: 38,
-                        decoration: BoxDecoration(
-                          color: c.surfaceAlt, borderRadius: BorderRadius.circular(8),
+                Flexible(
+                  child: ListView.separated(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPad + 16),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => Divider(color: c.outline, height: 1),
+                    itemBuilder: (_, i) {
+                      final spot = items[i];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        leading: Container(
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(
+                            color: c.surfaceAlt, borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(child: Text(_spotTypeEmoji(spot.type), style: const TextStyle(fontSize: 18))),
                         ),
-                        child: Center(child: Text(_spotTypeEmoji(spot.type), style: const TextStyle(fontSize: 18))),
-                      ),
-                      title: Text(spot.name,
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
-                      subtitle: spot.address != null
-                          ? Text(spot.address!, style: TextStyle(fontSize: 11, color: c.textMuted))
-                          : null,
-                      trailing: GestureDetector(
-                        onTap: () => ref.read(cartProvider.notifier).remove(spot.id),
-                        child: Icon(Icons.remove_circle_outline_rounded, color: c.textMuted, size: 20),
-                      ),
-                    );
-                  },
+                        title: Text(spot.name,
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
+                        subtitle: spot.address != null
+                            ? Text(spot.address!, style: TextStyle(fontSize: 11, color: c.textMuted))
+                            : null,
+                        trailing: GestureDetector(
+                          onTap: () => ref.read(cartProvider.notifier).remove(spot.id),
+                          child: Icon(Icons.remove_circle_outline_rounded, color: c.textMuted, size: 20),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              SizedBox(height: MediaQuery.paddingOf(context).bottom + 16),
             ],
           );
         },

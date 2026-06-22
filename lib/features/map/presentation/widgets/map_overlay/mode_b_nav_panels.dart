@@ -345,6 +345,7 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
     this.onStepMode,
     this.showAllSegments = false,
     this.onShowAllToggle,
+    this.onSpotTap,
   });
 
   final List<SpotWaypoint> waypoints;
@@ -357,6 +358,8 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
   final bool showAllSegments;
   /// 전체/현재 구간 토글
   final VoidCallback? onShowAllToggle;
+  /// 스팟 카드 탭 시 호출
+  final ValueChanged<SpotWaypoint>? onSpotTap;
 
   @override
   State<_ModeBNavSpotCarousel> createState() => _ModeBNavSpotCarouselState();
@@ -421,6 +424,8 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                   : i == navCur
                       ? _SpotStatus.active
                       : _SpotStatus.upcoming;
+              final segs = widget.navState.segmentDistancesM;
+              final segDistM = (segs.length > i) ? segs[i] : null;
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: _SpotWaypointCard(
@@ -432,6 +437,10 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                   // GPS 목표 카드에만 실거리 instruction 표시
                   instruction: i == navCur
                       ? widget.navState.nextInstruction
+                      : null,
+                  segmentDistM: segDistM,
+                  onTap: widget.onSpotTap != null
+                      ? () => widget.onSpotTap!(wps[i])
                       : null,
                 ),
               );
@@ -545,6 +554,8 @@ class _SpotWaypointCard extends StatelessWidget {
     required this.status,
     this.instruction,
     this.isViewedInCarousel = false,
+    this.segmentDistM,
+    this.onTap,
   });
 
   final SpotWaypoint waypoint;
@@ -554,6 +565,9 @@ class _SpotWaypointCard extends StatelessWidget {
   final String? instruction;
   /// 캐러셀에서 현재 보고 있는 카드 여부 — border 하이라이트에만 사용
   final bool isViewedInCarousel;
+  /// 이 스팟까지의 구간 거리(m) — 예상 시간 표시용
+  final double? segmentDistM;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -586,93 +600,158 @@ class _SpotWaypointCard extends StatelessWidget {
         statusLabel = '예정';
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: kMapPanel,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isHighlighted ? accent.withValues(alpha: 0.6) : Colors.white12,
-          width: isHighlighted ? 1.5 : 1.0,
+    String? etaLabel;
+    // active 카드는 instruction(남은거리)이 이미 있으므로 eta 숨김
+    if (segmentDistM != null && segmentDistM! > 0 && status == _SpotStatus.upcoming) {
+      final mins = (segmentDistM! / 83.3).ceil();
+      etaLabel = '~$mins분';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: kMapPanel,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isHighlighted ? accent.withValues(alpha: 0.6) : Colors.white12,
+            width: isHighlighted ? 1.5 : 1.0,
+          ),
+          boxShadow: const [
+            BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
+          ],
         ),
-        boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: iconBg,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: status == _SpotStatus.active
-                          ? accent.withValues(alpha: 0.5)
-                          : Colors.white12,
-                    ),
-                  ),
-                  child: Icon(icon, size: 28, color: iconColor),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${index + 1}/$total',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    color: isHighlighted ? accent : kMapWhite45,
-                    height: 1,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    waypoint.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: kMapWhite87,
-                      letterSpacing: -0.4,
-                      height: 1.15,
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: status == _SpotStatus.active
+                            ? accent.withValues(alpha: 0.5)
+                            : Colors.white12,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    child: Icon(icon, size: 28, color: iconColor),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
-                    instruction != null && instruction!.isNotEmpty
-                        ? instruction!
-                        : statusLabel,
+                    '${index + 1}/$total',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: status == _SpotStatus.active
-                          ? accent.withValues(alpha: 0.85)
-                          : kMapWhite45,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: isHighlighted ? accent : kMapWhite45,
+                      height: 1,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      waypoint.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: kMapWhite87,
+                        letterSpacing: -0.4,
+                        height: 1.15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      instruction != null && instruction!.isNotEmpty
+                          ? instruction!
+                          : statusLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: status == _SpotStatus.active
+                            ? accent.withValues(alpha: 0.85)
+                            : kMapWhite45,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (etaLabel != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  etaLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isHighlighted ? accent.withValues(alpha: 0.8) : kMapWhite45,
+                  ),
+                ),
+              ],
+              if (onTap != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Icon(Icons.chevron_right_rounded,
+                      size: 18,
+                      color: isHighlighted ? accent.withValues(alpha: 0.7) : kMapWhite45),
+                ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 도착 완료 다이얼로그 통계 칩
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ArrivalStatChip extends StatelessWidget {
+  const _ArrivalStatChip({
+    required this.icon,
+    required this.value,
+    required this.color,
+  });
+  final IconData icon;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        const SizedBox(height: 6),
+        Text(value,
+            style: TextStyle(
+                color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+      ],
     );
   }
 }

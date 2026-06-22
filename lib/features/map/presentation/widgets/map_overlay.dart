@@ -560,11 +560,20 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           next.routes.isNotEmpty) {
         _loadModeBRouteGpx(next.selectedRouteIdx);
       }
-      // 생성 코스 완성 → 자동으로 지도에 표시 (id 비교: 메트릭 업데이트는 재드로우 제외)
+      // 생성 코스 완성 → 지도에 표시 + 자동 선택 (안내 시작 버튼 즉시 노출)
       if (prev?.generatedCourse?.id != next.generatedCourse?.id &&
           next.generatedCourse != null) {
         _segmentPolylines = []; // Bug 2: 이전 코스 구간 캐시 초기화
         unawaited(_drawGeneratedCourseOnMap(next.generatedCourse!));
+        ref.read(routeSearchProvider.notifier).selectGeneratedCourse();
+        // sheet를 기본 높이로 올려 카드가 보이도록
+        if (_sheetBCtrl.isAttached) {
+          _sheetBCtrl.animateTo(
+            0.46,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
       }
       // place_detail_screen에서 "안내 시작" 탭 → navPending 감지
       if (!(prev?.navPending ?? false) && next.navPending) {
