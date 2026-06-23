@@ -290,7 +290,7 @@ class _ClusterDot extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: const Color(0xFF03C75A),
+        color: context.colors.pinSight,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
         boxShadow: const [

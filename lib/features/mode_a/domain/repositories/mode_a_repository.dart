@@ -20,16 +20,6 @@ abstract interface class ModeARepository {
     List<RouteWaypoint> waypoints,
   });
 
-  /// 출발지에서 여러 목적지까지 거리/시간 일괄 조회
-  /// Kakao Mobility POST /v1/destinations/directions 호출
-  Future<List<RouteResultEntity>> getRoutesToDestinations({
-    required double fromLat,
-    required double fromLng,
-    required List<RouteWaypoint> destinations,
-    required String transport,
-    required double weightKg,
-  });
-
   Future<List<RestaurantEntity>> getNearbyRestaurants({
     required double latitude,
     required double longitude,

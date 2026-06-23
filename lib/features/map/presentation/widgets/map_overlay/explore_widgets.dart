@@ -76,7 +76,7 @@ class _ExploreTopPanel extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF03C75A).withValues(alpha: 0.15),
+                      color: kMapGreen.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Text(
@@ -84,7 +84,7 @@ class _ExploreTopPanel extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF03C75A),
+                          color: kMapGreen,
                           letterSpacing: 0.3),
                     ),
                   ),
@@ -153,13 +153,13 @@ class _MapLegend extends StatelessWidget {
           BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
-      child: const Column(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _LegendItem(color: Color(0xFF03C75A), label: '장소'),
-          SizedBox(height: 4),
-          _LegendItem(color: Color(0xFFFFAB00), label: '⭐ 추천'),
+          _LegendItem(color: context.colors.pinSight, label: '장소'),
+          const SizedBox(height: 4),
+          _LegendItem(color: context.colors.accent, label: '⭐ 추천'),
         ],
       ),
     );

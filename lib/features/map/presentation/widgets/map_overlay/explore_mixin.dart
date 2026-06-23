@@ -22,6 +22,11 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     _sheetExploreCtrl.dispose();
   }
 
+  void _invalidateExploreMarkerCache() {
+    _markerIcons = null;
+    _clusterIconCache.clear();
+  }
+
   // 지도 탭 시 UI 토글 — 장소 선택 중이면 먼저 해제, 그 다음 탭부터 숨김/표시
   void _onExploreMapTap() {
     if (!mounted) return;
@@ -87,14 +92,15 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
 
   Future<Map<PlaceSource, NOverlayImage>> _getMarkerIcons() async {
     if (_markerIcons != null) return _markerIcons!;
+    final c = context.colors;
     final normalIcon = await NOverlayImage.fromWidget(
-      widget: const MapMarkerDot(color: Color(0xFF03C75A)),
+      widget: MapMarkerDot(color: c.pinSight),
       size: const Size(26, 26),
       context: context,
     );
     if (!mounted) return {};
     final bothIcon = await NOverlayImage.fromWidget(
-      widget: const MapMarkerDot(color: Color(0xFFFFAB00), star: true),
+      widget: MapMarkerDot(color: c.accent, star: true),
       size: const Size(32, 32),
       context: context,
     );
@@ -108,7 +114,8 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   List<_Cluster> _clusterPlaces(List<PlaceEntity> places, double zoom) {
-    final cellDeg = zoom >= 14 ? 0.002 : zoom >= 12 ? 0.01 : 0.05;
+    // 겹침이 심한 경우에만 클러스터링: 셀 크기를 줄여 개별 마커 우선 표시
+    final cellDeg = zoom >= 14 ? 0.001 : zoom >= 12 ? 0.005 : 0.03;
     final groups = <String, List<PlaceEntity>>{};
     for (final p in places) {
       final gx = (p.longitude / cellDeg).floor();
@@ -145,7 +152,7 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     final markers = <NMarker>{};
     for (int ci = 0; ci < clusters.length; ci++) {
       final cluster = clusters[ci];
-      if (cluster.places.length > 1) {
+      if (cluster.places.length >= 5) {
         final clusterIcon = await _getClusterIcon(cluster.places.length);
         if (!mounted) return;
         final marker = NMarker(id: 'cluster_$ci', position: cluster.center, icon: clusterIcon);
@@ -183,11 +190,14 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     await _ctrl!.addOverlayAll(markers);
   }
 
-  Color _sourceColor(PlaceSource source) => switch (source) {
-        PlaceSource.tourApi => const Color(0xFF03C75A),
-        PlaceSource.kakaoLocal => const Color(0xFF03C75A),
-        PlaceSource.both => const Color(0xFFFFAB00),
-      };
+  Color _sourceColor(PlaceSource source) {
+    final c = context.colors;
+    return switch (source) {
+      PlaceSource.tourApi => c.pinSight,
+      PlaceSource.kakaoLocal => c.pinSight,
+      PlaceSource.both => c.accent,
+    };
+  }
 
   // ── Build overlay widgets ──────────────────────────────────────
 
@@ -224,7 +234,7 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
       if (exploreState.isLoading)
         Positioned(
           top: _topPanelHeight(context) + 12, left: 0, right: 0,
-          child: const Center(child: MapLoadingChip('맛집 불러오는 중...')),
+          child: const Center(child: MapLoadingChip('스팟 탐색 중...')),
         ),
       if (_showReSearchButton && !exploreState.isLoading)
         Positioned(
@@ -259,7 +269,7 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
       if (exploreState.places.isNotEmpty)
         Positioned(
           right: 12, top: _topPanelHeight(context) + 12,
-          child: const _MapLegend(),
+          child: _MapLegend(),
         ),
       if (exploreState.places.isNotEmpty &&
           !_showExploreList &&

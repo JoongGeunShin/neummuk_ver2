@@ -486,7 +486,12 @@ class RouteSearch extends _$RouteSearch {
 
   void setTransport(String t, FoodEntity food,
       {double lat = 37.5635, double lng = 126.9869}) {
-    state = state.copyWith(transport: t, selectedRouteIdx: 0);
+    state = state.copyWith(
+      transport: t,
+      selectedRouteIdx: 0,
+      generatedCourse: null,
+      generatedCourseSelected: false,
+    );
     if (state.nearbyCoursesActive) {
       loadRoutes(food, lat: lat, lng: lng);
     } else if (state.activeSpotTag != null) {

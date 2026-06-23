@@ -22,10 +22,11 @@ class _ExplorePlaceSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final sourceLabel = switch (place.source) {
-      PlaceSource.tourApi => ('장소', const Color(0xFF03C75A)),
-      PlaceSource.kakaoLocal => ('장소', const Color(0xFF03C75A)),
-      PlaceSource.both => ('⭐ 추천', const Color(0xFFFFAB00)),
+      PlaceSource.tourApi => ('장소', c.success),
+      PlaceSource.kakaoLocal => ('장소', c.success),
+      PlaceSource.both => ('⭐ 추천', c.accent),
     };
 
     return Positioned(
@@ -128,14 +129,14 @@ class _ExplorePlaceSheet extends StatelessWidget {
                     ],
                     const SizedBox(height: 14),
                     Row(children: [
-                      _PlaceRouteBtn(label: '출발지', color: const Color(0xFF2ECC71),
+                      _PlaceRouteBtn(label: '출발지', color: c.success,
                           onTap: () => onSetOrigin(place)),
                       const SizedBox(width: 8),
-                      _PlaceRouteBtn(label: '도착지', color: const Color(0xFFE74C3C),
+                      _PlaceRouteBtn(label: '도착지', color: c.danger,
                           onTap: () => onSetDest(place)),
                       if (canAddWaypoint) ...[
                         const SizedBox(width: 8),
-                        _PlaceRouteBtn(label: '경유지', color: const Color(0xFFF39C12),
+                        _PlaceRouteBtn(label: '경유지', color: c.accent,
                             onTap: () => onAddWaypoint(place)),
                       ],
                     ]),
@@ -284,7 +285,7 @@ class _ClusterPanel extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final place = places[index];
                     final isBoth = place.source == PlaceSource.both;
-                    final dotColor = isBoth ? const Color(0xFFFFAB00) : _kGreen;
+                    final dotColor = isBoth ? context.colors.accent : context.colors.success;
                     final trimmedCat = _trimCategory(place.category);
                     return InkWell(
                       onTap: () => onTapPlace(place),
@@ -436,7 +437,7 @@ class _ExploreListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isBoth = place.source == PlaceSource.both;
-    final dotColor = isBoth ? const Color(0xFFFFAB00) : const Color(0xFF03C75A);
+    final dotColor = isBoth ? context.colors.accent : context.colors.success;
     final trimmedCat = _trimCategory(place.category);
 
     return InkWell(
@@ -473,13 +474,13 @@ class _ExploreListItem extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFAB00).withValues(alpha: 0.2),
+                            color: context.colors.accent.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text('⭐ 추천',
+                          child: Text('⭐ 추천',
                               style: TextStyle(
                                   fontSize: 10, fontWeight: FontWeight.w700,
-                                  color: Color(0xFFFFAB00))),
+                                  color: context.colors.accent)),
                         ),
                       ],
                     ],

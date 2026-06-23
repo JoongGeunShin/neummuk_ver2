@@ -223,8 +223,7 @@ class ModeARepositoryImpl implements ModeARepository {
       'apiKey': _odsayKey,
     });
 
-    final response =
-        await http.get(uri).timeout(const Duration(seconds: 12));
+    final response = await http.get(uri).timeout(const Duration(seconds: 12));
 
     if (response.statusCode != 200) {
       debugPrint('[ModeA] ODsay ${response.statusCode}: ${response.body}');
@@ -233,21 +232,17 @@ class ModeARepositoryImpl implements ModeARepository {
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
 
-    // ODsay 오류 코드 처리 (result.error 존재 시)
     if (json.containsKey('error')) {
       debugPrint('[ModeA] ODsay error: ${json['error']}');
       return _mockRoute(from, to, 'transit', weightKg, waypoints);
     }
 
     final result = json['result'] as Map<String, dynamic>?;
-    if (result == null) {
-      return _mockRoute(from, to, 'transit', weightKg, waypoints);
-    }
+    if (result == null) return _mockRoute(from, to, 'transit', weightKg, waypoints);
 
     final paths = result['path'] as List? ?? [];
     if (paths.isEmpty) return _mockRoute(from, to, 'transit', weightKg, waypoints);
 
-    // 첫 번째 경로(추천) 사용
     final path = paths[0] as Map<String, dynamic>;
     final info = path['info'] as Map<String, dynamic>? ?? {};
 
@@ -255,68 +250,125 @@ class ModeARepositoryImpl implements ModeARepository {
     final totalDistanceM = (info['totalDistance'] as num? ?? 0).toInt();
     final totalWalkM = (info['totalWalk'] as num? ?? 0).toInt();
     final durationSec = totalTimeMin * 60;
-    final distanceKm =
-        double.parse((totalDistanceM / 1000.0).toStringAsFixed(1));
-
-    // passShape.linestring(실제 도로 형상) 우선, 없으면 정류장 좌표로 폴리라인 구성
-    final routePoints = <LatLng>[];
-    routePoints.add(LatLng(latitude: originLat, longitude: originLng));
+    final distanceKm = double.parse((totalDistanceM / 1000.0).toStringAsFixed(1));
 
     final subPaths = path['subPath'] as List? ?? [];
-    for (final sub in subPaths) {
-      final subMap = sub as Map<String, dynamic>;
 
-      // passShape.linestring: "lon,lat lon,lat ..." 형태 (버스·지하철 구간에만 존재)
-      final passShape = subMap['passShape'] as Map<String, dynamic>?;
-      final linestring = passShape?['linestring'] as String?;
+    // ── TMAP 도보 경로 pre-fetch: 첫 번째/마지막 도보 구간만 (최대 2회 호출) ──
+    ({int idx, double sLat, double sLng, double eLat, double eLng})? firstWalk, lastWalk;
 
-      if (linestring != null && linestring.isNotEmpty) {
-        for (final pair in linestring.trim().split(' ')) {
-          final parts = pair.split(',');
-          if (parts.length < 2) continue;
-          final lng = double.tryParse(parts[0]);
-          final lat = double.tryParse(parts[1]);
-          if (lat != null && lng != null && lat != 0 && lng != 0) {
-            routePoints.add(LatLng(latitude: lat, longitude: lng));
+    for (int i = 0; i < subPaths.length; i++) {
+      final sub = subPaths[i] as Map<String, dynamic>;
+      if ((sub['trafficType'] as num? ?? 3).toInt() != 3) continue;
+
+      // 첫 구간은 출발지 좌표, 마지막 구간은 도착지 좌표 사용
+      final sLat = i == 0 ? originLat : (double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0);
+      final sLng = i == 0 ? originLng : (double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0);
+      final eLat = i == subPaths.length - 1 ? destLat : (double.tryParse(sub['endY']?.toString() ?? '') ?? 0.0);
+      final eLng = i == subPaths.length - 1 ? destLng : (double.tryParse(sub['endX']?.toString() ?? '') ?? 0.0);
+
+      if (sLat == 0.0 || sLng == 0.0 || eLat == 0.0 || eLng == 0.0) continue;
+      final seg = (idx: i, sLat: sLat, sLng: sLng, eLat: eLat, eLng: eLng);
+      firstWalk ??= seg;
+      lastWalk = seg;
+    }
+
+    List<LatLng> firstWalkPts = const [], lastWalkPts = const [];
+    if (firstWalk != null && lastWalk != null) {
+      if (firstWalk.idx == lastWalk.idx) {
+        // 도보 구간이 하나뿐
+        firstWalkPts = await _fetchTmapWalkSegment(
+            firstWalk.sLat, firstWalk.sLng, firstWalk.eLat, firstWalk.eLng);
+        lastWalkPts = firstWalkPts;
+      } else {
+        // 첫/마지막 도보 구간 병렬 요청
+        final results = await Future.wait([
+          _fetchTmapWalkSegment(firstWalk.sLat, firstWalk.sLng, firstWalk.eLat, firstWalk.eLng),
+          _fetchTmapWalkSegment(lastWalk.sLat, lastWalk.sLng, lastWalk.eLat, lastWalk.eLng),
+        ]);
+        firstWalkPts = results[0];
+        lastWalkPts = results[1];
+      }
+    }
+
+    // ── subPath → routePoints + segmentPoints ─────────────────────────────────
+    final routePoints = <LatLng>[];
+    routePoints.add(LatLng(latitude: originLat, longitude: originLng));
+    final segmentPoints = <List<LatLng>>[];
+
+    for (int i = 0; i < subPaths.length; i++) {
+      final sub = subPaths[i] as Map<String, dynamic>;
+      final trafficType = (sub['trafficType'] as num? ?? 3).toInt();
+      final segPts = <LatLng>[];
+
+      if (trafficType == 3) {
+        // 도보 구간: TMAP 실제 경로 우선, 없으면 직선
+        final tmapPts = (firstWalk != null && i == firstWalk.idx)
+            ? firstWalkPts
+            : (lastWalk != null && i == lastWalk.idx)
+                ? lastWalkPts
+                : const <LatLng>[];
+
+        if (tmapPts.isNotEmpty) {
+          segPts.addAll(tmapPts);
+        } else {
+          final sx = double.tryParse(sub['startX']?.toString() ?? '');
+          final sy = double.tryParse(sub['startY']?.toString() ?? '');
+          final ex = double.tryParse(sub['endX']?.toString() ?? '');
+          final ey = double.tryParse(sub['endY']?.toString() ?? '');
+          if (sx != null && sy != null && sx != 0 && sy != 0) {
+            segPts.add(LatLng(latitude: sy, longitude: sx));
+          }
+          if (ex != null && ey != null && ex != 0 && ey != 0) {
+            segPts.add(LatLng(latitude: ey, longitude: ex));
           }
         }
       } else {
-        // 도보 구간 등 passShape 없는 경우: 정류장 좌표로 폴백
-        final passStopList = subMap['passStopList'] as Map<String, dynamic>?;
-        if (passStopList == null) continue;
-        final stations = passStopList['stations'] as List? ?? [];
-        for (final st in stations) {
-          final stMap = st as Map<String, dynamic>;
-          final x = double.tryParse(stMap['x']?.toString() ?? '');
-          final y = double.tryParse(stMap['y']?.toString() ?? '');
-          if (x != null && y != null && x != 0 && y != 0) {
-            routePoints.add(LatLng(latitude: y, longitude: x));
+        // 버스·지하철: passShape.linestring 우선, passStopList 폴백
+        final passShape = sub['passShape'] as Map<String, dynamic>?;
+        final linestring = passShape?['linestring'] as String?;
+
+        if (linestring != null && linestring.isNotEmpty) {
+          for (final pair in linestring.trim().split(' ')) {
+            final parts = pair.split(',');
+            if (parts.length < 2) continue;
+            final lng = double.tryParse(parts[0]);
+            final lat = double.tryParse(parts[1]);
+            if (lat != null && lng != null && lat != 0 && lng != 0) {
+              segPts.add(LatLng(latitude: lat, longitude: lng));
+            }
+          }
+        } else {
+          final passStopList = sub['passStopList'] as Map<String, dynamic>?;
+          final stations = passStopList?['stations'] as List? ?? [];
+          for (final st in stations) {
+            final stMap = st as Map<String, dynamic>;
+            final x = double.tryParse(stMap['x']?.toString() ?? '');
+            final y = double.tryParse(stMap['y']?.toString() ?? '');
+            if (x != null && y != null && x != 0 && y != 0) {
+              segPts.add(LatLng(latitude: y, longitude: x));
+            }
           }
         }
       }
+
+      routePoints.addAll(segPts);
+      segmentPoints.add(segPts);
     }
 
     routePoints.add(LatLng(latitude: destLat, longitude: destLng));
 
-    // ODsay subPath → TransitStep 파싱
     final transitSteps = _extractTransitSteps(
-        subPaths, originLat, originLng, destLat, destLng);
+        subPaths, originLat, originLng, destLat, destLng, segmentPoints);
 
-    // 칼로리: 도보 구간은 walk MET, 나머지는 transit MET
-    const walkSpeedMs = 1.25; // ≈ 4.5 km/h
+    const walkSpeedMs = 1.25;
     final walkTimeSec = (totalWalkM / walkSpeedMs).round();
     final transitTimeSec = max(0, durationSec - walkTimeSec);
 
     final walkKcal = AppConstants.calculateKcal(
-      transport: 'walk',
-      weightKg: weightKg,
-      durationSeconds: walkTimeSec,
-    );
+      transport: 'walk', weightKg: weightKg, durationSeconds: walkTimeSec);
     final transitKcal = AppConstants.calculateKcal(
-      transport: 'transit',
-      weightKg: weightKg,
-      durationSeconds: transitTimeSec,
-    );
+      transport: 'transit', weightKg: weightKg, durationSeconds: transitTimeSec);
 
     return RouteResultEntity(
       fromName: from,
@@ -331,6 +383,66 @@ class ModeARepositoryImpl implements ModeARepository {
     );
   }
 
+  // ── TMAP 보행자 경로 (첫/마지막 도보 구간용) ──────────────────────────────────
+
+  Future<List<LatLng>> _fetchTmapWalkSegment(
+    double startLat, double startLng, double endLat, double endLng,
+  ) async {
+    try {
+      final key = dotenv.env['TMAP_APP_KEY'] ?? '';
+      if (key.isEmpty) return [];
+
+      final body = [
+        'startX=$startLng',
+        'startY=$startLat',
+        'endX=$endLng',
+        'endY=$endLat',
+        'startName=${Uri.encodeComponent('출발')}',
+        'endName=${Uri.encodeComponent('도착')}',
+        'reqCoordType=WGS84GEO',
+        'resCoordType=WGS84GEO',
+        'searchOption=0',
+      ].join('&');
+
+      final res = await http.post(
+        Uri.parse('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1'),
+        headers: {
+          'appKey': key,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body,
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode != 200) {
+        debugPrint('[ModeA TMAP] ${res.statusCode}');
+        return [];
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final features = data['features'] as List?;
+      if (features == null) return [];
+
+      final points = <LatLng>[];
+      for (final feature in features) {
+        final geometry = (feature as Map)['geometry'] as Map?;
+        if (geometry == null || geometry['type'] != 'LineString') continue;
+        final coords = geometry['coordinates'] as List?;
+        if (coords == null) continue;
+        for (final c in coords) {
+          points.add(LatLng(
+            latitude: (c[1] as num).toDouble(),
+            longitude: (c[0] as num).toDouble(),
+          ));
+        }
+      }
+      debugPrint('[ModeA TMAP] walk segment points=${points.length}');
+      return points;
+    } catch (e) {
+      debugPrint('[ModeA TMAP] error=$e');
+      return [];
+    }
+  }
+
   // ── ODsay subPath → TransitStep 파싱 ─────────────────────────────────────────
 
   List<TransitStep> _extractTransitSteps(
@@ -339,6 +451,7 @@ class ModeARepositoryImpl implements ModeARepository {
     double originLng,
     double destLat,
     double destLng,
+    List<List<LatLng>> segmentPoints,
   ) {
     final steps = <TransitStep>[];
     for (int i = 0; i < subPaths.length; i++) {
@@ -408,6 +521,7 @@ class ModeARepositoryImpl implements ModeARepository {
         endLat:         endLat,
         endLng:         endLng,
         stationCount:   stationCount,
+        stepPoints:     i < segmentPoints.length ? segmentPoints[i] : const [],
       ));
     }
     return steps;
@@ -492,40 +606,6 @@ class ModeARepositoryImpl implements ModeARepository {
       waypoints: waypoints,
       // routePoints 없음 → 지도에 폴리라인 그리지 않음
     );
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // getRoutesToDestinations (Mode B 용 — mock 유지)
-  // ────────────────────────────────────────────────────────────────────────────
-
-  @override
-  Future<List<RouteResultEntity>> getRoutesToDestinations({
-    required double fromLat,
-    required double fromLng,
-    required List<RouteWaypoint> destinations,
-    required String transport,
-    required double weightKg,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    int i = 0;
-    return destinations.map((dest) {
-      i++;
-      final durationSec = 1200 + i * 300;
-      final distanceKm = 1.0 + i * 0.5;
-      final kcalBurn = AppConstants.calculateKcal(
-        transport: transport,
-        weightKg: weightKg,
-        durationSeconds: durationSec,
-      ).round();
-      return RouteResultEntity(
-        fromName: '현재 위치',
-        toName: dest.name,
-        distanceKm: distanceKm,
-        durationSeconds: durationSec,
-        transport: transport,
-        kcalBurn: kcalBurn,
-      );
-    }).toList();
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -855,6 +935,7 @@ class ModeARepositoryImpl implements ModeARepository {
           imageUrl: img.isNotEmpty ? img : null,
           category: _contentTypeLabel(contentTypeId),
           source: PlaceSource.tourApi,
+          contentTypeId: contentTypeId,
         );
       }).whereType<PlaceEntity>().toList();
     } catch (e) {

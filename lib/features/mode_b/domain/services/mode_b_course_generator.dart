@@ -28,9 +28,13 @@ class ModeBCourseGenerator {
     final isBike = transport == 'bike';
     final met = isBike ? AppConstants.metValues['bike']! : AppConstants.metValues['walk']!;
     final speedKmh = isBike ? 15.0 : 4.0;
+    // 직선거리 → 도로 실거리 보정 계수 (도심 보행 1.3, 자전거 1.25)
+    final routeFactor = isBike ? 1.25 : 1.3;
 
     final targetHours = targetKcal / (met * weightKg);
-    final targetKm = targetHours * speedKmh;
+    final targetKmRoad = targetHours * speedKmh;
+    // 선택 알고리즘은 직선거리 기반이므로 목표를 역보정해서 전달
+    final targetKm = targetKmRoad / routeFactor;
     final tolerance = AppConstants.kcalMatchTolerancePct;
     final maxKm = targetKm * (1 + tolerance);
 
@@ -70,16 +74,18 @@ class ModeBCourseGenerator {
     if (selected.isEmpty) return null;
 
     // 귀환 포함 총 직선 거리 계산
-    double accumulated = 0.0;
+    double straightKm = 0.0;
     double curLat = userLat, curLng = userLng;
     for (final s in selected) {
-      accumulated += _distKm(curLat, curLng, s.lat, s.lng);
+      straightKm += _distKm(curLat, curLng, s.lat, s.lng);
       curLat = s.lat;
       curLng = s.lng;
     }
-    accumulated += _distKm(curLat, curLng, userLat, userLng);
+    straightKm += _distKm(curLat, curLng, userLat, userLng);
 
-    final actualHours = accumulated / speedKmh;
+    // 직선거리 → 도로 실거리 보정
+    final actualDistKm = straightKm * routeFactor;
+    final actualHours = actualDistKm / speedKmh;
     final actualKcal = (met * weightKg * actualHours).round();
     final actualMinutes = (actualHours * 60).round().clamp(1, 9999);
 
@@ -95,7 +101,7 @@ class ModeBCourseGenerator {
     return TouristRouteEntity(
       id: 'gen_${DateTime.now().millisecondsSinceEpoch}',
       name: routeName,
-      distanceKm: double.parse(accumulated.toStringAsFixed(2)),
+      distanceKm: double.parse(actualDistKm.toStringAsFixed(2)),
       durationMinutes: actualMinutes,
       kcal: actualKcal,
       type: isBike ? '자전거' : '도보',

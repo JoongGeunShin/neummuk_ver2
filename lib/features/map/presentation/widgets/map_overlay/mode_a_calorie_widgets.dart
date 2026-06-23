@@ -95,104 +95,22 @@ class _LongPressSheet extends StatelessWidget {
             MapLocationActionBtn(
                 label: '출발지',
                 icon: Icons.trip_origin_rounded,
-                color: const Color(0xFF7C8AFF),
+                color: context.colors.pinUser,
                 onTap: onSetOrigin),
             const SizedBox(width: 8),
             MapLocationActionBtn(
                 label: '도착지',
                 icon: Icons.place_rounded,
-                color: const Color(0xFFFF4D6D),
+                color: context.colors.danger,
                 onTap: onSetDest),
             if (canAddWaypoint) ...[
               const SizedBox(width: 8),
               MapLocationActionBtn(
                   label: '경유지',
                   icon: Icons.add_location_alt_rounded,
-                  color: const Color(0xFFFFC56E),
+                  color: context.colors.accent,
                   onTap: onAddWaypoint),
             ],
-          ]),
-        ],
-      ),
-    );
-  }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// ── Nearby item action sheet (탭별 추천 아이템 선택 시트) ─────────────────────────
-// ════════════════════════════════════════════════════════════════════════════
-
-class _NearbyItemActionSheet extends StatelessWidget {
-  const _NearbyItemActionSheet({
-    required this.name,
-    required this.category,
-    required this.canAddWaypoint,
-    required this.onSetDest,
-    required this.onAddWaypoint,
-    required this.onViewDetail,
-  });
-
-  final String name;
-  final String? category;
-  final bool canAddWaypoint;
-  final VoidCallback onSetDest;
-  final VoidCallback onAddWaypoint;
-  final VoidCallback onViewDetail;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPad = MediaQuery.paddingOf(context).bottom;
-    return Container(
-      decoration: const BoxDecoration(
-        color: kMapPanel,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomPad),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36, height: 4,
-              decoration: BoxDecoration(
-                  color: kMapHandle, borderRadius: BorderRadius.circular(2)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (category != null && category!.isNotEmpty)
-            Text(category!,
-                style: const TextStyle(
-                    fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600)),
-          Text(name,
-              style: const TextStyle(
-                  color: kMapWhite87, fontSize: 16, fontWeight: FontWeight.w800),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 16),
-          Row(children: [
-            MapLocationActionBtn(
-              label: '도착지',
-              icon: Icons.place_rounded,
-              color: const Color(0xFFFF4D6D),
-              onTap: onSetDest,
-            ),
-            if (canAddWaypoint) ...[
-              const SizedBox(width: 8),
-              MapLocationActionBtn(
-                label: '경유지',
-                icon: Icons.add_location_alt_rounded,
-                color: const Color(0xFFFFC56E),
-                onTap: onAddWaypoint,
-              ),
-            ],
-            const SizedBox(width: 8),
-            MapLocationActionBtn(
-              label: '자세히',
-              icon: Icons.open_in_new_rounded,
-              color: kMapWhite45,
-              onTap: onViewDetail,
-            ),
           ]),
         ],
       ),
@@ -241,48 +159,50 @@ class _CalorieComparePanel extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: isGood
-                    ? kMapGreen.withValues(alpha: 0.2)
-                    : const Color(0xFFFFB547).withValues(alpha: 0.2),
+                    ? context.colors.success.withValues(alpha: 0.2)
+                    : context.colors.warn.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 isGood ? '딱 맞아요 ✓' : needMore ? '$gap kcal 더 필요' : '${-gap} kcal 여유',
                 style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.w700,
-                  color: isGood ? kMapGreen : const Color(0xFFFFB547),
+                  color: isGood ? context.colors.success : context.colors.warn,
                 ),
               ),
             ),
           ]),
           const SizedBox(height: 10),
-          _KcalBar(label: '경로 소모', kcal: routeKcal, ratio: routeRatio, color: kMapGreen),
+          _KcalBar(label: '경로 소모', kcal: routeKcal, ratio: routeRatio, color: context.colors.success),
           const SizedBox(height: 6),
-          _KcalBar(label: '음식 칼로리', kcal: destKcal, ratio: 1.0,
-              color: const Color(0xFFFFB547)),
+          _KcalBar(label: '음식 칼로리', kcal: destKcal, ratio: 1.0, color: context.colors.warn),
           if (!isGood && needMore) ...[
             const SizedBox(height: 12),
             GestureDetector(
               onTap: onAddWaypoint,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFB547).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFFB547).withValues(alpha: 0.4)),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_location_alt_rounded, size: 15, color: Color(0xFFFFB547)),
-                    SizedBox(width: 6),
-                    Text('경유지 추가로 더 움직이기',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700,
-                            color: Color(0xFFFFB547))),
-                  ],
-                ),
-              ),
+              child: Builder(builder: (ctx) {
+                final warnColor = ctx.colors.warn;
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: warnColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: warnColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_location_alt_rounded, size: 15, color: warnColor),
+                      const SizedBox(width: 6),
+                      Text('경유지 추가로 더 움직이기',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700,
+                              color: warnColor)),
+                    ],
+                  ),
+                );
+              }),
             ),
           ],
         ],
@@ -467,8 +387,8 @@ class _WaypointCandidateCard extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w500)),
               Text('+${candidate.extraKcal} kcal 추가 소모',
-                  style: const TextStyle(
-                      fontSize: 11, color: Color(0xFFFFB547), fontWeight: FontWeight.w700)),
+                  style: TextStyle(
+                      fontSize: 11, color: context.colors.warn, fontWeight: FontWeight.w700)),
             ],
           ),
         ),

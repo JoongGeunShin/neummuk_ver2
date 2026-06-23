@@ -167,6 +167,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
         imageUrl: item['firstimage'] as String?,
         category: item['cat3'] as String?,
         source: PlaceSource.tourApi,
+        contentTypeId: (item['contenttypeid'] as num?)?.toInt(),
       );
     }).whereType<PlaceEntity>().toList();
   }
@@ -178,43 +179,57 @@ class PlaceRepositoryImpl implements PlaceRepository {
     int radius,
     String? keyword,
   ) async {
-    final String path;
-    final Map<String, String> params;
-
     if (keyword != null && keyword.isNotEmpty) {
       // 자유 텍스트 검색: category_group_code 제거 → 모든 장소 유형 포함
-      // lat/lng은 호출부에서 이미 지오코딩된 올바른 좌표가 넘어옴
-      path = '/search/keyword.json';
-      params = {
-        'query': keyword,
-        'x': lng.toString(),
-        'y': lat.toString(),
-        'radius': radius.toString(),
-        'size': '15',
-      };
+      final response = await http.get(
+        Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/keyword.json')
+            .replace(queryParameters: {
+          'query': keyword,
+          'x': lng.toString(),
+          'y': lat.toString(),
+          'radius': radius.toString(),
+          'size': '15',
+        }),
+        headers: {'Authorization': 'KakaoAK $_kakaoKey'},
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return [];
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return _parseKakaoDocs(json['documents'] as List<dynamic>? ?? []);
     } else {
-      // 초기 브라우징: FD6(음식점) + AT4(관광명소) 병렬 요청은 비용이 크므로
-      // FD6 유지하되 TourAPI가 관광지를 커버함
-      path = '/search/category.json';
-      params = {
-        'category_group_code': 'FD6',
+      // 초기 브라우징: 음식점(FD6) + 관광명소(AT4) + 숙박(AD5) 병렬 요청
+      // → 세인트존스호텔 같은 숙박·관광지도 탐색에 표시됨
+      final results = await Future.wait([
+        _fetchKakaoCategory(lat, lng, radius, 'FD6').catchError((_) => <PlaceEntity>[]),
+        _fetchKakaoCategory(lat, lng, radius, 'AT4').catchError((_) => <PlaceEntity>[]),
+        _fetchKakaoCategory(lat, lng, radius, 'AD5').catchError((_) => <PlaceEntity>[]),
+      ]);
+      return [...results[0], ...results[1], ...results[2]];
+    }
+  }
+
+  Future<List<PlaceEntity>> _fetchKakaoCategory(
+    double lat,
+    double lng,
+    int radius,
+    String categoryCode,
+  ) async {
+    final response = await http.get(
+      Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/category.json')
+          .replace(queryParameters: {
+        'category_group_code': categoryCode,
         'x': lng.toString(),
         'y': lat.toString(),
         'radius': radius.toString(),
-        'size': '15',
-      };
-    }
-
-    final response = await http.get(
-      Uri.parse('${AppConstants.kakaoLocalBaseUrl}$path')
-          .replace(queryParameters: params),
+        'size': '10',
+      }),
       headers: {'Authorization': 'KakaoAK $_kakaoKey'},
     ).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
-
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final documents = json['documents'] as List<dynamic>? ?? [];
+    return _parseKakaoDocs(json['documents'] as List<dynamic>? ?? []);
+  }
 
+  List<PlaceEntity> _parseKakaoDocs(List<dynamic> documents) {
     return documents.map<PlaceEntity?>((doc) {
       final x = double.tryParse(doc['x']?.toString() ?? '');
       final y = double.tryParse(doc['y']?.toString() ?? '');
@@ -227,8 +242,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
         name: name,
         latitude: y,
         longitude: x,
-        address:
-            roadAddr.isNotEmpty ? roadAddr : doc['address_name'] as String?,
+        address: roadAddr.isNotEmpty ? roadAddr : doc['address_name'] as String?,
         phone: doc['phone'] as String?,
         category: doc['category_name'] as String?,
         source: PlaceSource.kakaoLocal,

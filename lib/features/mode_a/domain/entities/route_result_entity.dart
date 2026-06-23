@@ -32,6 +32,7 @@ class TransitStep {
     this.endLat,
     this.endLng,
     this.stationCount = 0,
+    this.stepPoints = const [],
   });
 
   /// 이동 수단: 1=지하철, 2=버스, 3=도보
@@ -46,6 +47,8 @@ class TransitStep {
   final double? endLat;
   final double? endLng;
   final int stationCount;
+  /// 이 구간의 상세 폴리라인 좌표 (도보=초록, 차량=파랑 별색 표시용)
+  final List<LatLng> stepPoints;
 
   bool get isWalk    => trafficType == 3;
   bool get isBus     => trafficType == 2;

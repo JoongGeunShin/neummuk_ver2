@@ -11,6 +11,7 @@ class PlaceEntity {
     this.imageUrl,
     this.category,
     required this.source,
+    this.contentTypeId,
   });
 
   final String id;
@@ -22,4 +23,6 @@ class PlaceEntity {
   final String? imageUrl;
   final String? category;
   final PlaceSource source;
+  /// TourAPI contentTypeId (12=관광지, 14=문화시설, 15=축제행사, 25=여행코스)
+  final int? contentTypeId;
 }

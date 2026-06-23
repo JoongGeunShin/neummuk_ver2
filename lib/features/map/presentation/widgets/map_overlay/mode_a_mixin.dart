@@ -6,6 +6,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   Map<String, NOverlayImage>? _routeMarkerIcons;
   final Map<int, NOverlayImage> _nearbyIconCache = {};
   int _nearbyMarkerCount = 0;
+  int _transitSegPolylineCount = 0;
+  int _modeAArrowCount = 0;
+  int _modeAGuideMarkerCount = 0;
   bool _modeAMapFocus = false;    // 지도 탭 시 UI 숨김
   bool _routePanelEditing = false; // 경로 수정 패널 열림 여부
   int _navGuidePageIdx = 0;        // 현재 보여지는 안내 스텝 인덱스
@@ -44,20 +47,21 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
   Future<Map<String, NOverlayImage>> _getRouteMarkerIcons() async {
     if (_routeMarkerIcons != null) return _routeMarkerIcons!;
+    final c = context.colors;
     final originIcon = await NOverlayImage.fromWidget(
-      widget: const MapRouteMarkerDot(color: Color(0xFF2ECC71), label: 'A'),
+      widget: MapRouteMarkerDot(color: c.success, label: 'A'),
       size: const Size(30, 30),
       context: context,
     );
     if (!mounted) return {};
     final destIcon = await NOverlayImage.fromWidget(
-      widget: const MapRouteMarkerDot(color: Color(0xFFE74C3C), label: 'B'),
+      widget: MapRouteMarkerDot(color: c.danger, label: 'B'),
       size: const Size(30, 30),
       context: context,
     );
     if (!mounted) return {};
     final wpIcon = await NOverlayImage.fromWidget(
-      widget: const MapRouteMarkerDot(color: Color(0xFFF39C12), label: '●'),
+      widget: MapRouteMarkerDot(color: c.accent, label: '●'),
       size: const Size(28, 28),
       context: context,
     );
@@ -69,6 +73,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   Future<void> _syncModeAMarkers(ModeAState s) async {
     final ctrl = _ctrl;
     if (ctrl == null) return;
+    final c = context.colors;
     const ids = ['wp_origin', 'wp_dest', 'wp_0', 'wp_1', 'wp_2'];
     for (final id in ids) {
       try {
@@ -84,7 +89,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         icon: icons['origin'],
         caption: NOverlayCaption(
           text: s.from, textSize: 11,
-          color: const Color(0xFF2ECC71), haloColor: Colors.black87,
+          color: c.success, haloColor: Colors.black87,
         ),
         captionOffset: 4,
         isHideCollidedCaptions: false,
@@ -97,7 +102,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         icon: icons['dest'],
         caption: NOverlayCaption(
           text: s.to, textSize: 11,
-          color: const Color(0xFFE74C3C), haloColor: Colors.black87,
+          color: c.danger, haloColor: Colors.black87,
         ),
         captionOffset: 4,
         isHideCollidedCaptions: false,
@@ -111,7 +116,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         icon: icons['waypoint'],
         caption: NOverlayCaption(
           text: wp.name, textSize: 11,
-          color: const Color(0xFFF39C12), haloColor: Colors.black87,
+          color: c.accent, haloColor: Colors.black87,
         ),
         captionOffset: 4,
         isHideCollidedCaptions: false,
@@ -122,6 +127,19 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   Future<void> _drawModeAPolyline(RouteResultEntity? result) async {
     final ctrl = _ctrl;
     if (ctrl == null) return;
+    final c = context.colors;
+
+    // 이전 대중교통 구간 폴리라인 제거
+    for (var i = 0; i < _transitSegPolylineCount; i++) {
+      ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'transit_seg_$i'),
+      ).catchError((_) {});
+    }
+    _transitSegPolylineCount = 0;
+
+    // 이전 화살표·방향 마커 제거
+    await _clearModeADecorations();
+
     await ctrl.deleteOverlay(
       const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'mode_a_route'),
     ).catchError((_) {});
@@ -131,24 +149,63 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         .map((p) => NLatLng(p.latitude, p.longitude))
         .toList();
 
-    final color = switch (result.transport) {
-      'walk'    => const Color(0xFF03C75A),
-      'bike'    => const Color(0xFFFFB547),
-      'transit' => const Color(0xFF7C8AFF),
-      _         => const Color(0xFF03C75A),
-    };
-
-    await ctrl.addOverlay(NPolylineOverlay(
-      id: 'mode_a_route',
-      coords: coords,
-      color: color,
-      width: 5,
-      lineCap: NLineCap.round,
-      lineJoin: NLineJoin.round,
-    ));
-
-    if (result.transport == 'transit' && result.transitSteps.isNotEmpty) {
-      await _drawTransitStepMarkers(result, 0);
+    if (result.transport == 'transit') {
+      // 구간별 별색 폴리라인: 도보=c.success(초록), 버스·지하철=c.pinUser(파랑)
+      final stepsWithPts = result.transitSteps
+          .where((s) => s.stepPoints.length >= 2)
+          .toList();
+      if (stepsWithPts.isNotEmpty) {
+        var segIdx = 0;
+        for (final step in stepsWithPts) {
+          final segCoords = step.stepPoints
+              .map((p) => NLatLng(p.latitude, p.longitude))
+              .toList();
+          await ctrl.addOverlay(NPolylineOverlay(
+            id: 'transit_seg_$segIdx',
+            coords: segCoords,
+            color: step.isWalk ? c.success : c.pinUser,
+            width: step.isWalk ? 4 : 6,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ));
+          // 도보 구간에만 방향 화살표 (버스·지철은 빠르게 지나가 생략)
+          if (step.isWalk) {
+            await _drawModeARouteArrows(segCoords, c.success);
+          }
+          segIdx++;
+        }
+        _transitSegPolylineCount = segIdx;
+      } else {
+        // stepPoints 없는 폴백: 단색 폴리라인
+        await ctrl.addOverlay(NPolylineOverlay(
+          id: 'mode_a_route',
+          coords: coords,
+          color: c.pinUser,
+          width: 5,
+          lineCap: NLineCap.round,
+          lineJoin: NLineJoin.round,
+        ));
+        await _drawModeARouteArrows(coords, c.pinUser);
+      }
+      if (result.transitSteps.isNotEmpty) {
+        await _drawTransitStepMarkers(result, 0);
+      }
+    } else {
+      final color = switch (result.transport) {
+        'walk' => c.primary,
+        'bike' => c.warn,
+        _      => c.primary,
+      };
+      await ctrl.addOverlay(NPolylineOverlay(
+        id: 'mode_a_route',
+        coords: coords,
+        color: color,
+        width: 5,
+        lineCap: NLineCap.round,
+        lineJoin: NLineJoin.round,
+      ));
+      await _drawModeARouteArrows(coords, color);
+      await _drawModeAGuideMarkers(result.guides, result.transport);
     }
 
     if (mounted) {
@@ -158,6 +215,146 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         padding: const EdgeInsets.fromLTRB(60, 180, 60, 320),
       );
     }
+  }
+
+  // ── Mode A 지오 헬퍼 (mode_b_mixin과 독립) ─────────────────────────
+
+  static double _modeADistM(NLatLng a, NLatLng b) {
+    const r = 6371000.0;
+    const toRad = pi / 180;
+    final dLat = (b.latitude - a.latitude) * toRad;
+    final dLng = (b.longitude - a.longitude) * toRad;
+    final aa = sin(dLat / 2) * sin(dLat / 2) +
+        cos(a.latitude * toRad) * cos(b.latitude * toRad) *
+            sin(dLng / 2) * sin(dLng / 2);
+    return r * 2 * atan2(sqrt(aa), sqrt(1 - aa));
+  }
+
+  static double _modeABearing(NLatLng a, NLatLng b) {
+    const toRad = pi / 180;
+    final dLng = (b.longitude - a.longitude) * toRad;
+    final y = sin(dLng) * cos(b.latitude * toRad);
+    final x = cos(a.latitude * toRad) * sin(b.latitude * toRad) -
+        sin(a.latitude * toRad) * cos(b.latitude * toRad) * cos(dLng);
+    return (atan2(y, x) * 180 / pi + 360) % 360;
+  }
+
+  static double _modeATotalLen(List<NLatLng> pts) {
+    var total = 0.0;
+    for (var i = 1; i < pts.length; i++) {
+      total += _modeADistM(pts[i - 1], pts[i]);
+    }
+    return total;
+  }
+
+  static ({NLatLng pos, double bearing})? _modeAPointAtDist(
+      List<NLatLng> pts, double dist) {
+    var acc = 0.0;
+    for (var i = 1; i < pts.length; i++) {
+      final seg = _modeADistM(pts[i - 1], pts[i]);
+      if (acc + seg >= dist) {
+        final t = (dist - acc) / seg;
+        final lat = pts[i - 1].latitude + t * (pts[i].latitude - pts[i - 1].latitude);
+        final lng = pts[i - 1].longitude + t * (pts[i].longitude - pts[i - 1].longitude);
+        return (pos: NLatLng(lat, lng), bearing: _modeABearing(pts[i - 1], pts[i]));
+      }
+      acc += seg;
+    }
+    return null;
+  }
+
+  // ── 화살표·방향 마커 초기화 ────────────────────────────────────────
+
+  Future<void> _clearModeADecorations() async {
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    for (var i = 0; i < _modeAArrowCount; i++) {
+      ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.marker, id: 'mode_a_arrow_$i'),
+      ).catchError((_) {});
+    }
+    _modeAArrowCount = 0;
+    for (var i = 0; i < _modeAGuideMarkerCount; i++) {
+      ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.marker, id: 'mode_a_guide_$i'),
+      ).catchError((_) {});
+    }
+    _modeAGuideMarkerCount = 0;
+  }
+
+  // ── 폴리라인 위 방향 화살표 (Mode B _drawRouteArrows와 독립 구현) ──
+
+  Future<void> _drawModeARouteArrows(List<NLatLng> points, Color color) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || points.length < 2 || !mounted) return;
+
+    final totalLen = _modeATotalLen(points);
+    if (totalLen < 80) return;
+
+    final count = (totalLen / 100).clamp(3.0, 25.0).round();
+    final spacing = totalLen / (count + 1);
+    var idx = _modeAArrowCount;
+
+    for (var n = 1; n <= count; n++) {
+      final result = _modeAPointAtDist(points, spacing * n);
+      if (result == null) continue;
+      if (!mounted) break;
+
+      final icon = await NOverlayImage.fromWidget(
+        widget: _RouteArrowIcon(bearingDeg: result.bearing, color: color),
+        size: const Size(16, 16),
+        context: context,
+      );
+      if (!mounted) break;
+
+      await ctrl.addOverlay(NMarker(
+        id: 'mode_a_arrow_$idx',
+        position: result.pos,
+        icon: icon,
+        anchor: const NPoint(0.5, 0.5),
+        isHideCollidedMarkers: false,
+      ));
+      idx++;
+    }
+    _modeAArrowCount = idx;
+  }
+
+  // ── 교차로 방향 마커 (Kakao 안내 포인트 기반) ─────────────────────
+
+  Future<void> _drawModeAGuideMarkers(List<RouteGuide> guides, String transport) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || guides.isEmpty || !mounted) return;
+
+    final accentColor = transport == 'bike'
+        ? context.colors.warn
+        : context.colors.primary;
+    var idx = 0;
+
+    for (final guide in guides) {
+      // 유의미한 회전만 표시: 우회전(12), 좌회전(13), 유턴(14), 횡단보도
+      final isTurn = guide.type == 12 || guide.type == 13 || guide.type == 14;
+      final isCrosswalk = guide.guidance.contains('횡단보도');
+      if (!isTurn && !isCrosswalk) continue;
+      if (!mounted) break;
+
+      final icon = await NOverlayImage.fromWidget(
+        widget: _ModeAGuidePin(
+            type: guide.type, guidance: guide.guidance, color: accentColor),
+        size: const Size(28, 28),
+        context: context,
+      );
+      if (!mounted) break;
+
+      await ctrl.addOverlay(NMarker(
+        id: 'mode_a_guide_$idx',
+        position: NLatLng(guide.latitude, guide.longitude),
+        icon: icon,
+        anchor: const NPoint(0.5, 0.5),
+        isHideCollidedMarkers: false,
+      ));
+      idx++;
+    }
+    _modeAGuideMarkerCount = idx;
   }
 
   Future<void> _fetchGpsOriginForModeA() async {
@@ -177,44 +374,6 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     } finally {
       if (mounted) setState(() => _locating = false);
     }
-  }
-
-  // ── Nearby item action ────────────────────────────────────────
-
-  void _showNearbyItemActionSheet({
-    required String name,
-    required double lat,
-    required double lng,
-    String? category,
-    required Object item,
-  }) {
-    final canAddWaypoint =
-        ref.read(modeAProvider).waypoints.length < 3;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _NearbyItemActionSheet(
-        name: name,
-        category: category,
-        canAddWaypoint: canAddWaypoint,
-        onSetDest: () {
-          Navigator.pop(context);
-          ref.read(modeAProvider.notifier).setDestCoords(lat, lng, name);
-          ref.read(modeAProvider.notifier).search();
-          setState(() => _routePanelEditing = false);
-        },
-        onAddWaypoint: () {
-          Navigator.pop(context);
-          ref.read(modeAProvider.notifier).addWaypoint(
-                RouteWaypoint(name: name, latitude: lat, longitude: lng));
-          ref.read(modeAProvider.notifier).search();
-        },
-        onViewDetail: () {
-          Navigator.pop(context);
-          context.push('/place-detail', extra: item);
-        },
-      ),
-    );
   }
 
   // ── Mode A dialogs / sheets ────────────────────────────────────
@@ -379,12 +538,14 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     final ctrl = _ctrl;
     if (ctrl == null || s.routeResult == null) return;
 
+    if (!mounted) return;
+    final c = context.colors;
     final Color markerColor;
     final List<({String id, NLatLng pos, String name, Object item})> pins;
 
     switch (s.nearbyTab) {
       case ModeANearbyTab.restaurant:
-        markerColor = kMapGreen;
+        markerColor = c.pinFood;
         pins = [
           for (var i = 0; i < s.restaurants.length; i++)
             (
@@ -395,7 +556,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             ),
         ];
       case ModeANearbyTab.durunubi:
-        markerColor = const Color(0xFF7C8AFF);
+        markerColor = c.pinUser;
         pins = [
           for (var i = 0; i < s.nearbyDurunubi.length; i++)
             if (s.nearbyDurunubi[i].startLat != null &&
@@ -410,7 +571,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               ),
         ];
       default:
-        markerColor = const Color(0xFFFFB547);
+        markerColor = c.pinSight;
         pins = [
           for (var i = 0; i < s.nearbyPlaces.length; i++)
             (
@@ -444,33 +605,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       final captured = pin.item;
       m.setOnTapListener((_) {
         if (!mounted) return;
-        if (captured is RestaurantEntity) {
-          _showNearbyItemActionSheet(
-            name: captured.name,
-            lat: captured.latitude,
-            lng: captured.longitude,
-            category: captured.category,
-            item: captured,
-          );
-        } else if (captured is PlaceEntity) {
-          _showNearbyItemActionSheet(
-            name: captured.name,
-            lat: captured.latitude,
-            lng: captured.longitude,
-            category: captured.category,
-            item: captured,
-          );
-        } else if (captured is TouristRouteEntity) {
-          _showNearbyItemActionSheet(
-            name: captured.name,
-            lat: captured.startLat ?? 0,
-            lng: captured.startLng ?? 0,
-            category: captured.region != null
-                ? '두루누비 · ${captured.region}'
-                : '두루누비',
-            item: captured,
-          );
-        }
+        context.push('/place-detail', extra: captured);
       });
       markers.add(m);
     }
@@ -565,7 +700,11 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           top: MediaQuery.paddingOf(context).top + 12,
           left: 12,
           child: GestureDetector(
-            onTap: () => setState(() => _routePanelEditing = true),
+            onTap: () {
+              setState(() => _routePanelEditing = true);
+              unawaited(_drawModeAPolyline(null));
+              unawaited(_clearNearbyMarkers());
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: BoxDecoration(
@@ -610,13 +749,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           builder: (ctx, sc) => _ModeAResultSheet(
             scrollController: sc,
             state: modeAState,
-            onRestaurantTap: (r) => _showNearbyItemActionSheet(
-              name: r.name,
-              lat: r.latitude,
-              lng: r.longitude,
-              category: r.category,
-              item: r,
-            ),
+            onRestaurantTap: (r) => context.push('/place-detail', extra: r),
             onStartNavigation: () {
               ref.read(modeANavProvider.notifier).start(modeAState.routeResult!);
             },
@@ -632,22 +765,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             },
             onSwitchTab: (tab) =>
                 ref.read(modeAProvider.notifier).switchNearbyTab(tab),
-            onPlaceTap: (place) => _showNearbyItemActionSheet(
-              name: place.name,
-              lat: place.latitude,
-              lng: place.longitude,
-              category: place.category,
-              item: place,
-            ),
-            onDurunubiTap: (course) => _showNearbyItemActionSheet(
-              name: course.name,
-              lat: course.startLat ?? 0,
-              lng: course.startLng ?? 0,
-              category: course.region != null
-                  ? '두루누비 · ${course.region}'
-                  : '두루누비',
-              item: course,
-            ),
+            onPlaceTap: (place) => context.push('/place-detail', extra: place),
+            onDurunubiTap: (course) => context.push('/place-detail', extra: course),
           ),
         ),
 
@@ -733,5 +852,36 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         ),
       ),
     ];
+  }
+}
+
+// ── Mode A 방향 안내 핀 위젯 ────────────────────────────────────────────────
+
+class _ModeAGuidePin extends StatelessWidget {
+  const _ModeAGuidePin({
+    required this.type,
+    required this.guidance,
+    required this.color,
+  });
+  final int type;
+  final String guidance;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _guideIconForType(type, guidance);
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: const [
+          BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Icon(icon, size: 14, color: Colors.white),
+    );
   }
 }

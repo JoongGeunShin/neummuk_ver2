@@ -298,14 +298,61 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       context: context,
     );
     if (!mounted) return {};
+    final cartIcon = await NOverlayImage.fromWidget(
+      widget: MapRouteMarkerDot(color: c.primary, label: '★'),
+      size: const Size(30, 30),
+      context: context,
+    );
+    if (!mounted) return {};
     _modeBMarkerIcons = {
       'walk': walkIcon,
       'bike': bikeIcon,
       'selected': selectedIcon,
       'spot': spotIcon,
       'home': homeIcon,
+      'cart': cartIcon,
     };
     return _modeBMarkerIcons!;
+  }
+
+  // ── 장바구니 스팟 마커 추가 (ID: cart_N) ─────────────────────────
+
+  Future<void> _addCartMarkersToMap(List<SpotEntity> items) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || !mounted || items.isEmpty) return;
+    final icons = await _getModeBMarkerIcons();
+    if (!mounted) return;
+    final c = context.colors;
+    for (var i = 0; i < items.length; i++) {
+      final spot = items[i];
+      final marker = NMarker(
+        id: 'cart_$i',
+        position: NLatLng(spot.lat, spot.lng),
+        icon: icons['cart'] ?? icons['selected'],
+        caption: NOverlayCaption(
+          text: spot.name,
+          textSize: 11,
+          color: c.primary,
+          haloColor: Colors.black87,
+        ),
+        captionOffset: 4,
+        isHideCollidedCaptions: true,
+      );
+      marker.setOnTapListener((_) => _onSpotTap(spot));
+      await ctrl.addOverlay(marker);
+    }
+  }
+
+  Future<void> _refreshCartMarkersOnMap(List<SpotEntity> items) async {
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    for (var i = 0; i < kCartMaxSpots; i++) {
+      await ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.marker, id: 'cart_$i'),
+      ).catchError((_) {});
+    }
+    if (!mounted || items.isEmpty) return;
+    await _addCartMarkersToMap(items);
   }
 
   Future<void> _updateModeBMarkers(
@@ -347,6 +394,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         await _drawSpotWaypointMarkers(r.waypoints, icons['spot']);
       }
     }
+
+    // 장바구니 스팟은 항상 맵에 고정 표시
+    if (!mounted) return;
+    final cartItems = ref.read(cartProvider);
+    if (cartItems.isNotEmpty) await _addCartMarkersToMap(cartItems);
   }
 
   // ── 검색된 스팟 마커 (탭 핸들러 포함) ───────────────────────────
@@ -361,8 +413,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final icons = await _getModeBMarkerIcons();
     if (!mounted) return;
 
+    // 카트에 이미 담긴 스팟은 cart 마커로 표시하므로 search 마커는 생략
+    final cartIds = ref.read(cartProvider).map((s) => s.id).toSet();
+
     for (var i = 0; i < spots.length; i++) {
       final spot = spots[i];
+      if (cartIds.contains(spot.id)) continue;
       final marker = NMarker(
         id: 'search_spot_$i',
         position: NLatLng(spot.lat, spot.lng),
@@ -384,6 +440,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       });
       await ctrl.addOverlay(marker);
     }
+
+    // 장바구니 스팟 마커 (검색 결과 위에 고정 표시)
+    if (!mounted) return;
+    final cartItems = ref.read(cartProvider);
+    if (cartItems.isNotEmpty) await _addCartMarkersToMap(cartItems);
 
     // 스팟들이 보이도록 카메라 조정
     if (spots.isNotEmpty) {
@@ -553,11 +614,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final currentTag = ref.read(routeSearchProvider).activeSpotTag;
 
     if (currentTag == tag) {
-      // 같은 태그 재탭 → 해제 + 마커 제거
+      // 같은 태그 재탭 → 해제 + 마커 제거 후 카트 마커 복원
       notifier.selectSpotTag(tag);
       _currentSearchedSpots = [];
       await _ctrl?.clearOverlays(type: NOverlayType.marker);
       await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+      if (!mounted) return;
+      final cartItems = ref.read(cartProvider);
+      if (cartItems.isNotEmpty) await _addCartMarkersToMap(cartItems);
       return;
     }
 
@@ -577,11 +641,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final isActive = ref.read(routeSearchProvider).nearbyCoursesActive;
 
     if (isActive) {
-      // 이미 활성 → 해제
+      // 이미 활성 → 해제 후 카트 마커 복원
       notifier.toggleNearbyCourses();
       _currentSearchedSpots = [];
       await _ctrl?.clearOverlays(type: NOverlayType.marker);
       await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+      if (!mounted) return;
+      final cartItems = ref.read(cartProvider);
+      if (cartItems.isNotEmpty) await _addCartMarkersToMap(cartItems);
       return;
     }
 
@@ -1410,12 +1477,18 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
               cartCount: cartCount,
               isLocating: locating,
               onLoadMore: () => ref.read(routeSearchProvider.notifier).loadMore(),
-              onTransportChange: (v) {
+              onTransportChange: (v) async {
                 final notifier = ref.read(routeSearchProvider.notifier);
                 notifier.setTransport(v, food,
                     lat: _position?.latitude ?? 37.5635,
                     lng: _position?.longitude ?? 126.9869);
-                _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+                // 맞춤 코스 프리뷰 초기화
+                _segmentPolylines = [];
+                await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+                await _ctrl?.clearOverlays(type: NOverlayType.marker);
+                if (!mounted) return;
+                final cartItems = ref.read(cartProvider);
+                if (cartItems.isNotEmpty) await _addCartMarkersToMap(cartItems);
               },
               onSpotTagTap: _onSpotTagTap,
               onNearbyCourseTap: _onNearbyCourseTap,

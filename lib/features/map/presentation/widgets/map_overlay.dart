@@ -89,7 +89,6 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   NLocationOverlay? _locationOverlay;
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<CompassEvent>? _compassSub;
-  double _currentCameraBearing = 0.0;
 
   // 기기 나침반 방위각 — _ModeBNavOverlayMixin abstract getter 충족
   double _compassHeading = 0.0;
@@ -143,22 +142,32 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       _locationOverlay?.setAnchor(const NPoint(0.5, 0.5));
     }
 
-    // 나침반 구독 — setBearing으로 콘 아이콘 회전, Mode B nav 카메라 bearing 갱신
+    // 나침반 구독 — setBearing으로 콘 아이콘 회전, Mode A/B nav 카메라 bearing 갱신
     _compassSub = FlutterCompass.events?.listen((event) {
       final heading = event.heading;
       if (heading == null || !mounted) return;
       setState(() => _compassHeading = heading);
       _locationOverlay?.setBearing(heading);
 
+      final now = DateTime.now();
+      if (now.difference(_lastCameraCompassUpdate).inMilliseconds < 800) return;
+
       final modeBNav = ref.read(modeBNavProvider);
       if (modeBNav.isNavigating && !_modeBNorthUpMode && _modeBNavCameraFollow) {
-        final now = DateTime.now();
-        if (now.difference(_lastCameraCompassUpdate).inMilliseconds >= 800) {
-          _lastCameraCompassUpdate = now;
-          final pos = __position;
-          if (pos != null) {
-            _followModeBCamera(pos.latitude, pos.longitude, heading);
-          }
+        _lastCameraCompassUpdate = now;
+        final pos = __position;
+        if (pos != null) {
+          _followModeBCamera(pos.latitude, pos.longitude, heading);
+        }
+        return;
+      }
+
+      final modeANav = ref.read(modeANavProvider);
+      if (modeANav.isNavigating && !_modeANorthUpMode && _navCameraFollow) {
+        _lastCameraCompassUpdate = now;
+        final pos = __position;
+        if (pos != null) {
+          _followNavCamera(pos.latitude, pos.longitude, heading);
         }
       }
     });
@@ -207,7 +216,13 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           if (moved >= 2.0) _lastNavBearing = bearing;
         }
         _prevNavPosition = p;
-        _followNavCamera(p.latitude, p.longitude, _lastNavBearing);
+        // Mode B와 동일: 카메라 베어링에 기기 나침반 사용 (north-up 아닐 때)
+        _followNavCamera(
+          p.latitude, p.longitude,
+          _modeANorthUpMode ? 0.0 : _compassHeading,
+        );
+        // 잔여 폴리라인 실시간 트리밍 (Mode B와 동일)
+        unawaited(_trimModeAPolylineToRemaining(p, ref.read(modeANavProvider)));
       }
 
       // Mode B 네비게이션
@@ -294,29 +309,11 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     }
   }
 
-  Future<void> _resetCameraNorthUp() async {
-    final ctrl = _ctrl;
-    if (ctrl == null) return;
-    final cam = await ctrl.getCameraPosition();
-    if (cam == null) return;
-    await ctrl.updateCamera(
-      NCameraUpdate.withParams(
-        target: cam.target,
-        bearing: 0,
-        tilt: 0,
-      )..setAnimation(
-          animation: NCameraAnimation.easing,
-          duration: const Duration(milliseconds: 400),
-        ),
-    );
-  }
-
   Future<void> _onCameraIdle() async {
     final cam = await _ctrl?.getCameraPosition();
     if (cam == null) return;
     if (mounted) setState(() {
       _currentZoom = cam.zoom;
-      _currentCameraBearing = cam.bearing;
     });
     final mode = ref.read(mapModeProvider);
     if (mode != MapMode.explore) return;
@@ -346,6 +343,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       case MapMode.explore:
         _ctrl?.clearOverlays(type: NOverlayType.marker);
         _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+        _invalidateExploreMarkerCache();
         final lat = __position?.latitude ?? _lastSearchLat ?? 37.5665;
         final lng = __position?.longitude ?? _lastSearchLng ?? 126.9780;
         _lastSearchLat = lat;
@@ -378,7 +376,11 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         } else if (modeBState.searchedSpots.isNotEmpty) {
           unawaited(_drawSearchedSpotMarkers(modeBState.searchedSpots));
         } else if (modeBState.routes.isNotEmpty) {
-          _updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx);
+          unawaited(_updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx));
+        } else {
+          // 기성 코스·검색 결과 없는 초기 상태 → 카트 스팟만 표시
+          final cartItems = ref.read(cartProvider);
+          if (cartItems.isNotEmpty) unawaited(_addCartMarkersToMap(cartItems));
         }
     }
   }
@@ -596,6 +598,15 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       }
     });
 
+    // 장바구니 변경 → Mode B 탐색 중 카트 마커 즉시 갱신
+    ref.listen<List<SpotEntity>>(cartProvider, (prev, next) {
+      final currentMode = ref.read(mapModeProvider);
+      if (currentMode != MapMode.modeB) return;
+      if (ref.read(modeBNavProvider).isNavigating) return;
+      if (ref.read(routeSearchProvider).generatedCourseSelected) return;
+      unawaited(_refreshCartMarkersOnMap(next));
+    });
+
     ref.listen<ModeANavState>(modeANavProvider, (prev, next) {
       if (next.showReroutePrompt && !(prev?.showReroutePrompt ?? false)) {
         _showRerouteDialog();
@@ -683,26 +694,6 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (mode == MapMode.modeB)
           ..._buildModeBNavOverlays(context, modeBNavState, bottomPad),
 
-        // ── Nav re-center button ───────────────────────────────
-        if (mode == MapMode.modeA && navState.isNavigating && !_navCameraFollow)
-          Positioned(
-            right: 12,
-            bottom: 96 + bottomPad + 16 + 48 + 6 + 48 + 6 + 56,
-            child: GestureDetector(
-              onTap: _recenterNav,
-              child: Container(
-                width: 48, height: 48,
-                decoration: BoxDecoration(
-                  color: kMapGreen, shape: BoxShape.circle,
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 2)),
-                  ],
-                ),
-                child: const Icon(Icons.navigation_rounded, size: 24, color: Colors.white),
-              ),
-            ),
-          ),
-
         // ── Zoom controls ──────────────────────────────────────
         _buildZoomControls(context, mode, bottomPad, modeAState, navState),
 
@@ -710,24 +701,15 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (mode == MapMode.modeB && modeBNavState.isNavigating)
           ..._buildModeBNavFloatingButtons(bottomPad),
 
-        // ── Compass ──────────────────────────────────────────────
-        // Mode B 네비 중에는 하단 nav compass로 통합 — 전역 나침반 숨김
-        if (!modeBNavState.isNavigating)
-          Positioned(
-            right: 12,
-            top: navState.isNavigating
-                ? MediaQuery.paddingOf(context).top + 8.0 + 120.0 + 12.0
-                : MediaQuery.paddingOf(context).top + 12.0,
-            child: _MapCompassWidget(
-              bearing: _currentCameraBearing,
-              onTap: _resetCameraNorthUp,
-            ),
-          ),
+        // ── Mode A nav 플로팅 버튼 (Mode B와 동일: 나침반 토글 + 재센터) ──
+        if (mode == MapMode.modeA && navState.isNavigating)
+          ..._buildModeANavFloatingButtons(bottomPad),
 
         // ── Mode toggle (탐색 중 또는 경로 결과 시트·안내 중이면 숨김) ──
         if (mode != MapMode.modeB &&
             !navState.isNavigating &&
             !modeBNavState.isNavigating &&
+            !(mode == MapMode.explore && _showExploreList) &&
             !(mode == MapMode.modeA &&
                 modeAState.routeResult != null &&
                 !_routePanelEditing))

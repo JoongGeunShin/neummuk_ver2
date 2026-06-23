@@ -484,19 +484,19 @@ class _DurunubiCourseCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Container(
+                    Builder(builder: (ctx) => Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7C8AFF).withValues(alpha: 0.15),
+                        color: ctx.colors.pinUser.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text('두루누비',
+                      child: Text('두루누비',
                           style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF7C8AFF))),
-                    ),
+                              color: ctx.colors.pinUser)),
+                    )),
                     if (tag != null) ...[
                       const SizedBox(width: 5),
                       Text('난이도 $tag',
@@ -586,11 +586,12 @@ class _RestaurantCard extends StatelessWidget {
     final match = _calMatch(r.kcal, routeKcal);
     final ratio = routeKcal > 0 ? r.kcal / routeKcal : 1.0;
     final matchPct = (100 - (1 - ratio).abs() * 100).clamp(0.0, 100.0);
+    final c = context.colors;
     final matchColor = match == _CalMatch.good
-        ? kMapGreen
+        ? c.success
         : match == _CalMatch.tooMuch
-            ? const Color(0xFFFFB547)
-            : const Color(0xFF7C8AFF);
+            ? c.warn
+            : c.pinUser;
 
     return GestureDetector(
       onTap: onTap,

@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/map_widgets.dart';
 import '../../../mode_a/domain/entities/restaurant_entity.dart';
 import '../../../mode_a/domain/entities/route_result_entity.dart';
 import '../../../mode_a/presentation/providers/mode_a_provider.dart';
+import '../../../mode_b/data/datasources/tour_api_detail_datasource.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/place_entity.dart';
@@ -129,25 +133,79 @@ class _Detail {
 // ── PlaceDetailScreen (탐색탭 & 모드A 공용 상세 화면)
 // ════════════════════════════════════════════════════════════════════════════
 
-class PlaceDetailScreen extends ConsumerWidget {
+class PlaceDetailScreen extends ConsumerStatefulWidget {
   const PlaceDetailScreen({super.key, required this.extra});
-
   final Object? extra;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final _Detail? detail;
-    if (extra is PlaceEntity) {
-      detail = _Detail.fromPlace(extra as PlaceEntity);
-    } else if (extra is RestaurantEntity) {
-      detail = _Detail.fromRestaurant(extra as RestaurantEntity);
-    } else if (extra is TouristRouteEntity) {
-      detail = _Detail.fromTouristRoute(extra as TouristRouteEntity);
-    } else {
-      detail = null;
-    }
+  ConsumerState<PlaceDetailScreen> createState() => _PlaceDetailScreenState();
+}
 
-    if (detail == null) {
+class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
+  late final _Detail? _detail;
+  bool _detailLoading = false;
+  String? _overview;
+  String? _enrichedTel;
+  String? _homepageUrl;
+  String? _operatingInfo;
+  List<String> _images = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.extra;
+    if (e is PlaceEntity) {
+      _detail = _Detail.fromPlace(e);
+      if (e.imageUrl != null) _images = [e.imageUrl!];
+    } else if (e is RestaurantEntity) {
+      _detail = _Detail.fromRestaurant(e);
+    } else if (e is TouristRouteEntity) {
+      _detail = _Detail.fromTouristRoute(e);
+      if (e.imageUrls.isNotEmpty) _images = [e.imageUrls.first];
+    } else {
+      _detail = null;
+    }
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    final e = widget.extra;
+    if (e is! PlaceEntity || e.source != PlaceSource.tourApi) return;
+    final parts = e.id.split('_');
+    if (parts.length < 2) return;
+    final contentId = parts.last;
+    final typeId = e.contentTypeId ?? 12;
+
+    setState(() => _detailLoading = true);
+    try {
+      final data = await TourApiDetailDatasource().fetchDetail(contentId, typeId);
+      if (!mounted || data == null) return;
+      final merged = List<String>.from(_images);
+      for (final img in data.images) {
+        if (!merged.contains(img)) merged.add(img);
+      }
+      setState(() {
+        _overview = (data.overview?.isNotEmpty ?? false) ? data.overview : null;
+        _enrichedTel = data.tel;
+        _homepageUrl = data.homepageUrl;
+        _operatingInfo = (data.operatingInfo?.isNotEmpty ?? false) ? data.operatingInfo : null;
+        if (merged.isNotEmpty) _images = merged;
+      });
+    } finally {
+      if (mounted) setState(() => _detailLoading = false);
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_detail == null) {
       return Scaffold(
         backgroundColor: kMapPanel,
         body: Center(
@@ -169,8 +227,14 @@ class PlaceDetailScreen extends ConsumerWidget {
       );
     }
 
+    final c = context.colors;
+    final detail = _detail;
+    final extra = widget.extra;
     final modeAState = ref.watch(modeAProvider);
     final canAddWaypoint = modeAState.waypoints.length < 3;
+    final tel = _enrichedTel ?? detail.phone;
+    final mapMode = ref.read(mapModeProvider);
+    final isExploreMode = mapMode == MapMode.explore && extra is PlaceEntity;
 
     return Scaffold(
       backgroundColor: kMapPanel,
@@ -179,11 +243,13 @@ class PlaceDetailScreen extends ConsumerWidget {
           // ── 스크롤 본문 ────────────────────────────────────────────
           CustomScrollView(
             slivers: [
-              // 이미지 헤더
               SliverToBoxAdapter(
-                child: _ImageHeader(detail: detail),
+                child: _ImageHeader(
+                  detail: detail,
+                  images: _images,
+                  loading: _detailLoading && _images.isEmpty,
+                ),
               ),
-              // 상세 정보
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 sliver: SliverList(
@@ -194,14 +260,25 @@ class PlaceDetailScreen extends ConsumerWidget {
                       _RestaurantInfoRow(detail: detail),
                       const SizedBox(height: 12),
                     ],
-                    if (detail.address != null || detail.phone != null)
-                      _ContactSection(detail: detail),
+                    if (_overview != null) ...[
+                      _OverviewSection(overview: _overview!),
+                      const SizedBox(height: 12),
+                    ],
+                    if (detail.address != null || tel != null || _operatingInfo != null)
+                      _ContactSection(
+                        detail: detail,
+                        overrideTel: tel,
+                        operatingInfo: _operatingInfo,
+                      ),
+                    if (_homepageUrl != null) ...[
+                      const SizedBox(height: 8),
+                      _HomepageBtn(url: _homepageUrl!, onTap: () => _openUrl(_homepageUrl!)),
+                    ],
                     if (detail.tags.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _TagsSection(tags: detail.tags),
                     ],
-                    // 하단 버튼 높이 여백
-                    const SizedBox(height: 96),
+                    SizedBox(height: isExploreMode ? 32 : 96),
                   ]),
                 ),
               ),
@@ -227,67 +304,74 @@ class PlaceDetailScreen extends ConsumerWidget {
             ),
           ),
 
-          // ── 하단 버튼 ──────────────────────────────────────────
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                16, 12, 16, MediaQuery.paddingOf(context).bottom + 12),
-              decoration: const BoxDecoration(
-                color: kMapPanel,
-                border: Border(top: BorderSide(color: Colors.white12)),
-              ),
-              child: extra is TouristRouteEntity
-                  // ── Mode B 코스 전용 버튼 ──────────────────
-                  ? _ModeBCourseButtons(route: extra as TouristRouteEntity)
-                  // ── Mode A 경로 버튼 ────────────────────────
-                  : Row(
-                      children: [
-                        _RouteBtn(
-                          label: '출발지',
-                          color: const Color(0xFF2ECC71),
-                          icon: Icons.trip_origin_rounded,
-                          onTap: () {
-                            ref.read(modeAProvider.notifier).setOriginGps(
-                                  detail!.latitude, detail.longitude, detail.name);
-                            ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                            context.pop();
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _RouteBtn(
-                          label: '도착지',
-                          color: const Color(0xFFE74C3C),
-                          icon: Icons.place_rounded,
-                          onTap: () {
-                            ref.read(modeAProvider.notifier).setDestCoords(
-                                  detail!.latitude, detail.longitude, detail.name);
-                            ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                            context.pop();
-                          },
-                        ),
-                        if (canAddWaypoint) ...[
-                          const SizedBox(width: 8),
+          // ── 하단 버튼 (탐색 모드에서는 숨김, Mode A에서만 경로 버튼 표시) ──
+          if (!isExploreMode)
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                    16, 12, 16, MediaQuery.paddingOf(context).bottom + 12),
+                decoration: const BoxDecoration(
+                  color: kMapPanel,
+                  border: Border(top: BorderSide(color: Colors.white12)),
+                ),
+                child: extra is TouristRouteEntity
+                    ? _ModeBCourseButtons(route: extra)
+                    : Row(
+                        children: [
                           _RouteBtn(
-                            label: '경유지',
-                            color: const Color(0xFFF39C12),
-                            icon: Icons.add_location_alt_rounded,
+                            label: '출발지',
+                            color: c.success,
+                            icon: Icons.trip_origin_rounded,
                             onTap: () {
-                              ref.read(modeAProvider.notifier).addWaypoint(
-                                    RouteWaypoint(
-                                      name: detail!.name,
-                                      latitude: detail.latitude,
-                                      longitude: detail.longitude,
-                                    ));
+                              ref.read(modeAProvider.notifier).setOriginGps(
+                                    detail.latitude, detail.longitude, detail.name);
                               ref.read(mapModeProvider.notifier).set(MapMode.modeA);
                               context.pop();
                             },
                           ),
+                          const SizedBox(width: 8),
+                          _RouteBtn(
+                            label: '도착지',
+                            color: c.danger,
+                            icon: Icons.place_rounded,
+                            onTap: () {
+                              final notifier = ref.read(modeAProvider.notifier);
+                              notifier.setDestCoords(
+                                  detail.latitude, detail.longitude, detail.name);
+                              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                              if (ref.read(modeAProvider).originLat != null) {
+                                notifier.search();
+                              }
+                              context.pop();
+                            },
+                          ),
+                          if (canAddWaypoint) ...[
+                            const SizedBox(width: 8),
+                            _RouteBtn(
+                              label: '경유지',
+                              color: c.accent,
+                              icon: Icons.add_location_alt_rounded,
+                              onTap: () {
+                                final notifier = ref.read(modeAProvider.notifier);
+                                notifier.addWaypoint(RouteWaypoint(
+                                      name: detail.name,
+                                      latitude: detail.latitude,
+                                      longitude: detail.longitude,
+                                    ));
+                                ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                                final s = ref.read(modeAProvider);
+                                if (s.originLat != null && s.destLat != null) {
+                                  notifier.search();
+                                }
+                                context.pop();
+                              },
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -299,17 +383,35 @@ class PlaceDetailScreen extends ConsumerWidget {
 // ════════════════════════════════════════════════════════════════════════════
 
 class _ImageHeader extends StatelessWidget {
-  const _ImageHeader({required this.detail});
+  const _ImageHeader({
+    required this.detail,
+    this.images = const [],
+    this.loading = false,
+  });
   final _Detail detail;
+  final List<String> images;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     final imageH = MediaQuery.sizeOf(context).height * 0.30;
+    final primaryUrl = images.isNotEmpty ? images.first : detail.imageUrl;
 
     Widget image;
-    if (detail.imageUrl != null && detail.imageUrl!.isNotEmpty) {
+    if (loading && primaryUrl == null) {
+      image = Container(
+        height: imageH,
+        color: kMapPanelAlt,
+        child: const Center(
+          child: SizedBox(
+            width: 24, height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
+          ),
+        ),
+      );
+    } else if (primaryUrl != null && primaryUrl.isNotEmpty) {
       image = CachedNetworkImage(
-        imageUrl: detail.imageUrl!,
+        imageUrl: primaryUrl,
         width: double.infinity,
         height: imageH,
         fit: BoxFit.cover,
@@ -544,11 +646,23 @@ class _InfoPill extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════════════════
 
 class _ContactSection extends StatelessWidget {
-  const _ContactSection({required this.detail});
+  const _ContactSection({
+    required this.detail,
+    this.overrideTel,
+    this.operatingInfo,
+  });
   final _Detail detail;
+  final String? overrideTel;
+  final String? operatingInfo;
 
   @override
   Widget build(BuildContext context) {
+    final tel = overrideTel ?? detail.phone;
+    final hasAddress = detail.address != null && detail.address!.isNotEmpty;
+    final hasTel = tel != null && tel.isNotEmpty;
+    final hasOp = operatingInfo != null && operatingInfo!.isNotEmpty;
+    if (!hasAddress && !hasTel && !hasOp) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -559,47 +673,143 @@ class _ContactSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (detail.address != null && detail.address!.isNotEmpty) ...[
+          if (hasAddress) ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.location_on_outlined,
-                    size: 16, color: Colors.white38),
+                const Icon(Icons.location_on_outlined, size: 16, color: Colors.white38),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     detail.address!,
                     style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4),
+                        fontSize: 13, color: Colors.white70,
+                        fontWeight: FontWeight.w500, height: 1.4),
                   ),
                 ),
               ],
             ),
           ],
-          if (detail.address != null &&
-              detail.address!.isNotEmpty &&
-              detail.phone != null &&
-              detail.phone!.isNotEmpty)
-            const SizedBox(height: 10),
-          if (detail.phone != null && detail.phone!.isNotEmpty)
+          if (hasAddress && hasTel) const SizedBox(height: 10),
+          if (hasTel)
             Row(
               children: [
-                const Icon(Icons.phone_outlined,
-                    size: 16, color: Colors.white38),
+                const Icon(Icons.phone_outlined, size: 16, color: Colors.white38),
                 const SizedBox(width: 8),
                 Text(
-                  detail.phone!,
+                  tel,
                   style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w500),
+                      fontSize: 13, color: Colors.white70, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
+          if (hasOp) ...[
+            if (hasAddress || hasTel) const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.access_time_rounded, size: 16, color: Colors.white38),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    operatingInfo!,
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.white54,
+                        fontWeight: FontWeight.w500, height: 1.45),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 개요 섹션
+// ════════════════════════════════════════════════════════════════════════════
+
+class _OverviewSection extends StatefulWidget {
+  const _OverviewSection({required this.overview});
+  final String overview;
+
+  @override
+  State<_OverviewSection> createState() => _OverviewSectionState();
+}
+
+class _OverviewSectionState extends State<_OverviewSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: kMapPanelAlt,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.article_outlined, size: 14, color: Colors.white38),
+                SizedBox(width: 6),
+                Text('소개', style: TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.overview,
+              style: const TextStyle(fontSize: 13, color: Colors.white70, height: 1.55, fontWeight: FontWeight.w400),
+              maxLines: _expanded ? null : 4,
+              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+            if (!_expanded) ...[
+              const SizedBox(height: 4),
+              const Text('더 보기', style: TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.w600)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 홈페이지 버튼
+// ════════════════════════════════════════════════════════════════════════════
+
+class _HomepageBtn extends StatelessWidget {
+  const _HomepageBtn({required this.url, required this.onTap});
+  final String url;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: kMapPanelAlt,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.open_in_new_rounded, size: 15, color: Colors.white38),
+            SizedBox(width: 8),
+            Text('공식 홈페이지', style: TextStyle(fontSize: 13, color: Colors.white54, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }
