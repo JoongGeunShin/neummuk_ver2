@@ -54,6 +54,7 @@ part 'map_overlay/mode_a_mixin.dart';
 part 'map_overlay/mode_b_mixin.dart';
 part 'map_overlay/mode_b_nav_mixin.dart';
 part 'map_overlay/mode_b_nav_panels.dart';
+part 'map_overlay/mode_a_walk_nav_panels.dart';
 
 const _kPanel    = kMapPanel;
 const _kPanelAlt = kMapPanelAlt;
@@ -206,6 +207,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (route != null) {
           ref.read(modeANavProvider.notifier).onPositionUpdate(
                 p.latitude, p.longitude, route);
+          // 도보/자전거: 로컬 도로 인덱스 갱신 (방향 전환 안내용)
+          if (route.transport != 'transit') {
+            _updateModeARoadNearestPtIdx(p.latitude, p.longitude, route);
+          }
         }
         final prev = _prevNavPosition;
         if (prev != null) {
@@ -364,6 +369,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         }
         if (__position != null) _locationOverlay?.setIsVisible(true);
         _clusterIconCache.clear();
+        _ctrl?.clearOverlays(type: NOverlayType.marker);
         final modeAState = ref.read(modeAProvider);
         if (modeAState.originLat == null) _fetchGpsOriginForModeA();
         _syncModeAMarkers(modeAState);
@@ -618,9 +624,21 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _resetNavCamera();
         _showArrivalMessage();
       }
+      // 네비게이션 시작 → 도보/자전거: 방향 전환 포인트 계산 및 맵 마커 생성
+      if (!(prev?.isNavigating ?? false) && next.isNavigating) {
+        final route = ref.read(modeAProvider).routeResult;
+        if (route != null && route.transport != 'transit') {
+          _initModeATurnPoints(route);
+          if (_modeATurnPoints.any((t) => t.type != _TurnType.arrival)) {
+            unawaited(_drawModeAWalkTurnMarkers(_modeATurnPoints));
+          }
+        }
+      }
+      // 네비게이션 종료
       if ((prev?.isNavigating ?? false) && !next.isNavigating) {
         unawaited(_clearNavGuideMarker());
-        if (mounted) setState(() => _navGuidePageIdx = 0);
+        unawaited(_clearModeAWalkTurnMarkers());
+        if (mounted) setState(_resetModeAWalkTurnState);
         ref.read(modeAProvider.notifier).clearRouteResult();
       }
       if ((prev?.currentTransitStepIdx ?? 0) != next.currentTransitStepIdx) {
@@ -629,14 +647,12 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           _drawTransitStepMarkers(route, next.currentTransitStepIdx);
         }
       }
-      // 안내 스텝 진행 시 캐러셀 페이지 + 지도 마커 동기화
+      // 대중교통 안내 스텝 진행 시 지도 마커 동기화
       if (next.isNavigating && prev?.nextGuide != next.nextGuide) {
         final route = ref.read(modeAProvider).routeResult;
         final guide = next.nextGuide;
-        if (route != null && route.guides.isNotEmpty && guide != null) {
-          final idx = route.guides.indexOf(guide);
-          final newIdx = idx >= 0 ? idx : 0;
-          if (mounted) setState(() => _navGuidePageIdx = newIdx);
+        if (route != null && route.transport == 'transit' &&
+            route.guides.isNotEmpty && guide != null) {
           unawaited(_updateNavGuideMarker(guide));
         }
       }

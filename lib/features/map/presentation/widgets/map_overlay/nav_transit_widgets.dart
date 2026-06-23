@@ -10,12 +10,10 @@ class _NavTransitCard extends StatelessWidget {
   final ModeANavState navState;
   final RouteResultEntity route;
 
-  static const _walkColor   = Color(0xFF8E8E93);
-  static const _busColor    = Color(0xFF03C75A);
-  static const _subwayColor = Color(0xFF1E90FF);
-
-  Color _stepColor(TransitStep step) =>
-      step.isWalk ? _walkColor : step.isBus ? _busColor : _subwayColor;
+  Color _stepColor(TransitStep step, BuildContext context) {
+    final c = context.colors;
+    return step.isWalk ? kMapWhite45 : step.isBus ? kMapGreen : c.pinUser;
+  }
 
   IconData _stepIcon(TransitStep step) => step.isWalk
       ? Icons.directions_walk_rounded
@@ -31,7 +29,7 @@ class _NavTransitCard extends StatelessWidget {
     final idx     = navState.currentTransitStepIdx.clamp(0, steps.length - 1);
     final current = steps[idx];
     final next    = idx + 1 < steps.length ? steps[idx + 1] : null;
-    final color   = _stepColor(current);
+    final color   = _stepColor(current, context);
 
     return Container(
       decoration: BoxDecoration(
@@ -119,7 +117,7 @@ class _NavTransitCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
               ),
               child: Row(children: [
-                Icon(_stepIcon(next), size: 14, color: _stepColor(next)),
+                Icon(_stepIcon(next), size: 14, color: _stepColor(next, context)),
                 const SizedBox(width: 6),
                 const Text('다음  ',
                     style: TextStyle(fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600)),
@@ -127,12 +125,12 @@ class _NavTransitCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: _stepColor(next).withValues(alpha: 0.2),
+                      color: _stepColor(next, context).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(next.lineInfo!,
                         style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.w800, color: _stepColor(next))),
+                            fontSize: 10, fontWeight: FontWeight.w800, color: _stepColor(next, context))),
                   ),
                   const SizedBox(width: 6),
                 ],
@@ -153,7 +151,7 @@ class _NavTransitCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
               ),
               child: Row(children: [
-                const Icon(Icons.flag_rounded, size: 14, color: Color(0xFFE74C3C)),
+                Icon(Icons.flag_rounded, size: 14, color: context.colors.danger),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text('${route.toName} 도착 예정',
@@ -177,7 +175,7 @@ class _NavTransitCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: kMapPanel,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _busColor.withValues(alpha: 0.6), width: 1.5),
+        border: Border.all(color: kMapGreen.withValues(alpha: 0.6), width: 1.5),
         boxShadow: const [
           BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
         ],
@@ -186,10 +184,10 @@ class _NavTransitCard extends StatelessWidget {
         Container(
           width: 48, height: 48,
           decoration: BoxDecoration(
-            color: _busColor.withValues(alpha: 0.15),
+            color: kMapGreen.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.directions_bus_rounded, size: 26, color: _busColor),
+          child: const Icon(Icons.directions_bus_rounded, size: 26, color: kMapGreen),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -229,17 +227,15 @@ class _TransitStepDot extends StatelessWidget {
   final bool isActive;
   final bool isDone;
 
-  static const _walkColor    = Color(0xFF8E8E93);
-  static const _busColor     = Color(0xFF03C75A);
-  static const _subwayColor  = Color(0xFF1E90FF);
-  static const _arrivalColor = Color(0xFFE74C3C);
-
-  Color get _color => switch (trafficType) {
-        0 => _arrivalColor,
-        1 => _subwayColor,
-        2 => _busColor,
-        _ => _walkColor,
-      };
+  Color _color(BuildContext context) {
+    final c = context.colors;
+    return switch (trafficType) {
+      0 => c.danger,
+      1 => c.pinUser,
+      2 => kMapGreen,
+      _ => kMapWhite45,
+    };
+  }
 
   IconData get _icon => switch (trafficType) {
         0 => Icons.flag_rounded,
@@ -250,7 +246,8 @@ class _TransitStepDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color    = isDone ? _color.withValues(alpha: 0.35) : _color;
+    final baseColor = _color(context);
+    final color    = isDone ? baseColor.withValues(alpha: 0.35) : baseColor;
     final bgColor  = isDone
         ? Colors.white.withValues(alpha: 0.06)
         : color.withValues(alpha: isActive ? 0.25 : 0.15);

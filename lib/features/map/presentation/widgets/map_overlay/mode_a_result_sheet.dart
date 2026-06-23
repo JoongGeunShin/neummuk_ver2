@@ -659,8 +659,8 @@ class _RestaurantCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   if (r.rating > 0)
                     Row(children: [
-                      const Icon(Icons.star_rounded,
-                          size: 11, color: Color(0xFFFFC56E)),
+                      Icon(Icons.star_rounded,
+                          size: 11, color: c.accent),
                       const SizedBox(width: 3),
                       Text(r.rating.toString(),
                           style: const TextStyle(

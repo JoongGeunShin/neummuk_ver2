@@ -93,7 +93,7 @@ class ModeARepositoryImpl implements ModeARepository {
           weightKg: weightKg, waypoints: waypoints,
         );
       } else {
-        return await _getKakaoRoute(
+        return await _getTmapWalkBikeRoute(
           from: from, to: to,
           originLat: originLat, originLng: originLng,
           destLat: destLat, destLng: destLng,
@@ -105,6 +105,88 @@ class ModeARepositoryImpl implements ModeARepository {
       debugPrint('[ModeA] getRoute error: $e — falling back to mock');
       return _mockRoute(from, to, transport, weightKg, waypoints);
     }
+  }
+
+  // ── 도보 / 자전거: TMAP 보행자 API (segment-by-segment) ─────────────────────
+
+  Future<RouteResultEntity> _getTmapWalkBikeRoute({
+    required String from,
+    required String to,
+    required double originLat,
+    required double originLng,
+    required double destLat,
+    required double destLng,
+    required String transport,
+    required double weightKg,
+    required List<RouteWaypoint> waypoints,
+  }) async {
+    final allCoords = [
+      (lat: originLat, lng: originLng),
+      ...waypoints.map((w) => (lat: w.latitude, lng: w.longitude)),
+      (lat: destLat, lng: destLng),
+    ];
+
+    final futures = [
+      for (int i = 0; i < allCoords.length - 1; i++)
+        _fetchTmapWalkSegment(
+          allCoords[i].lat, allCoords[i].lng,
+          allCoords[i + 1].lat, allCoords[i + 1].lng,
+        ),
+    ];
+    final segments = await Future.wait(futures);
+
+    final routePoints = <LatLng>[];
+    for (var i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      if (seg.isEmpty) {
+        routePoints.add(LatLng(latitude: allCoords[i].lat, longitude: allCoords[i].lng));
+        routePoints.add(LatLng(latitude: allCoords[i + 1].lat, longitude: allCoords[i + 1].lng));
+      } else {
+        routePoints.addAll(i > 0 && routePoints.isNotEmpty ? seg.skip(1) : seg);
+      }
+    }
+
+    if (routePoints.length < 2) {
+      debugPrint('[ModeA TMAP] all segments empty, falling back to Kakao');
+      return _getKakaoRoute(
+        from: from, to: to,
+        originLat: originLat, originLng: originLng,
+        destLat: destLat, destLng: destLng,
+        transport: transport, weightKg: weightKg,
+        waypoints: waypoints,
+      );
+    }
+
+    var distanceM = 0.0;
+    for (int i = 1; i < routePoints.length; i++) {
+      distanceM += _haversine(
+        routePoints[i - 1].latitude, routePoints[i - 1].longitude,
+        routePoints[i].latitude, routePoints[i].longitude,
+      );
+    }
+    final distanceKm = double.parse((distanceM / 1000.0).toStringAsFixed(1));
+
+    final int durationSec = transport == 'walk'
+        ? max(60, (distanceM / 1.25).round())
+        : max(60, (distanceM / 4.17).round());
+
+    final kcalBurn = AppConstants.calculateKcal(
+      transport: transport,
+      weightKg: weightKg,
+      durationSeconds: durationSec,
+    ).round();
+
+    return RouteResultEntity(
+      fromName: from,
+      toName: to,
+      distanceKm: distanceKm,
+      durationSeconds: durationSec,
+      transport: transport,
+      kcalBurn: kcalBurn,
+      waypoints: waypoints,
+      routePoints: routePoints,
+      // guides는 빈 리스트 — 방향 전환 안내는 기하 기반으로 오버레이 레이어에서 처리
+    );
   }
 
   // ── 도보 / 자전거: Kakao Mobility POST /v1/waypoints/directions ──────────────

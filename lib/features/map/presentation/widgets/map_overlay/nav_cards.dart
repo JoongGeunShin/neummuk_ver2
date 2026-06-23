@@ -2,11 +2,14 @@ part of '../map_overlay.dart';
 
 // ── Guide type helpers ───────────────────────────────────────────────────────
 
-Color _navAccentColor(String transport) => switch (transport) {
-      'bike' => const Color(0xFFFFB547),
-      'transit' => const Color(0xFF4A90E2),
-      _ => kMapGreen,
-    };
+Color _navAccentColor(String transport, BuildContext context) {
+  final c = context.colors;
+  return switch (transport) {
+    'bike' => c.warn,
+    'transit' => c.pinUser,
+    _ => kMapGreen,
+  };
+}
 
 IconData _guideIconForType(int type, String guidance) {
   if (guidance.contains('횡단보도')) return Icons.transfer_within_a_station_rounded;
@@ -89,7 +92,7 @@ class _NavGuideCarouselState extends State<_NavGuideCarousel> {
   Widget build(BuildContext context) {
     final guides = widget.guides;
     if (guides.isEmpty) return const SizedBox.shrink();
-    final accent = _navAccentColor(widget.route.transport);
+    final accent = _navAccentColor(widget.route.transport, context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -340,7 +343,8 @@ class _NavBottomStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    final accent = _navAccentColor(route.transport);
+    final c = context.colors;
+    final accent = _navAccentColor(route.transport, context);
 
     return Container(
       color: kMapPanel,
@@ -404,14 +408,14 @@ class _NavBottomStrip extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.15),
+                  color: c.danger.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
+                  border: Border.all(color: c.danger.withValues(alpha: 0.5)),
                 ),
-                child: const Text(
+                child: Text(
                   '안내 종료',
                   style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w800, color: Colors.redAccent),
+                      fontSize: 13, fontWeight: FontWeight.w800, color: c.danger),
                 ),
               ),
             ),

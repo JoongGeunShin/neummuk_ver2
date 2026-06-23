@@ -138,14 +138,14 @@ class _MapCompassWidget extends StatelessWidget {
                 Icon(
                   Icons.arrow_upward_rounded,
                   size: 12,
-                  color: isRotated ? const Color(0xFFE74C3C) : kMapWhite45,
+                  color: isRotated ? context.colors.danger : kMapWhite45,
                 ),
                 Text(
                   'N',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w900,
-                    color: isRotated ? const Color(0xFFE74C3C) : kMapWhite45,
+                    color: isRotated ? context.colors.danger : kMapWhite45,
                     height: 1.0,
                   ),
                 ),
@@ -169,13 +169,14 @@ class _LocationBearingIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       size: const Size(80, 80),
-      painter: const _LocationBeamPainter(),
+      painter: _LocationBeamPainter(color: context.colors.pinUser),
     );
   }
 }
 
 class _LocationBeamPainter extends CustomPainter {
-  const _LocationBeamPainter();
+  const _LocationBeamPainter({required this.color});
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -192,7 +193,7 @@ class _LocationBeamPainter extends CustomPainter {
     canvas.drawPath(
       beamPath,
       Paint()
-        ..color = const Color(0xFF4285F4).withValues(alpha: 0.38)
+        ..color = color.withValues(alpha: 0.38)
         ..style = PaintingStyle.fill,
     );
 
@@ -210,13 +211,13 @@ class _LocationBeamPainter extends CustomPainter {
       Offset(cx, cy),
       r,
       Paint()
-        ..color = const Color(0xFF4285F4)
+        ..color = color
         ..style = PaintingStyle.fill,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
+  bool shouldRepaint(_LocationBeamPainter old) => old.color != color;
 }
 
 // ════════════════════════════════════════════════════════════════════════════

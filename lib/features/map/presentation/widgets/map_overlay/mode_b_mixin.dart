@@ -161,8 +161,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     if (ctrl == null || !mounted || _segmentPolylines.isEmpty) return;
 
     // context는 await 전에 캡처
-    const completedColor = Color(0xFFBBBBBB);
-    const upcomingColor = Color(0xFFB3E5FC);
+    final completedColor = kMapWhite45;
+    final upcomingColor = context.colors.pinUser.withValues(alpha: 0.4);
     final accentColor = context.colors.accent;
 
     // 구간 교체 시 트리밍 캐시 무효화 (새 폴리라인 인스턴스로 교체되므로)
@@ -287,13 +287,13 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     );
     if (!mounted) return {};
     final spotIcon = await NOverlayImage.fromWidget(
-      widget: MapRouteMarkerDot(color: const Color(0xFFFF6B6B), label: '◆'),
+      widget: MapRouteMarkerDot(color: c.pinSight, label: '◆'),
       size: const Size(26, 26),
       context: context,
     );
     if (!mounted) return {};
     final homeIcon = await NOverlayImage.fromWidget(
-      widget: MapRouteMarkerDot(color: const Color(0xFF4FC3F7), label: '⌂'),
+      widget: MapRouteMarkerDot(color: c.pinUser, label: '⌂'),
       size: const Size(30, 30),
       context: context,
     );
@@ -426,7 +426,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         caption: NOverlayCaption(
           text: spot.name,
           textSize: 11,
-          color: const Color(0xFFFF6B6B),
+          color: context.colors.pinSight,
           haloColor: Colors.black87,
         ),
         captionOffset: 4,
@@ -474,7 +474,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         caption: NOverlayCaption(
           text: wp.name,
           textSize: 10,
-          color: const Color(0xFFFF6B6B),
+          color: context.colors.pinSight,
           haloColor: Colors.black87,
         ),
         captionOffset: 4,
@@ -505,7 +505,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       if (isOrigin) {
         icon = icons['home'] ?? icons['spot']!;
         captionText = '⌂ 출발지';
-        captionColor = const Color(0xFF4FC3F7);
+        captionColor = context.colors.pinUser;
       } else {
         icon = await NOverlayImage.fromWidget(
           widget: _StepNumberBadge(number: stepNum),
@@ -513,7 +513,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           context: context,
         );
         captionText = '$stepNum. ${wp.name}';
-        captionColor = const Color(0xFFFF6B6B);
+        captionColor = context.colors.pinSight;
         stepNum++;
       }
 
@@ -564,12 +564,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       }
 
       final captionColor = isCurrent
-          ? const Color(0xFFFFB547)
+          ? context.colors.warn
           : isOrigin
-              ? const Color(0xFF4FC3F7)
+              ? context.colors.pinUser
               : isDone
                   ? Colors.white30
-                  : const Color(0xFFFF6B6B);
+                  : context.colors.pinSight;
       final captionText = isCurrent ? '📍 ${wp.name}' : wp.name;
 
       final marker = NMarker(
@@ -1273,7 +1273,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final route = navState.route;
     if (route == null) return;
     final c = context.colors;
-    const offRouteColor = Color(0xFFE67E22);
+    final offRouteColor = context.colors.warn;
 
     if (!route.isGenerated && navState.gpxPoints.isNotEmpty) {
       if (_modeBNavStepMode) return;
@@ -1645,7 +1645,7 @@ class _StepNumberBadge extends StatelessWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: const Color(0xFFFF6B6B),
+        color: context.colors.pinSight,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2.5),
         boxShadow: const [

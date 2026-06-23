@@ -944,7 +944,7 @@ class _ModeBKcalMiniBar extends StatelessWidget {
           Icon(
             isDone ? Icons.check_circle_rounded : Icons.local_fire_department_rounded,
             size: 14,
-            color: isDone ? Colors.green : c.primary,
+            color: isDone ? c.success : c.primary,
           ),
           const SizedBox(width: 6),
           Text('오늘 소모',
@@ -957,7 +957,7 @@ class _ModeBKcalMiniBar extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: pct,
                 backgroundColor: c.surfaceAlt,
-                valueColor: AlwaysStoppedAnimation<Color>(isDone ? Colors.green : c.primary),
+                valueColor: AlwaysStoppedAnimation<Color>(isDone ? c.success : c.primary),
                 minHeight: 5,
               ),
             ),
@@ -968,7 +968,7 @@ class _ModeBKcalMiniBar extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: isDone ? Colors.green : c.textMuted,
+              color: isDone ? c.success : c.textMuted,
             ),
           ),
         ],

@@ -251,18 +251,21 @@ class ModeA extends _$ModeA {
   }
 
   void setTransport(String t) {
-    final prev = state.routeResult;
-    if (prev == null) {
-      state = state.copyWith(transport: t);
-      return;
-    }
-    final weightKg = ref.read(userProfileProvider).weightKg;
-    final kcal = _calcKcal(t, weightKg, prev.durationSeconds);
-    state = state.copyWith(
+    if (state.transport == t) return;
+    // 이동수단이 바뀌면 기존 경로는 무효 — 재검색 필요
+    state = ModeAState(
+      from: state.from,
+      to: state.to,
+      originLat: state.originLat,
+      originLng: state.originLng,
+      destLat: state.destLat,
+      destLng: state.destLng,
+      originIsCurrentLocation: state.originIsCurrentLocation,
       transport: t,
-      routeResult: prev.copyWith(transport: t, kcalBurn: kcal),
+      waypoints: state.waypoints,
+      destIsRestaurant: state.destIsRestaurant,
+      destKcal: state.destKcal,
     );
-    _loadRestaurants(kcal);
   }
 
   Future<void> search() async {

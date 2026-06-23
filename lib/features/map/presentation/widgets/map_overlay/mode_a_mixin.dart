@@ -11,7 +11,6 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   int _modeAGuideMarkerCount = 0;
   bool _modeAMapFocus = false;    // 지도 탭 시 UI 숨김
   bool _routePanelEditing = false; // 경로 수정 패널 열림 여부
-  int _navGuidePageIdx = 0;        // 현재 보여지는 안내 스텝 인덱스
 
   void _disposeModeA() {
     _sheetACtrl.dispose();
@@ -25,7 +24,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   set _locating(bool value);
   Future<void> _drawTransitStepMarkers(RouteResultEntity result, int activeIdx);
   Future<void> _resetNavCamera();
-  Future<void> _panToGuidePoint(int idx, RouteResultEntity route);
+  _TurnPoint? _getModeACurrentTurn();
+  String _getModeADistToNextTurnLabel(List<LatLng> pts);
 
   // ── Map focus toggle ───────────────────────────────────────────
 
@@ -770,61 +770,62 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           ),
         ),
 
-      // ── 안내 중: 상단 캐러셀 카드 + 하단 스트립 ─────────────────
+      // ── 안내 중: 상단 카드 + 하단 스트립 ──────────────────────
       if (navState.isNavigating) ...[
-        Positioned(
-          top: MediaQuery.paddingOf(context).top + 8,
-          left: 0, right: 0,
-          child: modeAState.routeResult!.transport == 'transit'
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: _NavTransitCard(
-                      navState: navState, route: modeAState.routeResult!),
-                )
-              : _NavGuideCarousel(
-                  guides: modeAState.routeResult!.guides,
-                  activeIdx: _navGuidePageIdx
-                      .clamp(0, (modeAState.routeResult!.guides.length - 1).clamp(0, 999)),
-                  route: modeAState.routeResult!,
-                  onPageChanged: (idx) {
-                    setState(() => _navGuidePageIdx = idx);
-                    final route = modeAState.routeResult!;
-                    if (idx < route.guides.length) {
-                      _panToGuidePoint(idx, route);
-                    }
-                  },
-                  onClose: () {
-                    ref.read(modeANavProvider.notifier).stop();
-                    _resetNavCamera();
-                  },
-                ),
-        ),
-        Positioned(
-          left: 0, right: 0, bottom: 0,
-          child: _NavBottomStrip(
-            navState: navState,
-            route: modeAState.routeResult!,
-            currentGuideIdx: _navGuidePageIdx,
-            totalGuides: modeAState.routeResult!.guides.length,
-            onPrevGuide: () {
-              if (_navGuidePageIdx > 0) {
-                setState(() => _navGuidePageIdx--);
-                _panToGuidePoint(_navGuidePageIdx, modeAState.routeResult!);
-              }
-            },
-            onNextGuide: () {
-              final guides = modeAState.routeResult!.guides;
-              if (_navGuidePageIdx < guides.length - 1) {
-                setState(() => _navGuidePageIdx++);
-                _panToGuidePoint(_navGuidePageIdx, modeAState.routeResult!);
-              }
-            },
-            onStop: () {
-              ref.read(modeANavProvider.notifier).stop();
-              _resetNavCamera();
-            },
+        if (modeAState.routeResult!.transport == 'transit') ...[
+          // 대중교통: 기존 카드 유지
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 8,
+            left: 0, right: 0,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _NavTransitCard(
+                  navState: navState, route: modeAState.routeResult!),
+            ),
           ),
-        ),
+          Positioned(
+            left: 0, right: 0, bottom: 0,
+            child: _NavBottomStrip(
+              navState: navState,
+              route: modeAState.routeResult!,
+              currentGuideIdx: 0,
+              totalGuides: 0,
+              onPrevGuide: () {},
+              onNextGuide: () {},
+              onStop: () {
+                ref.read(modeANavProvider.notifier).stop();
+                _resetNavCamera();
+              },
+            ),
+          ),
+        ] else ...[
+          // 도보/자전거: Mode B 스타일 방향 전환 안내 카드
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: _ModeAWalkNavTopCard(
+              navState: navState,
+              transport: modeAState.routeResult!.transport,
+              turnPoint: _getModeACurrentTurn(),
+              distanceLabel: _getModeADistToNextTurnLabel(
+                  modeAState.routeResult!.routePoints),
+              onClose: () {
+                ref.read(modeANavProvider.notifier).stop();
+                _resetNavCamera();
+              },
+            ),
+          ),
+          Positioned(
+            left: 0, right: 0, bottom: 0,
+            child: _ModeAWalkNavBottomStrip(
+              navState: navState,
+              transport: modeAState.routeResult!.transport,
+              onStop: () {
+                ref.read(modeANavProvider.notifier).stop();
+                _resetNavCamera();
+              },
+            ),
+          ),
+        ],
       ],
 
       // ── 검색 중 로딩 ─────────────────────────────────────────

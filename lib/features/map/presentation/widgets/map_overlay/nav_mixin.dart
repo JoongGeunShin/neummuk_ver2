@@ -15,6 +15,11 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
   int _lastTrimModeAIdx = -1;
   bool _lastTrimModeAOffRoute = false;
 
+  // ── Mode A walk/bike 방향 전환 안내 상태 ─────────────────────────
+  List<_TurnPoint> _modeATurnPoints = [];
+  int _modeARoadNearestPtIdx = 0;
+  int _modeATurnMarkerCount = 0;
+
   NaverMapController? get _ctrl;
   Position? get _position;
 
@@ -126,7 +131,7 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
     if (trimmed.length < 2) return;
 
     // context 의존 값은 첫 await 전에 캡처
-    const offRouteColor = Color(0xFFE67E22);
+    final offRouteColor = context.colors.warn;
     final c = context.colors;
     final routeColor = route.transport == 'bike' ? c.warn : c.primary;
     final polylineColor = isOffRoute ? offRouteColor : routeColor;
@@ -170,11 +175,11 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: _modeANorthUpMode ? const Color(0xFF4A90E2) : kMapPanel,
+              color: _modeANorthUpMode ? context.colors.pinUser : kMapPanel,
               shape: BoxShape.circle,
               border: Border.all(
                 color: _modeANorthUpMode
-                    ? const Color(0xFF4A90E2)
+                    ? context.colors.pinUser
                     : Colors.white24,
               ),
               boxShadow: const [
@@ -204,8 +209,8 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
             child: Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4A90E2),
+              decoration: BoxDecoration(
+                color: context.colors.pinUser,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 2)),
@@ -216,6 +221,163 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
           ),
         ),
     ];
+  }
+
+  // ── Mode A walk/bike 방향 전환 포인트 계산 및 관리 ─────────────────────────
+
+  /// Mode B의 _computeTurnPoints와 동일한 알고리즘 (routePoints 기반)
+  List<_TurnPoint> _computeModeATurnPoints(List<LatLng> pts) {
+    if (pts.length < 6) return [];
+
+    final cumDist = List<double>.filled(pts.length, 0.0);
+    for (int i = 1; i < pts.length; i++) {
+      cumDist[i] = cumDist[i - 1] +
+          _fastDistM(pts[i - 1].latitude, pts[i - 1].longitude,
+              pts[i].latitude, pts[i].longitude);
+    }
+    final totalDist = cumDist.last;
+    if (totalDist < 50) return [];
+
+    const segLen = 25.0;
+    const turnThreshold = 25.0;
+    const uTurnThreshold = 120.0;
+    const minDistSpacing = 40.0;
+
+    final turns = <_TurnPoint>[];
+    double lastTurnDist = -minDistSpacing;
+
+    for (int i = 0; i < pts.length; i++) {
+      final d = cumDist[i];
+      if (d < segLen || d > totalDist - segLen) continue;
+
+      int iA = i;
+      while (iA > 0 && cumDist[iA] > d - segLen) { iA--; }
+      int iL = i;
+      while (iL < pts.length - 1 && cumDist[iL] < d + segLen) { iL++; }
+      if (iA == i || iL == i) continue;
+
+      final approachBearing = _bearingDeg(
+          pts[iA].latitude, pts[iA].longitude, pts[i].latitude, pts[i].longitude);
+      final leaveBearing = _bearingDeg(
+          pts[i].latitude, pts[i].longitude, pts[iL].latitude, pts[iL].longitude);
+
+      double delta = leaveBearing - approachBearing;
+      while (delta > 180) { delta -= 360; }
+      while (delta < -180) { delta += 360; }
+      final absD = delta.abs();
+
+      if (absD > turnThreshold && d - lastTurnDist >= minDistSpacing) {
+        final type = absD >= uTurnThreshold
+            ? _TurnType.uTurn
+            : delta > 0 ? _TurnType.right : _TurnType.left;
+        final instruction = absD >= uTurnThreshold
+            ? '유턴하세요'
+            : delta > 0 ? '오른쪽 길로 계속 진행' : '왼쪽 길로 계속 진행';
+        turns.add(_TurnPoint(
+          type: type, gpxIdx: i,
+          lat: pts[i].latitude, lng: pts[i].longitude,
+          instruction: instruction,
+        ));
+        lastTurnDist = d;
+      }
+    }
+
+    turns.add(_TurnPoint(
+      type: _TurnType.arrival, gpxIdx: pts.length - 1,
+      lat: pts.last.latitude, lng: pts.last.longitude,
+      instruction: '목적지에 도착합니다',
+    ));
+
+    debugPrint('[ModeA TurnDetect] pts=${pts.length} totalDist=${totalDist.round()}m turns=${turns.length - 1}');
+    return turns;
+  }
+
+  void _initModeATurnPoints(RouteResultEntity route) {
+    if (route.routePoints.isEmpty) { _modeATurnPoints = []; return; }
+    _modeATurnPoints = _computeModeATurnPoints(route.routePoints);
+    _modeARoadNearestPtIdx = 0;
+  }
+
+  _TurnPoint? _getModeACurrentTurn() {
+    for (final t in _modeATurnPoints) {
+      if (t.gpxIdx > _modeARoadNearestPtIdx) return t;
+    }
+    return _modeATurnPoints.isNotEmpty ? _modeATurnPoints.last : null;
+  }
+
+  String _getModeADistToNextTurnLabel(List<LatLng> pts) {
+    if (_modeATurnPoints.isEmpty || pts.isEmpty) return '';
+    final nextTurn = _getModeACurrentTurn();
+    if (nextTurn == null) return '';
+    final endIdx = nextTurn.gpxIdx.clamp(0, pts.length - 1);
+    var dist = 0.0;
+    for (int i = _modeARoadNearestPtIdx; i < endIdx && i < pts.length - 1; i++) {
+      dist += _fastDistM(pts[i].latitude, pts[i].longitude,
+          pts[i + 1].latitude, pts[i + 1].longitude);
+    }
+    return dist < 1000 ? '${dist.round()}m' : '${(dist / 1000).toStringAsFixed(1)}km';
+  }
+
+  void _updateModeARoadNearestPtIdx(double lat, double lng, RouteResultEntity route) {
+    final pts = route.routePoints;
+    if (pts.isEmpty) return;
+    final searchEnd = pts.length.clamp(0, _modeARoadNearestPtIdx + 200);
+    int best = _modeARoadNearestPtIdx;
+    double bestDist = double.infinity;
+    for (int i = _modeARoadNearestPtIdx; i < searchEnd; i++) {
+      final d = _fastDistM(lat, lng, pts[i].latitude, pts[i].longitude);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    if (best > _modeARoadNearestPtIdx) _modeARoadNearestPtIdx = best;
+  }
+
+  Future<void> _drawModeAWalkTurnMarkers(List<_TurnPoint> turns) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || !mounted) return;
+    for (int i = 0; i < _modeATurnMarkerCount; i++) {
+      ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.marker, id: 'ma_turn_$i'),
+      ).catchError((_) {});
+    }
+    _modeATurnMarkerCount = 0;
+
+    final ctx = context;
+    int idx = 0;
+    for (final turn in turns) {
+      if (turn.type == _TurnType.straight || turn.type == _TurnType.arrival) continue;
+      if (!mounted) break;
+      final icon = await NOverlayImage.fromWidget(
+        widget: _TurnDirectionMarker(type: turn.type),
+        size: const Size(28, 28),
+        context: ctx,
+      );
+      if (!mounted) break;
+      await ctrl.addOverlay(NMarker(
+        id: 'ma_turn_$idx',
+        position: NLatLng(turn.lat, turn.lng),
+        icon: icon,
+        anchor: const NPoint(0.5, 0.5),
+        isHideCollidedMarkers: false,
+      ));
+      idx++;
+    }
+    _modeATurnMarkerCount = idx;
+  }
+
+  Future<void> _clearModeAWalkTurnMarkers() async {
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    for (int i = 0; i < _modeATurnMarkerCount; i++) {
+      ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.marker, id: 'ma_turn_$i'),
+      ).catchError((_) {});
+    }
+    _modeATurnMarkerCount = 0;
+  }
+
+  void _resetModeAWalkTurnState() {
+    _modeATurnPoints = [];
+    _modeARoadNearestPtIdx = 0;
   }
 
   // ── Guide direction marker (next turn point on map) ───────────────────────
@@ -252,25 +414,6 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
           const NOverlayInfo(type: NOverlayType.marker, id: 'nav_guide_arrow'),
         )
         .catchError((_) {});
-  }
-
-  Future<void> _panToGuidePoint(int idx, RouteResultEntity route) async {
-    final ctrl = _ctrl;
-    if (ctrl == null || idx < 0 || idx >= route.guides.length) return;
-    final guide = route.guides[idx];
-    _navCameraUpdating = true;
-    await ctrl.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(
-        target: NLatLng(guide.latitude, guide.longitude),
-        zoom: 17,
-      )..setAnimation(
-          animation: NCameraAnimation.easing,
-          duration: const Duration(milliseconds: 500),
-        ),
-    );
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) _navCameraUpdating = false;
-    });
   }
 
   // ── Transit step markers ───────────────────────────────────────
@@ -323,7 +466,7 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
           : (step.lineInfo != null ? '${step.lineInfo} 승차' : step.startName);
 
       final captionColor = isActive
-          ? (step.isBus ? const Color(0xFF03C75A) : const Color(0xFF1E90FF))
+          ? (step.isBus ? kMapGreen : context.colors.pinUser)
           : Colors.white54;
 
       final marker = NMarker(
@@ -362,7 +505,7 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
         caption: NOverlayCaption(
           text: '도착 · ${result.toName}',
           textSize: 11,
-          color: const Color(0xFFE74C3C),
+          color: context.colors.danger,
           haloColor: Colors.black87,
         ),
         captionOffset: 4,

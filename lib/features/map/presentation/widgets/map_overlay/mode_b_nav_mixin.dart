@@ -672,7 +672,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       barrierDismissible: true,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: const Color(0xFF1E2030),
+        backgroundColor: kMapPanel,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
           child: Column(
@@ -695,16 +695,16 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                 _ArrivalStatChip(
                     icon: Icons.local_fire_department_rounded,
                     value: '${kcal}kcal',
-                    color: const Color(0xFFFF6B35)),
+                    color: context.colors.primary),
                 _ArrivalStatChip(
                     icon: Icons.straighten_rounded,
                     value: '${distKm.toStringAsFixed(1)}km',
-                    color: const Color(0xFF4A90E2)),
+                    color: context.colors.pinUser),
                 if (spotCount > 0)
                   _ArrivalStatChip(
                       icon: Icons.place_rounded,
                       value: '스팟 $spotCount곳',
-                      color: const Color(0xFFFF4D6D)),
+                      color: context.colors.secondary),
               ]),
               const SizedBox(height: 24),
               GestureDetector(
@@ -713,7 +713,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4A90E2),
+                    color: context.colors.pinUser,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text('확인',
@@ -739,12 +739,12 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2030),
+        backgroundColor: kMapPanel,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [
-          Icon(Icons.warning_amber_rounded, color: Color(0xFFE67E22), size: 22),
-          SizedBox(width: 8),
-          Text('경로 이탈',
+        title: Row(children: [
+          Icon(Icons.warning_amber_rounded, color: context.colors.warn, size: 22),
+          const SizedBox(width: 8),
+          const Text('경로 이탈',
               style: TextStyle(
                   color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
         ]),
@@ -763,9 +763,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
               Navigator.of(ctx).pop();
               unawaited(_rerouteGeneratedCourse(p, route, wpIdx));
             },
-            child: const Text('재경로',
+            child: Text('재경로',
                 style: TextStyle(
-                    color: Color(0xFF4A90E2), fontWeight: FontWeight.w800)),
+                    color: context.colors.pinUser, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -809,7 +809,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFFE67E22),
+        backgroundColor: context.colors.warn,
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -954,11 +954,11 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: _modeBNorthUpMode ? const Color(0xFF4A90E2) : kMapPanel,
+              color: _modeBNorthUpMode ? context.colors.pinUser : kMapPanel,
               shape: BoxShape.circle,
               border: Border.all(
                 color: _modeBNorthUpMode
-                    ? const Color(0xFF4A90E2)
+                    ? context.colors.pinUser
                     : Colors.white24,
               ),
               boxShadow: const [
@@ -990,8 +990,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             child: Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4A90E2),
+              decoration: BoxDecoration(
+                color: context.colors.pinUser,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 2)),

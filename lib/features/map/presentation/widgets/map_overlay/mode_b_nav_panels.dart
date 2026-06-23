@@ -39,8 +39,8 @@ class _TurnDirectionMarker extends StatelessWidget {
     return Container(
       width: 28,
       height: 28,
-      decoration: const BoxDecoration(
-        color: Color(0xFF4A90E2),
+      decoration: BoxDecoration(
+        color: context.colors.pinUser,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
@@ -65,12 +65,12 @@ class _ModeBNavTopCard extends StatelessWidget {
   /// null이면 단계별 전환 버튼 숨김 (생성 코스에서는 사용 안 함)
   final VoidCallback? onStepMode;
 
-  Color get _accentColor {
+  Color _accentColor(BuildContext context) {
+    final c = context.colors;
     final route = navState.route;
-    if (route == null) return const Color(0xFF4A90E2);
-    // 생성 코스(스팟 기반)는 앱 secondary 색상(pinSight)으로 차별화
-    if (route.isGenerated) return const Color(0xFFFF4D6D);
-    return route.type == '자전거' ? const Color(0xFFFFB547) : const Color(0xFF4A90E2);
+    if (route == null) return c.pinUser;
+    if (route.isGenerated) return c.secondary;
+    return route.type == '자전거' ? c.warn : c.pinUser;
   }
 
   IconData get _icon {
@@ -84,7 +84,7 @@ class _ModeBNavTopCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _accentColor;
+    final accent = _accentColor(context);
     final kcalPct = (navState.kcalProgress * 100).toStringAsFixed(0);
 
     return Container(
@@ -189,9 +189,9 @@ class _ModeBNavTopCard extends StatelessWidget {
           ),
           // 칼로리 진행 바
           Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: kMapPanelAlt,
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(
@@ -260,17 +260,18 @@ class _ModeBNavBottomStrip extends StatelessWidget {
     return ((total - remaining) / total).clamp(0.0, 1.0);
   }
 
-  Color get _accentColor {
+  Color _accentColor(BuildContext context) {
+    final c = context.colors;
     final route = navState.route;
-    if (route == null) return const Color(0xFF4A90E2);
-    if (route.isGenerated) return const Color(0xFFFF4D6D);
-    return route.type == '자전거' ? const Color(0xFFFFB547) : const Color(0xFF4A90E2);
+    if (route == null) return c.pinUser;
+    if (route.isGenerated) return c.secondary;
+    return route.type == '자전거' ? c.warn : c.pinUser;
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    final accent = _accentColor;
+    final accent = _accentColor(context);
 
     return Container(
       color: kMapPanel,
@@ -312,16 +313,16 @@ class _ModeBNavBottomStrip extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.15),
+                  color: context.colors.danger.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
+                  border: Border.all(color: context.colors.danger.withValues(alpha: 0.5)),
                 ),
-                child: const Text(
+                child: Text(
                   '안내 종료',
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: Colors.redAccent),
+                      color: context.colors.danger),
                 ),
               ),
             ),
@@ -401,7 +402,7 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
   Widget build(BuildContext context) {
     final wps = widget.waypoints;
     if (wps.isEmpty) return const SizedBox.shrink();
-    const accent = Color(0xFFFF4D6D);
+    final accent = context.colors.secondary;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -571,7 +572,7 @@ class _SpotWaypointCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFFFF4D6D);
+    final accent = context.colors.secondary;
     // border/강조는 GPS 목표 카드 OR 캐러셀에서 현재 보고 있는 카드
     final bool isHighlighted = status == _SpotStatus.active || isViewedInCarousel;
 
@@ -770,8 +771,8 @@ class _KcalGaugeBar extends StatelessWidget {
     final consumed = navState.elapsedKcal.round();
     final total = navState.foodKcal;
     final isDone = pct >= 1.0;
-    const accent = Color(0xFFFF4D6D);
-    final barColor = isDone ? const Color(0xFF03C75A) : accent;
+    final accent = context.colors.secondary;
+    final barColor = isDone ? context.colors.success : accent;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -873,10 +874,11 @@ class _ModeBTurnBar extends StatelessWidget {
   final ModeBNavState navState;
   final VoidCallback onOverview;
 
-  Color get _accentColor {
+  Color _accentColor(BuildContext context) {
+    final c = context.colors;
     final route = navState.route;
-    if (route?.isGenerated ?? false) return const Color(0xFFFF4D6D);
-    return route?.type == '자전거' ? const Color(0xFFFFB547) : const Color(0xFF4A90E2);
+    if (route?.isGenerated ?? false) return c.secondary;
+    return route?.type == '자전거' ? c.warn : c.pinUser;
   }
 
   IconData get _turnIcon => switch (turnType) {
@@ -889,7 +891,7 @@ class _ModeBTurnBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _accentColor;
+    final accent = _accentColor(context);
     final kcalPct = (navState.kcalProgress * 100).toStringAsFixed(0);
 
     return Container(
@@ -991,9 +993,9 @@ class _ModeBTurnBar extends StatelessWidget {
           ),
           // 칼로리 진행 바
           Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: kMapPanelAlt,
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(

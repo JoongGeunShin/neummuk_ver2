@@ -119,7 +119,7 @@ class _ExploreTopPanel extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.black87 : const Color(0xFFAEAEB2),
+                          color: isSelected ? Colors.black87 : kMapWhite45,
                         ),
                       ),
                     ),

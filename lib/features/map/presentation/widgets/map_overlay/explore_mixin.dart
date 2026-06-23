@@ -94,13 +94,13 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     if (_markerIcons != null) return _markerIcons!;
     final c = context.colors;
     final normalIcon = await NOverlayImage.fromWidget(
-      widget: MapMarkerDot(color: c.pinSight),
-      size: const Size(26, 26),
+      widget: MapRouteMarkerDot(color: c.pinSight, label: '◆'),
+      size: const Size(28, 28),
       context: context,
     );
     if (!mounted) return {};
     final bothIcon = await NOverlayImage.fromWidget(
-      widget: MapMarkerDot(color: c.accent, star: true),
+      widget: MapRouteMarkerDot(color: c.accent, label: '★'),
       size: const Size(32, 32),
       context: context,
     );
