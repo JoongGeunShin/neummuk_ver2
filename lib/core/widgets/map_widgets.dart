@@ -10,7 +10,7 @@ const kMapPanelAlt = Color(0xFF2C2C2E);
 const kMapHandle   = Color(0xFF48484A);
 const kMapWhite87  = Color(0xDEFFFFFF);
 const kMapWhite45  = Color(0x73FFFFFF);
-const kMapGreen    = Color(0xFF03C75A);
+const kMapPrimary  = Color(0xFFFF7A45);
 
 // ─── 맵 이벤트 싱크 ──────────────────────────────────────────────────────────────
 // AppMapScreen이 보유하고, 각 오버레이가 initState에서 핸들러를 등록.
