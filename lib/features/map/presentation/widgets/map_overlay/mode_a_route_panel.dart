@@ -199,9 +199,9 @@ class _ModeARoutePanel extends StatelessWidget {
                           duration: const Duration(milliseconds: 180),
                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                           decoration: BoxDecoration(
-                            color: on ? kMapGreen.withValues(alpha: 0.9) : kMapPanelAlt,
+                            color: on ? kMapPrimary.withValues(alpha: 0.9) : kMapPanelAlt,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: on ? kMapGreen : Colors.white24),
+                            border: Border.all(color: on ? kMapPrimary : Colors.white24),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -225,7 +225,7 @@ class _ModeARoutePanel extends StatelessWidget {
                       duration: const Duration(milliseconds: 180),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: onSearch != null ? kMapGreen : kMapPanelAlt,
+                        color: onSearch != null ? kMapPrimary : kMapPanelAlt,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(

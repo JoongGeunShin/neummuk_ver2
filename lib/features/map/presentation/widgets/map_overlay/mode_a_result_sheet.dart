@@ -73,7 +73,7 @@ class _ModeAResultSheet extends StatelessWidget {
                                         style: TextStyle(
                                             fontSize: context.wp(10.5),
                                             fontWeight: FontWeight.w800,
-                                            color: kMapGreen,
+                                            color: kMapPrimary,
                                             letterSpacing: -1.5,
                                             height: 1)),
                                     const SizedBox(width: 4),
@@ -116,13 +116,13 @@ class _ModeAResultSheet extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: kMapGreen.withValues(alpha: 0.15),
+                                        color: kMapPrimary.withValues(alpha: 0.15),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text('경유 ${w.name}',
                                           style: const TextStyle(
                                               fontSize: 11,
-                                              color: kMapGreen,
+                                              color: kMapPrimary,
                                               fontWeight: FontWeight.w700)),
                                     ))
                                 .toList(),
@@ -166,12 +166,12 @@ class _ModeAResultSheet extends StatelessWidget {
                                   horizontal: 14, vertical: 0),
                               decoration: BoxDecoration(
                                 color: selected
-                                    ? kMapGreen.withValues(alpha: 0.9)
+                                    ? kMapPrimary.withValues(alpha: 0.9)
                                     : kMapPanelAlt,
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
                                   color: selected
-                                      ? kMapGreen
+                                      ? kMapPrimary
                                       : Colors.white12,
                                 ),
                               ),
@@ -221,7 +221,7 @@ class _ModeAResultSheet extends StatelessWidget {
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: kMapGreen,
+                            color: kMapPrimary,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Row(
@@ -271,7 +271,7 @@ class _NearbyTabContent extends StatelessWidget {
   Widget build(BuildContext context) {
     if (state.nearbyLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: kMapGreen, strokeWidth: 2),
+        child: CircularProgressIndicator(color: kMapPrimary, strokeWidth: 2),
       );
     }
 
@@ -398,14 +398,14 @@ class _PlaceCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: kMapGreen.withValues(alpha: 0.15),
+                        color: kMapPrimary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(place.category!,
                           style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: kMapGreen)),
+                              color: kMapPrimary)),
                     ),
                   const SizedBox(height: 5),
                   Text(place.name,
@@ -530,12 +530,12 @@ class _DurunubiCourseCard extends StatelessWidget {
                     ],
                     if (course.kcal > 0) ...[
                       const Icon(Icons.local_fire_department_rounded,
-                          size: 11, color: kMapGreen),
+                          size: 11, color: kMapPrimary),
                       const SizedBox(width: 3),
                       Text('${course.kcal} kcal',
                           style: const TextStyle(
                               fontSize: 11,
-                              color: kMapGreen,
+                              color: kMapPrimary,
                               fontWeight: FontWeight.w600)),
                     ],
                   ]),

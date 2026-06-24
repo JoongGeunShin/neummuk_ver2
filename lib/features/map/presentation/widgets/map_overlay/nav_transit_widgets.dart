@@ -5,14 +5,19 @@ part of '../map_overlay.dart';
 // ════════════════════════════════════════════════════════════════════════════
 
 class _NavTransitCard extends StatelessWidget {
-  const _NavTransitCard({required this.navState, required this.route});
+  const _NavTransitCard({
+    required this.navState,
+    required this.route,
+    required this.onOverview,
+  });
 
   final ModeANavState navState;
   final RouteResultEntity route;
+  final VoidCallback onOverview;
 
   Color _stepColor(TransitStep step, BuildContext context) {
     final c = context.colors;
-    return step.isWalk ? kMapWhite45 : step.isBus ? kMapGreen : c.pinUser;
+    return step.isWalk ? kMapWhite45 : step.isBus ? kMapPrimary : c.pinUser;
   }
 
   IconData _stepIcon(TransitStep step) => step.isWalk
@@ -24,14 +29,17 @@ class _NavTransitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final steps = route.transitSteps;
-    if (steps.isEmpty) return _buildFallback();
+    final topPad = MediaQuery.paddingOf(context).top;
+    if (steps.isEmpty) return _buildFallback(topPad);
 
     final idx     = navState.currentTransitStepIdx.clamp(0, steps.length - 1);
     final current = steps[idx];
     final next    = idx + 1 < steps.length ? steps[idx + 1] : null;
     final color   = _stepColor(current, context);
 
-    return Container(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, topPad + 8, 12, 0),
+      child: Container(
       decoration: BoxDecoration(
         color: kMapPanel,
         borderRadius: BorderRadius.circular(20),
@@ -96,14 +104,46 @@ class _NavTransitCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white10, borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text('${idx + 1}/${steps.length}',
-                      style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w700, color: kMapWhite45)),
+                const SizedBox(width: 6),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white10, borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('${idx + 1}/${steps.length}',
+                          style: const TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w700, color: kMapWhite45)),
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: onOverview,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.map_outlined, size: 16, color: color),
+                            const SizedBox(height: 2),
+                            Text(
+                              '개요',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: color,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -166,46 +206,50 @@ class _NavTransitCard extends StatelessWidget {
             ),
         ],
       ),
-    );
+    ),  // Container
+    );  // Padding
   }
 
-  Widget _buildFallback() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kMapPanel,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kMapGreen.withValues(alpha: 0.6), width: 1.5),
-        boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
-        ],
+  Widget _buildFallback(double topPad) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, topPad + 8, 12, 0),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kMapPanel,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: kMapPrimary.withValues(alpha: 0.6), width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
+              color: kMapPrimary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.directions_bus_rounded, size: 26, color: kMapPrimary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('경로를 따라 이동하세요',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: kMapWhite87)),
+                const SizedBox(height: 2),
+                Text('${navState.remainingLabel} 남음 · ${navState.remainingMinutes}분',
+                    style: const TextStyle(
+                        fontSize: 12, color: kMapWhite45, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ]),
       ),
-      child: Row(children: [
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            color: kMapGreen.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.directions_bus_rounded, size: 26, color: kMapGreen),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('경로를 따라 이동하세요',
-                  style: TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700, color: kMapWhite87)),
-              const SizedBox(height: 2),
-              Text('${navState.remainingLabel} 남음 · ${navState.remainingMinutes}분',
-                  style: const TextStyle(
-                      fontSize: 12, color: kMapWhite45, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      ]),
     );
   }
 }
@@ -232,7 +276,7 @@ class _TransitStepDot extends StatelessWidget {
     return switch (trafficType) {
       0 => c.danger,
       1 => c.pinUser,
-      2 => kMapGreen,
+      2 => kMapPrimary,
       _ => kMapWhite45,
     };
   }

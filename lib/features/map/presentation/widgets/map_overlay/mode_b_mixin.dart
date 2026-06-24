@@ -52,7 +52,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   /// 생성 코스 구간별 도로 폴리라인 (인덱스 N = 이전 waypoint → waypoint[N])
   List<List<NLatLng>> _segmentPolylines = [];
 
-  /// Bug 3: _drawGeneratedCourseOnMap 내 폴리라인 페치 진행 중 시 non-null (경쟁 방지용)
+  /// 폴리라인 페치 진행 중일 때 non-null — 동시 요청 간 경쟁 방지용
   Completer<void>? _segmentsFetchCompleter;
 
   /// 전체 경로 표시 여부 (false = 현재 구간만, true = 완료+현재+예정)
@@ -109,7 +109,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
       await _drawSegmentsOnMap(currentWpIdx, showAll: _modeBShowAllSegments);
 
-      // Bug 6: 재경로 후 nav provider의 구간 거리도 갱신
+      // 재경로 후 nav provider의 구간 거리도 갱신
       final updatedDists = _segmentPolylines.map(_totalPolylineLength).toList();
       ref.read(modeBNavProvider.notifier).updateSegmentDistances(updatedDists);
     } catch (_) {}
@@ -706,7 +706,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final segmentsReady = _segmentPolylines.length == course.waypoints.length;
 
     setState(() => _gpxLoading = true);
-    // Bug 3: 페치 시작 전 Completer 등록 (레이스 가드)
     final fetchCompleter = segmentsReady ? null : Completer<void>();
     if (fetchCompleter != null) _segmentsFetchCompleter = fetchCompleter;
     try {
@@ -967,7 +966,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     List<NLatLng> gpxPoints = [];
 
     if (route.isGenerated) {
-      // Bug 3: 미리보기 페치가 진행 중이면 완료 대기 (레이스 방지)
+      // 미리보기 페치 진행 중이면 완료 대기
       final pendingFetch = _segmentsFetchCompleter;
       if (pendingFetch != null) {
         await pendingFetch.future.catchError((_) {});

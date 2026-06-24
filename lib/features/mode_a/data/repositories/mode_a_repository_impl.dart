@@ -343,11 +343,16 @@ class ModeARepositoryImpl implements ModeARepository {
       final sub = subPaths[i] as Map<String, dynamic>;
       if ((sub['trafficType'] as num? ?? 3).toInt() != 3) continue;
 
-      // 첫 구간은 출발지 좌표, 마지막 구간은 도착지 좌표 사용
       final sLat = i == 0 ? originLat : (double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0);
       final sLng = i == 0 ? originLng : (double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0);
-      final eLat = i == subPaths.length - 1 ? destLat : (double.tryParse(sub['endY']?.toString() ?? '') ?? 0.0);
-      final eLng = i == subPaths.length - 1 ? destLng : (double.tryParse(sub['endX']?.toString() ?? '') ?? 0.0);
+      double eLat = i == subPaths.length - 1 ? destLat : (double.tryParse(sub['endY']?.toString() ?? '') ?? 0.0);
+      double eLng = i == subPaths.length - 1 ? destLng : (double.tryParse(sub['endX']?.toString() ?? '') ?? 0.0);
+
+      // endX/Y 없으면 다음 구간 시작 좌표에서 유도
+      if (eLat == 0.0 || eLng == 0.0) {
+        final r = _walkEndFromNextSeg(subPaths, i);
+        if (r != null) { eLat = r.lat; eLng = r.lng; }
+      }
 
       if (sLat == 0.0 || sLng == 0.0 || eLat == 0.0 || eLng == 0.0) continue;
       final seg = (idx: i, sLat: sLat, sLng: sLng, eLat: eLat, eLng: eLng);
@@ -355,23 +360,64 @@ class ModeARepositoryImpl implements ModeARepository {
       lastWalk = seg;
     }
 
+    // info.mapObj: "BaseX:BaseY@ID:Class:StartIdx:EndIdx@..." — loadLane에 그대로 전달하면
+    // ODsay가 각 버스·지하철 구간의 StartIdx~EndIdx만 잘라서 도로 형상을 반환함.
+    // 없으면 subPath 데이터로 수동 구성 (passStopList.stations[n].index = 전체 노선 내 순번)
+    final rawMapObj = info['mapObj'] as String?;
+    // info.mapObj = "ID:Class:StartIdx:EndIdx@..." (BaseX:BaseY 접두사 없음)
+    // loadLane mapObject = "BaseX:BaseY@ID:Class:StartIdx:EndIdx@..."이므로 0:0@ 붙임
+    final mapObj = (rawMapObj != null && rawMapObj.isNotEmpty)
+        ? '0:0@$rawMapObj'
+        : _buildMapObj(subPaths);
+
     List<LatLng> firstWalkPts = const [], lastWalkPts = const [];
-    if (firstWalk != null && lastWalk != null) {
-      if (firstWalk.idx == lastWalk.idx) {
-        // 도보 구간이 하나뿐
-        firstWalkPts = await _fetchTmapWalkSegment(
-            firstWalk.sLat, firstWalk.sLng, firstWalk.eLat, firstWalk.eLng);
-        lastWalkPts = firstWalkPts;
+    // 버스·지하철 subPath 인덱스 → 도로 형상 좌표 목록
+    final loadLaneResults = <int, List<LatLng>>{};
+
+    final fetchFutures = <Future<void>>[];
+
+    // TMAP 도보 경로
+    if (firstWalk != null || lastWalk != null) {
+      if (firstWalk != null && lastWalk != null && firstWalk.idx == lastWalk.idx) {
+        fetchFutures.add(() async {
+          firstWalkPts = await _fetchTmapWalkSegment(
+              firstWalk!.sLat, firstWalk.sLng, firstWalk.eLat, firstWalk.eLng);
+          lastWalkPts = firstWalkPts;
+        }());
       } else {
-        // 첫/마지막 도보 구간 병렬 요청
-        final results = await Future.wait([
-          _fetchTmapWalkSegment(firstWalk.sLat, firstWalk.sLng, firstWalk.eLat, firstWalk.eLng),
-          _fetchTmapWalkSegment(lastWalk.sLat, lastWalk.sLng, lastWalk.eLat, lastWalk.eLng),
-        ]);
-        firstWalkPts = results[0];
-        lastWalkPts = results[1];
+        if (firstWalk != null) {
+          fetchFutures.add(() async {
+            firstWalkPts = await _fetchTmapWalkSegment(
+                firstWalk!.sLat, firstWalk.sLng, firstWalk.eLat, firstWalk.eLng);
+          }());
+        }
+        if (lastWalk != null) {
+          fetchFutures.add(() async {
+            lastWalkPts = await _fetchTmapWalkSegment(
+                lastWalk!.sLat, lastWalk.sLng, lastWalk.eLat, lastWalk.eLng);
+          }());
+        }
       }
     }
+
+    // loadLane: info.mapObj를 그대로 사용 — 구간 인덱스가 이미 포함되어 있어
+    // 전체 노선이 아닌 승차~하차 구간 도로 형상만 반환됨
+    if (mapObj != null && mapObj.isNotEmpty) {
+      fetchFutures.add(() async {
+        final allGeo = await _loadAllLaneGeometry(mapObj);
+        // result.lane[] 순서 = subPaths 중 trafficType != 3 순서와 일치
+        int laneIdx = 0;
+        for (int i = 0; i < subPaths.length; i++) {
+          final tt = ((subPaths[i] as Map<String, dynamic>)['trafficType'] as num? ?? 3).toInt();
+          if (tt != 3) {
+            if (laneIdx < allGeo.length) loadLaneResults[i] = allGeo[laneIdx];
+            laneIdx++;
+          }
+        }
+      }());
+    }
+
+    await Future.wait(fetchFutures);
 
     // ── subPath → routePoints + segmentPoints ─────────────────────────────────
     final routePoints = <LatLng>[];
@@ -384,7 +430,7 @@ class ModeARepositoryImpl implements ModeARepository {
       final segPts = <LatLng>[];
 
       if (trafficType == 3) {
-        // 도보 구간: TMAP 실제 경로 우선, 없으면 직선
+        // 도보 구간: TMAP 실제 경로 우선, 없으면 출발지/도착지 기반 직선
         final tmapPts = (firstWalk != null && i == firstWalk.idx)
             ? firstWalkPts
             : (lastWalk != null && i == lastWalk.idx)
@@ -394,36 +440,91 @@ class ModeARepositoryImpl implements ModeARepository {
         if (tmapPts.isNotEmpty) {
           segPts.addAll(tmapPts);
         } else {
-          final sx = double.tryParse(sub['startX']?.toString() ?? '');
-          final sy = double.tryParse(sub['startY']?.toString() ?? '');
-          final ex = double.tryParse(sub['endX']?.toString() ?? '');
-          final ey = double.tryParse(sub['endY']?.toString() ?? '');
-          if (sx != null && sy != null && sx != 0 && sy != 0) {
-            segPts.add(LatLng(latitude: sy, longitude: sx));
+          // 시작점: 첫 구간은 반드시 출발지 좌표 사용
+          if (i == 0) {
+            segPts.add(LatLng(latitude: originLat, longitude: originLng));
+          } else {
+            final sx = double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0;
+            final sy = double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0;
+            if (sx != 0 && sy != 0) segPts.add(LatLng(latitude: sy, longitude: sx));
           }
-          if (ex != null && ey != null && ex != 0 && ey != 0) {
-            segPts.add(LatLng(latitude: ey, longitude: ex));
+          // 끝점: 마지막 구간은 반드시 도착지 좌표 사용
+          if (i == subPaths.length - 1) {
+            segPts.add(LatLng(latitude: destLat, longitude: destLng));
+          } else {
+            final ex = double.tryParse(sub['endX']?.toString() ?? '') ?? 0.0;
+            final ey = double.tryParse(sub['endY']?.toString() ?? '') ?? 0.0;
+            if (ex != 0 && ey != 0) {
+              segPts.add(LatLng(latitude: ey, longitude: ex));
+            } else {
+              final r = _walkEndFromNextSeg(subPaths, i);
+              if (r != null) segPts.add(LatLng(latitude: r.lat, longitude: r.lng));
+            }
           }
         }
       } else {
-        // 버스·지하철: passShape.linestring 우선, passStopList 폴백
-        final passShape = sub['passShape'] as Map<String, dynamic>?;
-        final linestring = passShape?['linestring'] as String?;
+        // ── 버스·지하철 구간 ────────────────────────────────────────────────────
+        // 탑승 · 하차 좌표 먼저 확보 (클리핑에 공유)
+        final passStopList = sub['passStopList'] as Map<String, dynamic>?;
+        final allStations = passStopList?['stations'] as List? ?? [];
 
-        if (linestring != null && linestring.isNotEmpty) {
-          for (final pair in linestring.trim().split(' ')) {
-            final parts = pair.split(',');
-            if (parts.length < 2) continue;
-            final lng = double.tryParse(parts[0]);
-            final lat = double.tryParse(parts[1]);
-            if (lat != null && lng != null && lat != 0 && lng != 0) {
-              segPts.add(LatLng(latitude: lat, longitude: lng));
+        var bLat = double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0;
+        var bLng = double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0;
+        var aLat = double.tryParse(sub['endY']?.toString() ?? '') ?? 0.0;
+        var aLng = double.tryParse(sub['endX']?.toString() ?? '') ?? 0.0;
+        if ((bLat == 0 || bLng == 0) && allStations.isNotEmpty) {
+          final f = allStations.first as Map<String, dynamic>;
+          bLat = double.tryParse(f['y']?.toString() ?? '') ?? 0.0;
+          bLng = double.tryParse(f['x']?.toString() ?? '') ?? 0.0;
+        }
+        if ((aLat == 0 || aLng == 0) && allStations.isNotEmpty) {
+          final l = allStations.last as Map<String, dynamic>;
+          aLat = double.tryParse(l['y']?.toString() ?? '') ?? 0.0;
+          aLng = double.tryParse(l['x']?.toString() ?? '') ?? 0.0;
+        }
+        final hasClipBounds =
+            bLat != 0 && bLng != 0 && aLat != 0 && aLng != 0;
+
+        // Tier 1: loadLane(info.mapObj) — ODsay가 StartIdx~EndIdx 기반으로
+        //         승차~하차 구간 도로 형상만 잘라서 반환 → 클리핑 불필요
+        final lanePts = loadLaneResults[i] ?? [];
+        if (lanePts.length >= 2) {
+          segPts.addAll(lanePts);
+        }
+
+        // Tier 2: passShape.linestring — loadLane 실패 시 폴백
+        //         구간 형상을 주기도 하지만 전체 노선인 경우도 있으므로
+        //         탑승/하차 좌표로 클리핑 시도; 클리핑 결과가 너무 적으면 raw 사용
+        if (segPts.length < 5) {
+          segPts.clear();
+          final passShape = sub['passShape'] as Map<String, dynamic>?;
+          final linestring = passShape?['linestring'] as String?;
+          if (linestring != null && linestring.isNotEmpty) {
+            final raw = <LatLng>[];
+            for (final pair in linestring.trim().split(' ')) {
+              final parts = pair.split(',');
+              if (parts.length < 2) continue;
+              final lng = double.tryParse(parts[0]);
+              final lat = double.tryParse(parts[1]);
+              if (lat != null && lng != null && lat != 0 && lng != 0) {
+                raw.add(LatLng(latitude: lat, longitude: lng));
+              }
+            }
+            if (raw.length >= 2) {
+              if (hasClipBounds && raw.length >= 6) {
+                final c = _clipPolylineToSegment(raw, bLat, bLng, aLat, aLng);
+                segPts.addAll(c.length >= 5 ? c : raw);
+              } else {
+                segPts.addAll(raw);
+              }
             }
           }
-        } else {
-          final passStopList = sub['passStopList'] as Map<String, dynamic>?;
-          final stations = passStopList?['stations'] as List? ?? [];
-          for (final st in stations) {
+        }
+
+        // Tier 3: 모든 경유 정류장 좌표 — 정류장 간 직선이지만 전체 직선보다 훨씬 정확
+        if (segPts.length < 5) {
+          segPts.clear();
+          for (final st in allStations) {
             final stMap = st as Map<String, dynamic>;
             final x = double.tryParse(stMap['x']?.toString() ?? '');
             final y = double.tryParse(stMap['y']?.toString() ?? '');
@@ -432,6 +533,8 @@ class ModeARepositoryImpl implements ModeARepository {
             }
           }
         }
+        debugPrint('[Transit seg$i] type=$trafficType pts=${segPts.length} '
+            '(lane=${lanePts.length})');
       }
 
       routePoints.addAll(segPts);
@@ -463,6 +566,77 @@ class ModeARepositoryImpl implements ModeARepository {
       routePoints: routePoints,
       transitSteps: transitSteps,
     );
+  }
+
+  // ── 도보 구간 끝점: 다음 구간 시작 좌표에서 유도 ─────────────────────────────
+
+  static ({double lat, double lng})? _walkEndFromNextSeg(List subPaths, int walkIdx) {
+    if (walkIdx + 1 >= subPaths.length) return null;
+    final next = subPaths[walkIdx + 1] as Map<String, dynamic>;
+    final nx = double.tryParse(next['startX']?.toString() ?? '') ?? 0.0;
+    final ny = double.tryParse(next['startY']?.toString() ?? '') ?? 0.0;
+    if (nx != 0 && ny != 0) return (lat: ny, lng: nx);
+    final stops = (next['passStopList'] as Map<String, dynamic>?)?['stations'] as List?;
+    if (stops != null && stops.isNotEmpty) {
+      final st = stops.first as Map<String, dynamic>;
+      final sx = double.tryParse(st['x']?.toString() ?? '') ?? 0.0;
+      final sy = double.tryParse(st['y']?.toString() ?? '') ?? 0.0;
+      if (sx != 0 && sy != 0) return (lat: sy, lng: sx);
+    }
+    return null;
+  }
+
+  // ── ODsay loadLane (info.mapObj 방식) ────────────────────────────────────────
+  // mapObj = "BaseX:BaseY@ID:Class:StartIdx:EndIdx@..." — searchPubTransPathT 응답의
+  // result.path[n].info.mapObj 값을 그대로 전달하면, ODsay가 각 구간의
+  // StartIdx~EndIdx 범위 도로 형상만 잘라 result.lane[] 배열로 반환함.
+  // lane[k] 순서는 subPaths 중 trafficType != 3 (버스·지하철) 구간 순서와 일치.
+
+  Future<List<List<LatLng>>> _loadAllLaneGeometry(String mapObj) async {
+    try {
+      if (_odsayKey.isEmpty) return [];
+      debugPrint('[ODsay loadLane] mapObject=$mapObj');
+      // queryParameters 방식은 @ 를 %40으로 인코딩해 -8 오류 유발 → 직접 URL 구성
+      final url = 'https://api.odsay.com/v1/api/loadLane'
+          '?mapObject=$mapObj&apiKey=$_odsayKey';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) {
+        debugPrint('[ODsay loadLane] ${res.statusCode}');
+        return [];
+      }
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      if (json.containsKey('error')) {
+        debugPrint('[ODsay loadLane] error: ${json['error']}');
+        return [];
+      }
+      final result = json['result'] as Map<String, dynamic>?;
+      final laneList = result?['lane'] as List?;
+      if (laneList == null || laneList.isEmpty) return [];
+
+      final all = <List<LatLng>>[];
+      for (final lane in laneList) {
+        final laneMap = lane as Map<String, dynamic>;
+        final pts = <LatLng>[];
+        final sections = laneMap['section'] as List? ?? [];
+        for (final section in sections) {
+          final graphPos = (section as Map<String, dynamic>)['graphPos'] as List? ?? [];
+          for (final pos in graphPos) {
+            final posMap = pos as Map<String, dynamic>;
+            final x = (posMap['x'] as num?)?.toDouble();
+            final y = (posMap['y'] as num?)?.toDouble();
+            if (x != null && y != null && x != 0 && y != 0) {
+              pts.add(LatLng(latitude: y, longitude: x));
+            }
+          }
+        }
+        all.add(pts);
+        debugPrint('[ODsay loadLane] lane pts=${pts.length}');
+      }
+      return all;
+    } catch (e) {
+      debugPrint('[ODsay loadLane] error: $e');
+      return [];
+    }
   }
 
   // ── TMAP 보행자 경로 (첫/마지막 도보 구간용) ──────────────────────────────────
@@ -1133,5 +1307,68 @@ class ModeARepositoryImpl implements ModeARepository {
     final cosLat = cos(lat1 * toRad);
     return r *
         sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+  }
+
+  // info.mapObj 없을 때 subPath 데이터로 loadLane mapObject 수동 구성
+  // format: "0:0@routeID:class:startStopIdx:endStopIdx@..."
+  // class: 1=버스, 2=지하철 (trafficType과 반대)
+  static String? _buildMapObj(List subPaths) {
+    final parts = <String>['0:0'];
+    for (final sub in subPaths) {
+      final subMap = sub as Map<String, dynamic>;
+      final tt = (subMap['trafficType'] as num? ?? 3).toInt();
+      if (tt == 3) continue;
+
+      final lanes = subMap['lane'] as List? ?? [];
+      if (lanes.isEmpty) continue;
+      final lane = lanes.first as Map<String, dynamic>;
+
+      final stations = (subMap['passStopList'] as Map<String, dynamic>?)?['stations'] as List? ?? [];
+      final startIdx = stations.isNotEmpty
+          ? (stations.first as Map<String, dynamic>)['index']?.toString() ?? '-1'
+          : '-1';
+      final endIdx = stations.isNotEmpty
+          ? (stations.last as Map<String, dynamic>)['index']?.toString() ?? '-1'
+          : '-1';
+
+      if (tt == 2) {
+        // 버스: class=1, busID 사용
+        final busId = lane['busID']?.toString() ?? lane['busLocalBlID']?.toString();
+        if (busId != null && busId.isNotEmpty) parts.add('$busId:1:$startIdx:$endIdx');
+      } else {
+        // 지하철: class=2, subwayCode 사용
+        final code = lane['subwayCode']?.toString();
+        if (code != null && code.isNotEmpty) parts.add('$code:2:$startIdx:$endIdx');
+      }
+    }
+    return parts.length > 1 ? parts.join('@') : null;
+  }
+
+  // 전체 노선 좌표(pts)에서 승차점(start)~하차점(end)에 가장 가까운 인덱스를 찾아 클리핑
+  static List<LatLng> _clipPolylineToSegment(
+    List<LatLng> pts,
+    double startLat, double startLng,
+    double endLat,   double endLng,
+  ) {
+    if (pts.length < 2) return pts;
+
+    int startIdx = 0; double startDist = double.infinity;
+    int endIdx   = 0; double endDist   = double.infinity;
+
+    for (int i = 0; i < pts.length; i++) {
+      final ds = _haversine(startLat, startLng, pts[i].latitude, pts[i].longitude);
+      final de = _haversine(endLat,   endLng,   pts[i].latitude, pts[i].longitude);
+      if (ds < startDist) { startDist = ds; startIdx = i; }
+      if (de < endDist)   { endDist   = de; endIdx   = i; }
+    }
+
+    if (startIdx == endIdx) return pts;
+
+    final lo = startIdx < endIdx ? startIdx : endIdx;
+    final hi = startIdx < endIdx ? endIdx   : startIdx;
+    final segment = pts.sublist(lo, hi + 1);
+
+    // 방향이 역순(승차가 하차보다 뒤쪽 인덱스)이면 뒤집기
+    return startIdx > endIdx ? segment.reversed.toList() : segment;
   }
 }

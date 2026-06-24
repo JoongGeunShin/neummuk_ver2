@@ -14,6 +14,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/context_ext.dart';
+import '../../../../core/widgets/calorie_compare_donut.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/map_widgets.dart';
 import '../../../../core/widgets/tiny_ring.dart';
@@ -61,7 +62,7 @@ const _kPanelAlt = kMapPanelAlt;
 const _kHandle   = kMapHandle;
 const _kWhite87  = kMapWhite87;
 const _kWhite45  = kMapWhite45;
-const _kGreen    = kMapGreen;
+const _kGreen    = kMapPrimary;
 
 class MapOverlay extends ConsumerStatefulWidget {
   const MapOverlay({
@@ -214,11 +215,20 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         }
         final prev = _prevNavPosition;
         if (prev != null) {
-          final bearing = _calcBearing(
+          final bearing = _bearingDeg(
               prev.latitude, prev.longitude, p.latitude, p.longitude);
           final moved = Geolocator.distanceBetween(
               prev.latitude, prev.longitude, p.latitude, p.longitude);
-          if (moved >= 2.0) _lastNavBearing = bearing;
+          if (moved >= 2.0) {
+            _lastNavBearing = bearing;
+            // 8m 이상 이동 시 자동으로 단계별 안내로 전환
+            if (route != null && route.transport != 'transit' && !_modeANavStepMode) {
+              _movedSinceModeANavStart += moved;
+              if (_movedSinceModeANavStart > 8.0) {
+                setState(() => _modeANavStepMode = true);
+              }
+            }
+          }
         }
         _prevNavPosition = p;
         // Mode B와 동일: 카메라 베어링에 기기 나침반 사용 (north-up 아닐 때)
@@ -226,15 +236,19 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           p.latitude, p.longitude,
           _modeANorthUpMode ? 0.0 : _compassHeading,
         );
-        // 잔여 폴리라인 실시간 트리밍 (Mode B와 동일)
-        unawaited(_trimModeAPolylineToRemaining(p, ref.read(modeANavProvider)));
+        // 잔여 폴리라인 실시간 트리밍 (스로틀 없이 완전 실시간)
+        final currentNavState = ref.read(modeANavProvider);
+        if (route?.transport == 'transit') {
+          unawaited(_trimModeATransitPolylines(p, currentNavState));
+        } else {
+          unawaited(_trimModeAPolylineToRemaining(p, currentNavState));
+        }
       }
 
       // Mode B 네비게이션
       final modeBNavState = ref.read(modeBNavProvider);
       if (modeBNavState.isNavigating) {
         _onModeBNavPositionUpdate(p, modeBNavState);
-        // Bug 4: position update 후 갱신된 상태로 폴리라인 트리밍
         unawaited(_trimNavPolylineToRemaining(p, ref.read(modeBNavProvider)));
       }
     });
@@ -571,7 +585,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       // 생성 코스 완성 → 지도에 표시 + 자동 선택 (안내 시작 버튼 즉시 노출)
       if (prev?.generatedCourse?.id != next.generatedCourse?.id &&
           next.generatedCourse != null) {
-        _segmentPolylines = []; // Bug 2: 이전 코스 구간 캐시 초기화
+        _segmentPolylines = []; // 이전 코스 구간 캐시 초기화
         unawaited(_drawGeneratedCourseOnMap(next.generatedCourse!));
         ref.read(routeSearchProvider.notifier).selectGeneratedCourse();
         // sheet를 기본 높이로 올려 카드가 보이도록
@@ -624,10 +638,17 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _resetNavCamera();
         _showArrivalMessage();
       }
-      // 네비게이션 시작 → 도보/자전거: 방향 전환 포인트 계산 및 맵 마커 생성
+      // 네비게이션 시작 → overview 초기화 + 방향 전환 포인트 계산
       if (!(prev?.isNavigating ?? false) && next.isNavigating) {
+        _clearTransitNavPolylines(); // 이전 트리밍 상태 초기화
         final route = ref.read(modeAProvider).routeResult;
-        if (route != null && route.transport != 'transit') {
+        if (route != null && route.transport == 'transit') {
+          if (mounted) setState(() => _modeATransitNavStepMode = false);
+        } else if (route != null) {
+          if (mounted) setState(() {
+            _modeANavStepMode = false;
+            _movedSinceModeANavStart = 0.0;
+          });
           _initModeATurnPoints(route);
           if (_modeATurnPoints.any((t) => t.type != _TurnType.arrival)) {
             unawaited(_drawModeAWalkTurnMarkers(_modeATurnPoints));
@@ -638,6 +659,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       if ((prev?.isNavigating ?? false) && !next.isNavigating) {
         unawaited(_clearNavGuideMarker());
         unawaited(_clearModeAWalkTurnMarkers());
+        _clearTransitNavPolylines();
         if (mounted) setState(_resetModeAWalkTurnState);
         ref.read(modeAProvider.notifier).clearRouteResult();
       }

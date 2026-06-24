@@ -68,7 +68,7 @@ class _ToggleTab extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? kMapGreen.withValues(alpha: 0.9) : Colors.transparent,
+          color: active ? kMapPrimary.withValues(alpha: 0.9) : Colors.transparent,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
@@ -99,63 +99,6 @@ class _Cluster {
   const _Cluster(this.center, this.places);
   final NLatLng center;
   final List<PlaceEntity> places;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// ── Map compass widget ─────────────────────────────────────────────────────────
-// ════════════════════════════════════════════════════════════════════════════
-
-class _MapCompassWidget extends StatelessWidget {
-  const _MapCompassWidget({required this.bearing, required this.onTap});
-  final double bearing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isRotated = bearing.abs() > 1.5;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: kMapPanel,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isRotated ? Colors.white38 : Colors.white12,
-          ),
-          boxShadow: const [
-            BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 2)),
-          ],
-        ),
-        child: Center(
-          child: Transform.rotate(
-            angle: -bearing * (3.14159265359 / 180),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.arrow_upward_rounded,
-                  size: 12,
-                  color: isRotated ? context.colors.danger : kMapWhite45,
-                ),
-                Text(
-                  'N',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    color: isRotated ? context.colors.danger : kMapWhite45,
-                    height: 1.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

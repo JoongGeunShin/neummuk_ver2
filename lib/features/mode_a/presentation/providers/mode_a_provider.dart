@@ -406,8 +406,4 @@ class ModeA extends _$ModeA {
     state = const ModeAState();
   }
 
-  int _calcKcal(String transport, double weight, int durationSec) {
-    const met = {'walk': 3.5, 'bike': 6.0, 'transit': 1.5};
-    return ((met[transport] ?? 3.5) * weight * durationSec / 3600).round();
-  }
 }

@@ -31,7 +31,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// 네비게이션 시작 이후 누적 이동 거리 (자동 단계별 전환 트리거)
   double _movedSinceNavStart = 0.0;
 
-  /// 도착 처리 중복 방지 플래그 (Bug 1)
+  /// 도착 처리 중복 방지 플래그
   bool _arrivalHandled = false;
 
   NaverMapController? get _ctrl;
@@ -86,7 +86,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         _modeBNavStepMode = false;
         _modeBRoadNearestPtIdx = 0;
         _movedSinceNavStart = 0.0;
-        _arrivalHandled = false; // Bug 1: 세션마다 초기화
+        _arrivalHandled = false;
       });
     }
 
@@ -152,7 +152,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _modeBRoadNearestPtIdx = 0;
     });
 
-    _arrivalHandled = false; // Bug 1: 수동 종료 시 초기화
+    _arrivalHandled = false;
     _clearNavPolylineCache();
 
     // 카메라 초기화
@@ -258,7 +258,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       final pts = _segmentPolylines[currentIdx];
       if (pts.isNotEmpty) {
         double minDist = double.infinity;
-        for (var i = 0; i < pts.length; i++) { // Bug 7: 전체 포인트 검사
+        for (var i = 0; i < pts.length; i++) {
           final d = Geolocator.distanceBetween(
               p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
           if (d < minDist) minDist = d;
@@ -302,7 +302,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
       unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
     }
-    // Bug 5: nav spot 마커는 modeBNavProvider listener에서 처리 — 중복 호출 제거
+    // nav spot 마커 갱신은 modeBNavProvider listener에서 처리
   }
 
   void _toggleNorthUpMode() {
@@ -619,7 +619,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   // ── 도착 감지 ─────────────────────────────────────────────────
 
   Future<void> _checkModeBNavArrival(ModeBNavState navState) async {
-    if (_arrivalHandled) return; // Bug 1: 중복 저장 방지
+    if (_arrivalHandled) return;
     if (!navState.isNavigating) return;
     final route = navState.route;
     if (route == null) return;
@@ -629,7 +629,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         : navState.remainingDistanceM < 50;
 
     if (isArrived) {
-      _arrivalHandled = true; // Bug 1: 플래그 먼저 세트
+      _arrivalHandled = true;
       await _saveModeBRecord(navState);
       // stop() 전에 표시용 데이터 캡처 — stop()이 state를 ModeBNavState()로 리셋하므로
       final arrivedNavState = navState;

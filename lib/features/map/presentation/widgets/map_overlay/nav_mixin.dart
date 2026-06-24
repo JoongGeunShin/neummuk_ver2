@@ -20,6 +20,13 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
   int _modeARoadNearestPtIdx = 0;
   int _modeATurnMarkerCount = 0;
 
+  /// false = 전체 경로(overview), true = 단계별(step-by-step)
+  bool _modeANavStepMode = false;
+  double _movedSinceModeANavStart = 0.0;
+
+  /// 대중교통 두 단계 모드: false = 전체 경로 개요, true = 단계별 안내
+  bool _modeATransitNavStepMode = false;
+
   NaverMapController? get _ctrl;
   Position? get _position;
 
@@ -44,15 +51,6 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) _navCameraUpdating = false;
     });
-  }
-
-  double _calcBearing(double lat1, double lng1, double lat2, double lng2) {
-    const toRad = pi / 180;
-    final dLng = (lng2 - lng1) * toRad;
-    final y = sin(dLng) * cos(lat2 * toRad);
-    final x = cos(lat1 * toRad) * sin(lat2 * toRad) -
-        sin(lat1 * toRad) * cos(lat2 * toRad) * cos(dLng);
-    return (atan2(y, x) * 180 / pi + 360) % 360;
   }
 
   void _clearModeANavCache() {
@@ -113,8 +111,7 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
 
     final route = ref.read(modeAProvider).routeResult;
     if (route == null || route.routePoints.isEmpty) return;
-    // 대중교통은 구간별 폴리라인이므로 트리밍 생략
-    if (route.transport == 'transit') return;
+    if (route.transport == 'transit') return; // 대중교통은 _trimModeATransitPolylines에서 처리
 
     final startIdx = navState.nearestPtIdx;
     final isOffRoute = navState.isOffRoute;
@@ -378,6 +375,9 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
   void _resetModeAWalkTurnState() {
     _modeATurnPoints = [];
     _modeARoadNearestPtIdx = 0;
+    _modeANavStepMode = false;
+    _movedSinceModeANavStart = 0.0;
+    _modeATransitNavStepMode = false;
   }
 
   // ── Guide direction marker (next turn point on map) ───────────────────────
@@ -441,6 +441,7 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
     final ctx = context;
 
     for (int i = 0; i < steps.length; i++) {
+      if (i == 0 && steps[i].isWalk) continue; // 출발지는 wp_origin A마커와 중복
       final step = steps[i];
       final lat = step.startLat;
       final lng = step.startLng;
@@ -466,7 +467,7 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
           : (step.lineInfo != null ? '${step.lineInfo} 승차' : step.startName);
 
       final captionColor = isActive
-          ? (step.isBus ? kMapGreen : context.colors.pinUser)
+          ? (step.isBus ? kMapPrimary : context.colors.pinUser)
           : Colors.white54;
 
       final marker = NMarker(

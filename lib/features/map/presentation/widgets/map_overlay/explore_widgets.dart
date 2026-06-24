@@ -76,7 +76,7 @@ class _ExploreTopPanel extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: kMapGreen.withValues(alpha: 0.15),
+                      color: kMapPrimary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Text(
@@ -84,7 +84,7 @@ class _ExploreTopPanel extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: kMapGreen,
+                          color: kMapPrimary,
                           letterSpacing: 0.3),
                     ),
                   ),

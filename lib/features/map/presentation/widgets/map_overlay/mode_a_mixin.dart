@@ -9,12 +9,25 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   int _transitSegPolylineCount = 0;
   int _modeAArrowCount = 0;
   int _modeAGuideMarkerCount = 0;
-  bool _modeAMapFocus = false;    // 지도 탭 시 UI 숨김
-  bool _routePanelEditing = false; // 경로 수정 패널 열림 여부
+  bool _modeAMapFocus = false;
+  bool _routePanelEditing = false;
+
+  // 대중교통 폴리라인 실시간 트리밍 캐시
+  final Map<int, NPolylineOverlay> _transitNavPolylines = {};
+  int _lastTransitTrimStep = -1;
+  int _lastTransitNearestPt = -1;
+  bool _isTrimmingTransit = false;
 
   void _disposeModeA() {
     _sheetACtrl.dispose();
     _nearbyIconCache.clear();
+    _clearTransitNavPolylines();
+  }
+
+  void _clearTransitNavPolylines() {
+    _transitNavPolylines.clear();
+    _lastTransitTrimStep = -1;
+    _lastTransitNearestPt = -1;
   }
 
   // Abstract dependencies
@@ -26,6 +39,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   Future<void> _resetNavCamera();
   _TurnPoint? _getModeACurrentTurn();
   String _getModeADistToNextTurnLabel(List<LatLng> pts);
+  bool get _modeANavStepMode;
+  set _modeANavStepMode(bool v);
+  bool get _modeATransitNavStepMode;
+  set _modeATransitNavStepMode(bool v);
 
   // ── Map focus toggle ───────────────────────────────────────────
 
@@ -151,31 +168,33 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
     if (result.transport == 'transit') {
       // 구간별 별색 폴리라인: 도보=c.success(초록), 버스·지하철=c.pinUser(파랑)
-      final stepsWithPts = result.transitSteps
-          .where((s) => s.stepPoints.length >= 2)
-          .toList();
-      if (stepsWithPts.isNotEmpty) {
-        var segIdx = 0;
-        for (final step in stepsWithPts) {
-          final segCoords = step.stepPoints
-              .map((p) => NLatLng(p.latitude, p.longitude))
-              .toList();
-          await ctrl.addOverlay(NPolylineOverlay(
-            id: 'transit_seg_$segIdx',
-            coords: segCoords,
-            color: step.isWalk ? c.success : c.pinUser,
-            width: step.isWalk ? 4 : 6,
-            lineCap: NLineCap.round,
-            lineJoin: NLineJoin.round,
-          ));
-          // 도보 구간에만 방향 화살표 (버스·지철은 빠르게 지나가 생략)
-          if (step.isWalk) {
-            await _drawModeARouteArrows(segCoords, c.success);
-          }
-          segIdx++;
+      // step index를 polyline id로 사용해 실시간 트리밍 가능하게 함
+      _clearTransitNavPolylines();
+      bool anyDrawn = false;
+      for (int stepIdx = 0; stepIdx < result.transitSteps.length; stepIdx++) {
+        final step = result.transitSteps[stepIdx];
+        if (step.stepPoints.length < 2) continue;
+        final segCoords = step.stepPoints
+            .map((p) => NLatLng(p.latitude, p.longitude))
+            .toList();
+        final poly = NPolylineOverlay(
+          id: 'transit_seg_$stepIdx',
+          coords: segCoords,
+          color: step.isWalk ? c.success : c.pinUser,
+          width: step.isWalk ? 4 : 6,
+          lineCap: NLineCap.round,
+          lineJoin: NLineJoin.round,
+        );
+        await ctrl.addOverlay(poly);
+        _transitNavPolylines[stepIdx] = poly;
+        if (step.isWalk) {
+          await _drawModeARouteArrows(segCoords, c.success);
         }
-        _transitSegPolylineCount = segIdx;
-      } else {
+        anyDrawn = true;
+      }
+      _transitSegPolylineCount = result.transitSteps.length;
+
+      if (!anyDrawn) {
         // stepPoints 없는 폴백: 단색 폴리라인
         await ctrl.addOverlay(NPolylineOverlay(
           id: 'mode_a_route',
@@ -214,6 +233,67 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         coords,
         padding: const EdgeInsets.fromLTRB(60, 180, 60, 320),
       );
+    }
+  }
+
+  // ── 대중교통 폴리라인 실시간 트리밍 (완전 실시간, 스로틀 없음) ──────────────
+
+  Future<void> _trimModeATransitPolylines(
+      Position p, ModeANavState navState) async {
+    if (_isTrimmingTransit) return;
+    _isTrimmingTransit = true;
+    try {
+      if (!mounted || !navState.isNavigating) return;
+      final route = ref.read(modeAProvider).routeResult;
+      if (route == null || route.transport != 'transit') return;
+
+      final stepIdx = navState.currentTransitStepIdx;
+      final steps = route.transitSteps;
+
+      // 완료된 단계: 회색으로 변경
+      for (int i = 0; i < stepIdx && i < steps.length; i++) {
+        final poly = _transitNavPolylines[i];
+        if (poly != null) {
+          poly.setColor(Colors.white24);
+          poly.setWidth(2);
+        }
+      }
+
+      // 현재 단계: 이미 지나온 부분 트리밍
+      if (stepIdx < steps.length) {
+        final step = steps[stepIdx];
+        final pts = step.stepPoints;
+        if (pts.length >= 2) {
+          // 이미 지나간 인덱스부터 앞으로 탐색 (단조 증가만 허용)
+          var nearestIdx = _lastTransitNearestPt < 0 ? 0
+              : _lastTransitNearestPt.clamp(0, pts.length - 1);
+          if (stepIdx != _lastTransitTrimStep) nearestIdx = 0;
+
+          final searchEnd = (nearestIdx + 150).clamp(0, pts.length);
+          double bestDist = double.infinity;
+          for (int i = nearestIdx; i < searchEnd; i++) {
+            final d = _fastDistM(
+                p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
+            if (d < bestDist) { bestDist = d; nearestIdx = i; }
+          }
+
+          if (nearestIdx != _lastTransitNearestPt ||
+              stepIdx != _lastTransitTrimStep) {
+            final poly = _transitNavPolylines[stepIdx];
+            if (poly != null) {
+              final remaining = pts
+                  .sublist(nearestIdx)
+                  .map((pt) => NLatLng(pt.latitude, pt.longitude))
+                  .toList();
+              if (remaining.length >= 2) poly.setCoords(remaining);
+            }
+            _lastTransitNearestPt = nearestIdx;
+            _lastTransitTrimStep = stepIdx;
+          }
+        }
+      }
+    } finally {
+      _isTrimmingTransit = false;
     }
   }
 
@@ -456,7 +536,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             },
             child: const Text('계속 진행',
                 style: TextStyle(
-                    color: kMapGreen, fontSize: 13, fontWeight: FontWeight.w700)),
+                    color: kMapPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -467,7 +547,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: kMapGreen,
+        backgroundColor: kMapPrimary,
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -773,25 +853,29 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       // ── 안내 중: 상단 카드 + 하단 스트립 ──────────────────────
       if (navState.isNavigating) ...[
         if (modeAState.routeResult!.transport == 'transit') ...[
-          // 대중교통: 기존 카드 유지
+          // 대중교통: overview ↔ step-by-step 두 단계
           Positioned(
-            top: MediaQuery.paddingOf(context).top + 8,
-            left: 0, right: 0,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _NavTransitCard(
-                  navState: navState, route: modeAState.routeResult!),
-            ),
+            top: 0, left: 0, right: 0,
+            child: _modeATransitNavStepMode
+                ? _NavTransitCard(
+                    navState: navState,
+                    route: modeAState.routeResult!,
+                    onOverview: () =>
+                        setState(() => _modeATransitNavStepMode = false),
+                  )
+                : _ModeATransitNavOverviewCard(
+                    navState: navState,
+                    route: modeAState.routeResult!,
+                    onStepMode: () =>
+                        setState(() => _modeATransitNavStepMode = true),
+                  ),
           ),
           Positioned(
             left: 0, right: 0, bottom: 0,
-            child: _NavBottomStrip(
+            child: _ModeAWalkNavBottomStrip(
               navState: navState,
-              route: modeAState.routeResult!,
-              currentGuideIdx: 0,
-              totalGuides: 0,
-              onPrevGuide: () {},
-              onNextGuide: () {},
+              transport: 'transit',
+              totalDistanceM: modeAState.routeResult!.distanceKm * 1000,
               onStop: () {
                 ref.read(modeANavProvider.notifier).stop();
                 _resetNavCamera();
@@ -799,26 +883,35 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             ),
           ),
         ] else ...[
-          // 도보/자전거: Mode B 스타일 방향 전환 안내 카드
+          // 도보/자전거: overview ↔ step-by-step 두 단계
           Positioned(
             top: 0, left: 0, right: 0,
-            child: _ModeAWalkNavTopCard(
-              navState: navState,
-              transport: modeAState.routeResult!.transport,
-              turnPoint: _getModeACurrentTurn(),
-              distanceLabel: _getModeADistToNextTurnLabel(
-                  modeAState.routeResult!.routePoints),
-              onClose: () {
-                ref.read(modeANavProvider.notifier).stop();
-                _resetNavCamera();
-              },
-            ),
+            child: _modeANavStepMode
+                ? _ModeAWalkNavTurnCard(
+                    navState: navState,
+                    transport: modeAState.routeResult!.transport,
+                    turnPoint: _getModeACurrentTurn(),
+                    distanceLabel: _getModeADistToNextTurnLabel(
+                        modeAState.routeResult!.routePoints),
+                    onOverview: () =>
+                        setState(() => _modeANavStepMode = false),
+                  )
+                : _ModeAWalkNavOverviewCard(
+                    navState: navState,
+                    destName: modeAState.to,
+                    transport: modeAState.routeResult!.transport,
+                    totalDistanceM:
+                        modeAState.routeResult!.distanceKm * 1000,
+                    onStepMode: () =>
+                        setState(() => _modeANavStepMode = true),
+                  ),
           ),
           Positioned(
             left: 0, right: 0, bottom: 0,
             child: _ModeAWalkNavBottomStrip(
               navState: navState,
               transport: modeAState.routeResult!.transport,
+              totalDistanceM: modeAState.routeResult!.distanceKm * 1000,
               onStop: () {
                 ref.read(modeANavProvider.notifier).stop();
                 _resetNavCamera();
@@ -834,7 +927,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           child: Container(
             color: Colors.black38,
             child: const Center(
-              child: CircularProgressIndicator(color: kMapGreen, strokeWidth: 2),
+              child: CircularProgressIndicator(color: kMapPrimary, strokeWidth: 2),
             ),
           ),
         ),

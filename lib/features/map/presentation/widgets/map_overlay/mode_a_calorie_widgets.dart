@@ -32,7 +32,7 @@ class _KcalWidget extends ConsumerWidget {
             if (routeKcal != null)
               Text('+$routeKcal 예상',
                   style: const TextStyle(
-                      fontSize: 10, color: kMapGreen, fontWeight: FontWeight.w600)),
+                      fontSize: 10, color: kMapPrimary, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -136,125 +136,44 @@ class _CalorieComparePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gap = destKcal - routeKcal;
-    final isGood = gap.abs() <= (destKcal * AppConstants.kcalMatchTolerancePct).round();
     final needMore = gap > 0;
-    final routeRatio = (routeKcal / destKcal).clamp(0.0, 1.0);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: kMapPanelAlt,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Text('칼로리 비교',
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: kMapWhite87)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: isGood
-                    ? context.colors.success.withValues(alpha: 0.2)
-                    : context.colors.warn.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                isGood ? '딱 맞아요 ✓' : needMore ? '$gap kcal 더 필요' : '${-gap} kcal 여유',
-                style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700,
-                  color: isGood ? context.colors.success : context.colors.warn,
-                ),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          _KcalBar(label: '경로 소모', kcal: routeKcal, ratio: routeRatio, color: context.colors.success),
-          const SizedBox(height: 6),
-          _KcalBar(label: '음식 칼로리', kcal: destKcal, ratio: 1.0, color: context.colors.warn),
-          if (!isGood && needMore) ...[
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onAddWaypoint,
-              child: Builder(builder: (ctx) {
-                final warnColor = ctx.colors.warn;
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: warnColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: warnColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_location_alt_rounded, size: 15, color: warnColor),
-                      const SizedBox(width: 6),
-                      Text('경유지 추가로 더 움직이기',
-                          style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700,
-                              color: warnColor)),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _KcalBar extends StatelessWidget {
-  const _KcalBar({
-    required this.label,
-    required this.kcal,
-    required this.ratio,
-    required this.color,
-  });
-
-  final String label;
-  final int kcal;
-  final double ratio;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600)),
-            Text('$kcal kcal',
-                style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
-          ],
+        CalorieCompareDonut(
+          kcalBurn: routeKcal,
+          kcalFood: destKcal,
+          size: 160,
         ),
-        const SizedBox(height: 4),
-        LayoutBuilder(builder: (ctx, constraints) {
-          return Stack(children: [
-            Container(
-              height: 6, width: constraints.maxWidth,
-              decoration: BoxDecoration(
-                  color: Colors.white12, borderRadius: BorderRadius.circular(3)),
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeOutCubic,
-              height: 6, width: constraints.maxWidth * ratio,
-              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
-            ),
-          ]);
-        }),
+        if (needMore) ...[
+          const SizedBox(height: 14),
+          GestureDetector(
+            onTap: onAddWaypoint,
+            child: Builder(builder: (ctx) {
+              final warnColor = ctx.colors.warn;
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: warnColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: warnColor.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_location_alt_rounded, size: 15, color: warnColor),
+                    const SizedBox(width: 6),
+                    Text('경유지 추가로 더 움직이기',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700,
+                            color: warnColor)),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
       ],
     );
   }
@@ -308,7 +227,7 @@ class _WaypointCandidateSheet extends StatelessWidget {
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: CircularProgressIndicator(color: kMapGreen, strokeWidth: 2),
+                child: CircularProgressIndicator(color: kMapPrimary, strokeWidth: 2),
               ),
             )
           else if (state.waypointCandidates.isEmpty)
@@ -370,12 +289,12 @@ class _WaypointCandidateCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: kMapGreen.withValues(alpha: 0.15),
+                  color: kMapPrimary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(candidate.category,
                     style: const TextStyle(
-                        fontSize: 10, color: kMapGreen, fontWeight: FontWeight.w700)),
+                        fontSize: 10, color: kMapPrimary, fontWeight: FontWeight.w700)),
               ),
               const SizedBox(height: 4),
               Text(candidate.name,
@@ -399,13 +318,13 @@ class _WaypointCandidateCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: kMapGreen.withValues(alpha: 0.15),
+                color: kMapPrimary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: kMapGreen.withValues(alpha: 0.5)),
+                border: Border.all(color: kMapPrimary.withValues(alpha: 0.5)),
               ),
               child: const Text('+ 경유지 추가',
                   style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700, color: kMapGreen)),
+                      fontSize: 11, fontWeight: FontWeight.w700, color: kMapPrimary)),
             ),
           ),
       ]),

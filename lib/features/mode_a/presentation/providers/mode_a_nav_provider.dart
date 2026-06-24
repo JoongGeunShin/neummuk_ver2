@@ -73,11 +73,21 @@ class ModeANav extends _$ModeANav {
           pts[i].latitude, pts[i].longitude,
           pts[i + 1].latitude, pts[i + 1].longitude);
     }
-    final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
+
+    // 대중교통은 ODsay가 준 실제 소요시간 사용 (거리/속도 추정 부정확)
+    // 도보/자전거는 거리 ÷ 속도로 추정
+    final int initialSec;
+    if (route.transport == 'transit') {
+      initialSec = route.durationSeconds;
+    } else {
+      final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
+      initialSec = (totalM / speedMs).round();
+    }
+
     state = ModeANavState(
       isNavigating: true,
       remainingDistanceM: totalM.round(),
-      remainingSec: (totalM / speedMs).round(),
+      remainingSec: initialSec,
       nextGuide: route.guides.isNotEmpty ? route.guides.first : null,
       currentTransitStepIdx: 0,
     );
@@ -111,8 +121,6 @@ class ModeANav extends _$ModeANav {
       remM += _dist(pts[i].latitude, pts[i].longitude,
           pts[i + 1].latitude, pts[i + 1].longitude);
     }
-    final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
-
     final nextGuide = _nextGuide(bestIdx, pts, route.guides);
 
     // 대중교통: 현재 단계 끝 지점 도달 시 다음 단계로 전진
@@ -121,10 +129,25 @@ class ModeANav extends _$ModeANav {
       transitIdx = _advanceTransitStep(lat, lng, route.transitSteps, transitIdx);
     }
 
+    // 남은 시간 계산
+    // - 대중교통: 현재 구간 이후 남은 구간들의 sectionTimeMin 합산 (초 환산)
+    // - 도보/자전거: 남은 거리 ÷ 속도
+    int remSec;
+    if (route.transport == 'transit' && route.transitSteps.isNotEmpty) {
+      int remMin = 0;
+      for (int s = transitIdx; s < route.transitSteps.length; s++) {
+        remMin += route.transitSteps[s].sectionTimeMin;
+      }
+      remSec = remMin * 60;
+    } else {
+      final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
+      remSec = (remM / speedMs).round();
+    }
+
     state = state.copyWith(
       nearestPtIdx: bestIdx,
       remainingDistanceM: remM.round(),
-      remainingSec: (remM / speedMs).round(),
+      remainingSec: remSec,
       nextGuide: nextGuide,
       isOffRoute: offRoute,
       showReroutePrompt: offRoute && !state.isOffRoute,
