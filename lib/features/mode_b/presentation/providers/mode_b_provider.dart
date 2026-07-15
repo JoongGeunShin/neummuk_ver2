@@ -362,7 +362,7 @@ class RouteSearch extends _$RouteSearch {
       }
 
       // 카트 기반: 선택 스팟 전부 포함(TSP) / 앱 자동: 반경 내 자동 선택(최대 5개)
-      var course = ref.read(modeBRepositoryProvider).generateCourse(
+      var course = await ref.read(modeBRepositoryProvider).generateCourse(
             spots: cartItems.isNotEmpty ? const [] : baseSpots,
             userLat: lat,
             userLng: lng,
@@ -392,7 +392,7 @@ class RouteSearch extends _$RouteSearch {
           final cartIds = baseSpots.map((s) => s.id).toSet();
           optionalPool = extraSpots.where((s) => !cartIds.contains(s.id)).toList();
 
-          course = ref.read(modeBRepositoryProvider).generateCourse(
+          course = await ref.read(modeBRepositoryProvider).generateCourse(
                 spots: optionalPool,
                 userLat: lat,
                 userLng: lng,

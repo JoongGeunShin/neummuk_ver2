@@ -194,6 +194,11 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           p.latitude, p.longitude, weightKg, transport);
     final updatedState = ref.read(modeBNavProvider);
     final newWpIdx = updatedState.currentWaypointIdx;
+    final wpAdvanced = newWpIdx != prevWpIdx;
+    // 세그먼트가 바뀌면 이전 세그먼트 기준 위치 인덱스는 새 세그먼트에 무의미하므로
+    // _onGeneratedCourseWaypointAdvanced(비동기)가 처리하기 전에 이번 틱에서 즉시 리셋한다.
+    // (안 하면 아래 _updateRoadNearestPtIdx가 옛 인덱스로 새 폴리라인을 탐색하는 race가 생김)
+    if (wpAdvanced) _modeBRoadNearestPtIdx = 0;
 
     // 이동 방향 계산 (GPS 기반)
     final prev = _modeBNavPrevPosition;
@@ -238,17 +243,13 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     }
 
     // 생성 코스: 다음 waypoint 도착 감지 → 구간 교체
-    if ((navState.route?.isGenerated ?? false) && newWpIdx != prevWpIdx) {
+    if ((navState.route?.isGenerated ?? false) && wpAdvanced) {
       unawaited(_onGeneratedCourseWaypointAdvanced(
           updatedState.route!, newWpIdx));
     }
 
-    // GPX 코스 이탈 감지 → 이탈 전환 시점에 스낵바 (폴리라인 색상은 trim에서 처리)
-    if (!(navState.route?.isGenerated ?? true) &&
-        !navState.isOffRoute &&
-        updatedState.isOffRoute) {
-      _showModeBOffRouteSnackBar();
-    }
+    // GPX 코스 이탈 스낵바는 map_overlay.dart의 ref.listen(modeBNavProvider)에서
+    // isOffRoute 전환을 감지해 단일 지점에서 처리한다 (여기서 중복 트리거하지 않음).
 
     // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로
     final route = navState.route;

@@ -12,6 +12,9 @@ class ModeBCourseGenerator {
   /// [mandatorySpots] : 반드시 포함할 스팟 (카트 기반) — TSP 최적 순서로 먼저 배치
   /// [forceAll]       : true = spots 전부 포함 (mandatorySpots 없을 때 카트 전체 전달용)
   /// [maxWaypoints]   : 자동 선택 시 최대 경유지 수
+  ///
+  /// 직선거리×보정계수 추정치만으로 스팟을 고르고 조립한다. 실거리 기반 보정이 필요하면
+  /// [select] + [buildRoute]를 분리 호출해 실측 거리를 반영할 것 (리포지토리 계층에서 사용).
   TouristRouteEntity? generate({
     required List<SpotEntity> spots,
     required double userLat,
@@ -23,7 +26,44 @@ class ModeBCourseGenerator {
     bool forceAll = false,
     int maxWaypoints = 5,
   }) {
-    if (spots.isEmpty && mandatorySpots.isEmpty) return null;
+    final picked = select(
+      spots: spots,
+      userLat: userLat,
+      userLng: userLng,
+      targetKcal: targetKcal,
+      transport: transport,
+      weightKg: weightKg,
+      mandatorySpots: mandatorySpots,
+      forceAll: forceAll,
+      maxWaypoints: maxWaypoints,
+    );
+    if (picked.selected.isEmpty) return null;
+    return buildRoute(
+      selected: picked.selected,
+      userLat: userLat,
+      userLng: userLng,
+      transport: transport,
+      weightKg: weightKg,
+    );
+  }
+
+  /// 스팟 선택만 수행 (실거리 보정 루프에서 재사용하기 위해 조립과 분리).
+  /// [mandatoryCount] : 반환된 [selected] 중 앞쪽 N개가 "반드시 포함" 스팟 — 실거리 보정 시
+  /// 이 구간은 순서/포함 여부를 건드리면 안 됨.
+  ({List<SpotEntity> selected, int mandatoryCount}) select({
+    required List<SpotEntity> spots,
+    required double userLat,
+    required double userLng,
+    required int targetKcal,
+    required String transport,
+    required double weightKg,
+    List<SpotEntity> mandatorySpots = const [],
+    bool forceAll = false,
+    int maxWaypoints = 5,
+  }) {
+    if (spots.isEmpty && mandatorySpots.isEmpty) {
+      return (selected: <SpotEntity>[], mandatoryCount: 0);
+    }
 
     final isBike = transport == 'bike';
     final met = isBike ? AppConstants.metValues['bike']! : AppConstants.metValues['walk']!;
@@ -39,10 +79,12 @@ class ModeBCourseGenerator {
     final maxKm = targetKm * (1 + tolerance);
 
     List<SpotEntity> selected;
+    int mandatoryCount;
 
     if (forceAll) {
       // spots 전체 포함 + TSP 순서 (카트 전체를 spots로 전달하는 단순 케이스)
       selected = _tspOrder(spots, userLat, userLng);
+      mandatoryCount = selected.length;
     } else if (mandatorySpots.isNotEmpty) {
       // 필수 스팟 먼저 (TSP), 그 다음 spots 풀에서 자동 보충
       selected = _selectWithMandatory(
@@ -55,6 +97,7 @@ class ModeBCourseGenerator {
         tolerance: tolerance,
         maxWaypoints: maxWaypoints,
       );
+      mandatoryCount = mandatorySpots.length;
     } else {
       // 순수 자동 선택
       selected = _selectAuto(
@@ -69,22 +112,45 @@ class ModeBCourseGenerator {
         tolerance: tolerance,
         maxWaypoints: maxWaypoints,
       );
+      mandatoryCount = 0;
     }
 
+    return (selected: selected, mandatoryCount: mandatoryCount);
+  }
+
+  /// [selected] 스팟들로 왕복 코스 엔티티 조립.
+  /// [actualDistKmOverride] : TMAP/Kakao 실측 왕복 거리(km). null이면 직선거리×보정계수로 추정.
+  TouristRouteEntity? buildRoute({
+    required List<SpotEntity> selected,
+    required double userLat,
+    required double userLng,
+    required String transport,
+    required double weightKg,
+    double? actualDistKmOverride,
+  }) {
     if (selected.isEmpty) return null;
 
-    // 귀환 포함 총 직선 거리 계산
-    double straightKm = 0.0;
-    double curLat = userLat, curLng = userLng;
-    for (final s in selected) {
-      straightKm += _distKm(curLat, curLng, s.lat, s.lng);
-      curLat = s.lat;
-      curLng = s.lng;
-    }
-    straightKm += _distKm(curLat, curLng, userLat, userLng);
+    final isBike = transport == 'bike';
+    final met = isBike ? AppConstants.metValues['bike']! : AppConstants.metValues['walk']!;
+    final speedKmh = isBike ? 15.0 : 4.0;
+    final routeFactor = isBike ? 1.25 : 1.3;
 
-    // 직선거리 → 도로 실거리 보정
-    final actualDistKm = straightKm * routeFactor;
+    double actualDistKm;
+    if (actualDistKmOverride != null) {
+      actualDistKm = actualDistKmOverride;
+    } else {
+      // 귀환 포함 총 직선 거리 → 도로 실거리 보정
+      double straightKm = 0.0;
+      double curLat = userLat, curLng = userLng;
+      for (final s in selected) {
+        straightKm += _distKm(curLat, curLng, s.lat, s.lng);
+        curLat = s.lat;
+        curLng = s.lng;
+      }
+      straightKm += _distKm(curLat, curLng, userLat, userLng);
+      actualDistKm = straightKm * routeFactor;
+    }
+
     final actualHours = actualDistKm / speedKmh;
     final actualKcal = (met * weightKg * actualHours).round();
     final actualMinutes = (actualHours * 60).round().clamp(1, 9999);
@@ -115,6 +181,11 @@ class ModeBCourseGenerator {
       source: 'generated',
     );
   }
+
+  /// 스팟 추가/제거 후 TSP 순서 재정렬 (실거리 보정 루프 전용 — 순수 자동선택 케이스에서만 사용)
+  List<SpotEntity> reorderForTsp(
+          List<SpotEntity> spots, double startLat, double startLng) =>
+      _tspOrder(spots, startLat, startLng);
 
   // ── 필수 스팟 우선 + 자동 보충 ───────────────────────────────────
 

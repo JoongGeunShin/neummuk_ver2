@@ -49,6 +49,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   /// _ModeBNavOverlayMixin에서 구현 — 단계별 모드 활성 여부
   bool get _modeBNavStepMode;
 
+  /// _ModeBNavOverlayMixin에서 구현 — 방향 전환 포인트 목록 (재경로 시 갱신 필요)
+  List<_TurnPoint> get _modeBTurnPoints;
+  set _modeBTurnPoints(List<_TurnPoint> value);
+
+  /// _ModeBNavOverlayMixin에서 구현 — 도로 경로 포인트 → 턴포인트 계산
+  List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts);
+
+  /// _ModeBNavOverlayMixin에서 구현 — 현재 구간 도로 경로상의 위치 인덱스
+  set _modeBRoadNearestPtIdx(int value);
+
   /// 생성 코스 구간별 도로 폴리라인 (인덱스 N = 이전 waypoint → waypoint[N])
   List<List<NLatLng>> _segmentPolylines = [];
 
@@ -112,6 +122,20 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       // 재경로 후 nav provider의 구간 거리도 갱신
       final updatedDists = _segmentPolylines.map(_totalPolylineLength).toList();
       ref.read(modeBNavProvider.notifier).updateSegmentDistances(updatedDists);
+
+      // 새 세그먼트 기준으로 턴포인트/위치 인덱스 재계산
+      // (_onGeneratedCourseWaypointAdvanced와 동일하게 처리 — 안 하면 재경로 후에도
+      // 옛 경로 기준 턴 안내가 남는다)
+      final newSeg = _segmentPolylines[currentWpIdx];
+      _modeBTurnPoints = newSeg.isNotEmpty
+          ? _computeTurnPoints(
+              newSeg.map((pt) => (lat: pt.latitude, lng: pt.longitude)).toList())
+          : [];
+      _modeBRoadNearestPtIdx = 0;
+
+      if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
+        unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
+      }
     } catch (_) {}
   }
 
@@ -1322,27 +1346,24 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       _lastTrimOffRoute = isOffRoute;
 
     } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
-      if (_modeBNavStepMode) return;
-
+      // 생성 코스는 단계별/전체보기 모드와 무관하게 seg_N 폴리라인이 항상 표시되므로
+      // (_toggleNavStepMode 참고) 단계별 모드에서도 트리밍을 계속 갱신해야 한다.
       final currentIdx =
           navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
       final pts = _segmentPolylines[currentIdx];
       if (pts.isEmpty) return;
 
       int nearestIdx = 0;
-      double nearestSqDist = double.infinity;
+      double nearestDistM = double.infinity;
       for (int i = 0; i < pts.length; i++) {
-        final dlat = pts[i].latitude - p.latitude;
-        final dlng = pts[i].longitude - p.longitude;
-        final sq = dlat * dlat + dlng * dlng;
-        if (sq < nearestSqDist) {
-          nearestSqDist = sq;
+        final d = _fastDistM(p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
+        if (d < nearestDistM) {
+          nearestDistM = d;
           nearestIdx = i;
         }
       }
 
-      // 100m ≈ 위경도 0.001° → sq ≈ 0.000001 (경도 보정 없이 근사)
-      final isOffRoute = nearestSqDist > 8.1e-7; // ~90m
+      final isOffRoute = nearestDistM > 90;
 
       if (nearestIdx == _lastTrimSegIdx && isOffRoute == _lastTrimOffRoute) return;
       if (nearestIdx <= 0) return;

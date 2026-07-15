@@ -14,6 +14,7 @@ import '../../domain/repositories/mode_b_repository.dart';
 import '../../domain/services/mode_b_course_generator.dart';
 import '../datasources/durunubi_datasource.dart';
 import '../datasources/kakao_local_spots_datasource.dart';
+import '../datasources/tmap_route_datasource.dart';
 import '../datasources/tour_api_courses_datasource.dart';
 import '../datasources/tour_api_spots_datasource.dart';
 
@@ -31,6 +32,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
   final _kakaoSpots = KakaoLocalSpotsDatasource();
   final _tourApiSpots = TourApiSpotsDatasource();
   final _generator = const ModeBCourseGenerator();
+  final _tmapRoute = TmapRouteDatasource();
 
   // ── 음식 검색 ────────────────────────────────────────────────────
 
@@ -200,8 +202,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
   // ── 코스 생성 ────────────────────────────────────────────────────
 
   @override
-  @override
-  TouristRouteEntity? generateCourse({
+  Future<TouristRouteEntity?> generateCourse({
     required List<SpotEntity> spots,
     required double userLat,
     required double userLng,
@@ -209,17 +210,66 @@ class ModeBRepositoryImpl implements ModeBRepository {
     required String transport,
     List<SpotEntity> mandatorySpots = const [],
     bool forceAll = false,
-  }) =>
-      _generator.generate(
-        spots: spots,
+  }) async {
+    final picked = _generator.select(
+      spots: spots,
+      userLat: userLat,
+      userLng: userLng,
+      targetKcal: targetKcal,
+      transport: transport,
+      weightKg: _weightKg,
+      mandatorySpots: mandatorySpots,
+      forceAll: forceAll,
+    );
+    if (picked.selected.isEmpty) return null;
+
+    // 실거리 보정이 스팟 구성을 건드려도 되는 범위:
+    // - 제거: forceAll(카트 전체 고정)이 아닐 때만, mandatory 구간은 보존
+    // - 추가+재정렬: 순수 자동선택(mandatory 없음)일 때만 — mandatory-먼저 순서를 흐트러뜨리지 않기 위함
+    final canRemove = !forceAll;
+    final canAdd = picked.mandatoryCount == 0 && !forceAll;
+    final selectedIds = picked.selected.map((s) => s.id).toSet();
+    final pool = spots.where((s) => !selectedIds.contains(s.id)).toList();
+
+    var current = List<SpotEntity>.of(picked.selected);
+    final tolerance = targetKcal * AppConstants.kcalMatchTolerancePct;
+    TouristRouteEntity? result;
+
+    const maxCorrections = 2;
+    for (var i = 0; i <= maxCorrections; i++) {
+      final realDistKm = await _tmapRoute.fetchRoundTripDistanceKm(
+        startLat: userLat,
+        startLng: userLng,
+        orderedSpots: current,
+      );
+
+      result = _generator.buildRoute(
+        selected: current,
         userLat: userLat,
         userLng: userLng,
-        targetKcal: targetKcal,
         transport: transport,
         weightKg: _weightKg,
-        mandatorySpots: mandatorySpots,
-        forceAll: forceAll,
+        actualDistKmOverride: realDistKm,
       );
+      if (result == null) return null;
+
+      final diff = result.kcal - targetKcal;
+      if (i == maxCorrections || diff.abs() <= tolerance) break;
+
+      if (diff > 0 && canRemove && current.length > picked.mandatoryCount && current.length > 1) {
+        // 칼로리 초과 → 가장 마지막에 방문하는(가장 먼) 자동보충 스팟 제거
+        current = current.sublist(0, current.length - 1);
+      } else if (diff < 0 && canAdd && pool.isNotEmpty) {
+        // 칼로리 부족 → 다음 후보 추가 후 TSP 재정렬
+        final next = pool.removeAt(0);
+        current = _generator.reorderForTsp([...current, next], userLat, userLng);
+      } else {
+        break;
+      }
+    }
+
+    return result;
+  }
 
   // ── Enrichment ────────────────────────────────────────────────────
 

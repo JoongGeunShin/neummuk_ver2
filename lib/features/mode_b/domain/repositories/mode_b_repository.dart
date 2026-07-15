@@ -25,10 +25,10 @@ abstract interface class ModeBRepository {
     required String transport,
   });
 
-  /// 스팟 목록 → 코스 생성
+  /// 스팟 목록 → 코스 생성. 선택 완료 후 TMAP/Kakao 실거리로 스팟 구성을 보정한다.
   /// [mandatorySpots] 반드시 포함할 스팟 (카트 기반) — TSP 순서로 먼저 배치, spots 풀로 보충
   /// [forceAll]       true = spots 전부 포함 + TSP 순서
-  TouristRouteEntity? generateCourse({
+  Future<TouristRouteEntity?> generateCourse({
     required List<SpotEntity> spots,
     required double userLat,
     required double userLng,
