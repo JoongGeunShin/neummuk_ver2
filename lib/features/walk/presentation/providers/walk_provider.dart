@@ -110,7 +110,7 @@ class WalkSession extends _$WalkSession {
       foregroundTaskOptions: ForegroundTaskOptions(
         // 1초마다 onRepeatEvent 호출 — task isolate에서 칼로리 누적
         eventAction: ForegroundTaskEventAction.repeat(1000),
-        autoRunOnBoot: false,
+        autoRunOnBoot: true,
         allowWakeLock: true,
       ),
     );
