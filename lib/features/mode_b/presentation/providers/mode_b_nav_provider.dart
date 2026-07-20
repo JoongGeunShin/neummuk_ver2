@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -256,6 +257,16 @@ class ModeBNav extends _$ModeBNav {
     final isBike = transport == 'bike';
     final speedMs = isBike ? 4.17 : 1.25;
 
+    // 현재 구간(직전 지점 → 목표 웨이포인트) 직선 대비 이탈 감지
+    final prevLat = curIdx == 0 ? (route.startLat ?? target.lat) : wps[curIdx - 1].lat;
+    final prevLng = curIdx == 0 ? (route.startLng ?? target.lng) : wps[curIdx - 1].lng;
+    final offRoute = _distToSegmentM(lat, lng, prevLat, prevLng, target.lat, target.lng) > 80;
+    if (offRoute != state.isOffRoute) {
+      debugPrint(offRoute
+          ? '[ModeBNav] 이탈 감지: ${target.name} 구간에서 80m 이상 벗어남'
+          : '[ModeBNav] 이탈 해제: 경로 구간으로 복귀');
+    }
+
     String instruction;
 
     if (distToTarget < 50) {
@@ -300,7 +311,7 @@ class ModeBNav extends _$ModeBNav {
       remainingDistanceM: remM.round(),
       remainingSec: (remM / speedMs).round(),
       nextInstruction: instruction,
-      isOffRoute: false,
+      isOffRoute: offRoute,
       elapsedKcal: newKcal,
     );
   }
@@ -425,5 +436,27 @@ class ModeBNav extends _$ModeBNav {
     final dLng = (lng2 - lng1) * toRad;
     final cosLat = math.cos(lat1 * toRad);
     return r * math.sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+  }
+
+  /// 점(lat,lng)에서 선분(aLat,aLng)-(bLat,bLng)까지 최단 거리(m) — 평면 근사
+  double _distToSegmentM(
+    double lat, double lng,
+    double aLat, double aLng,
+    double bLat, double bLng,
+  ) {
+    const r = 6371000.0, toRad = math.pi / 180;
+    final cosLat = math.cos(aLat * toRad);
+    double toX(double lg) => (lg - aLng) * toRad * cosLat * r;
+    double toY(double lt) => (lt - aLat) * toRad * r;
+
+    final px = toX(lng), py = toY(lat);
+    final bx = toX(bLng), by = toY(bLat);
+
+    final segLenSq = bx * bx + by * by;
+    if (segLenSq == 0) return _dist(lat, lng, aLat, aLng);
+
+    final t = ((px * bx + py * by) / segLenSq).clamp(0.0, 1.0);
+    final dx = px - bx * t, dy = py - by * t;
+    return math.sqrt(dx * dx + dy * dy);
   }
 }

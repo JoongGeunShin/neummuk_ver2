@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -414,6 +415,16 @@ class RouteSearch extends _$RouteSearch {
           if (wp.type == '출발지') continue;
           final spot = candidateMap['${wp.lat}_${wp.lng}'];
           if (spot != null) cartNotifier.add(spot);
+        }
+      }
+
+      if (course != null) {
+        debugPrint('[ModeBNav] 생성 코스 좌표 (에뮬레이터 테스트용):');
+        if (course.startLat != null && course.startLng != null) {
+          debugPrint('  출발지: ${course.startLat}, ${course.startLng}');
+        }
+        for (final wp in course.waypoints) {
+          debugPrint('  ${wp.name}: ${wp.lat}, ${wp.lng}');
         }
       }
 
