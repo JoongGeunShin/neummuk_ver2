@@ -35,7 +35,10 @@ Future<List<RoadPoint>> fetchGeneratedCourseRoadRoute({
     if (legPoints.isNotEmpty) {
       all.addAll(legPoints);
     } else {
-      // 두 API 모두 실패하면 직선으로 폴백 (앱 쪽 로직과 동일)
+      // 두 API 모두 실패하면 직선으로 폴백 (앱 쪽 로직과 동일) — 위 로그로 원인 확인할 것
+      // ignore: avoid_print
+      print('[RoadRoute] $prevLat,$prevLng → ${wp.lat},${wp.lng}: '
+          '도로 경로 조회 실패, 직선으로 대체됨');
       all.add(RoadPoint(wp.lat, wp.lng));
     }
     prevLat = wp.lat;
@@ -103,7 +106,12 @@ Future<List<RoadPoint>> _fetchTmapPedestrianLeg({
         )
         .timeout(const Duration(seconds: 10));
 
-    if (res.statusCode != 200) return const [];
+    if (res.statusCode != 200) {
+      // ignore: avoid_print
+      print('[TMAP] leg $fromLat,$fromLng → $toLat,$toLng 실패: '
+          'status=${res.statusCode} body=${_head(res.body)}');
+      return const [];
+    }
 
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final features = data['features'] as List?;
@@ -120,10 +128,14 @@ Future<List<RoadPoint>> _fetchTmapPedestrianLeg({
       }
     }
     return points;
-  } catch (_) {
+  } catch (e) {
+    // ignore: avoid_print
+    print('[TMAP] leg $fromLat,$fromLng → $toLat,$toLng 예외: $e');
     return const [];
   }
 }
+
+String _head(String s) => s.length > 300 ? s.substring(0, 300) : s;
 
 Future<List<RoadPoint>> _fetchKakaoCarLeg({
   required double fromLat,
@@ -150,12 +162,22 @@ Future<List<RoadPoint>> _fetchKakaoCarLeg({
         )
         .timeout(const Duration(seconds: 10));
 
-    if (res.statusCode != 200) return const [];
+    if (res.statusCode != 200) {
+      // ignore: avoid_print
+      print('[KakaoMobility] leg $fromLat,$fromLng → $toLat,$toLng 실패: '
+          'status=${res.statusCode} body=${_head(res.body)}');
+      return const [];
+    }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final routes = data['routes'] as List?;
     if (routes == null || routes.isEmpty) return const [];
     final route = routes[0] as Map<String, dynamic>;
-    if ((route['result_code'] as num? ?? -1).toInt() != 0) return const [];
+    if ((route['result_code'] as num? ?? -1).toInt() != 0) {
+      // ignore: avoid_print
+      print('[KakaoMobility] leg $fromLat,$fromLng → $toLat,$toLng '
+          'result_code=${route['result_code']} msg=${route['result_msg']}');
+      return const [];
+    }
 
     final points = <RoadPoint>[];
     for (final section in (route['sections'] as List? ?? [])) {
@@ -170,7 +192,9 @@ Future<List<RoadPoint>> _fetchKakaoCarLeg({
       }
     }
     return points;
-  } catch (_) {
+  } catch (e) {
+    // ignore: avoid_print
+    print('[KakaoMobility] leg $fromLat,$fromLng → $toLat,$toLng 예외: $e');
     return const [];
   }
 }

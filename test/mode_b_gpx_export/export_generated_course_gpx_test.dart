@@ -1,64 +1,61 @@
-// 스팟 기반 생성 코스(Mode B "코스 생성") 알고리즘을 실행해 실제 도로를 따라가는
-// GPX 파일로 내보낸다. 결과 파일을 안드로이드 스튜디오 에뮬레이터의
-// Extended Controls > Location > Routes 탭에서 그대로 import해 재생하면,
-// 실기기 GPS 없이도 이탈 감지·도착 판정·잔여거리 계산을 실제 도로 경로로 검증할 수 있다.
+// 실제 위치 기준으로 스팟을 검색하고(Kakao Local + TourAPI), Mode B "코스 생성" 알고리즘을
+// 그대로 돌려서 실제 도로를 따라가는 GPX 파일로 내보낸다. 앱에서 사용자가 위치+목표 칼로리로
+// 코스 생성을 눌렀을 때와 동일한 결과를 재현한다 — 아래 상수만 바꾸면 스팟을 손으로 고를 필요 없음.
+// 결과 파일을 안드로이드 스튜디오 에뮬레이터의 Extended Controls > Location > Routes 탭에서
+// 그대로 import해 재생하면, 실기기 GPS 없이도 이탈 감지·도착 판정·잔여거리 계산을 검증할 수 있다.
 //
 // 실행: flutter test test/mode_b_gpx_export/export_generated_course_gpx_test.dart
-// (TMAP_APP_KEY/KAKAO_REST_API_KEY가 필요한 실제 네트워크 호출이 있어 CI 대상이 아님)
+// (TMAP_APP_KEY/KAKAO_REST_API_KEY/TOUR_API_SERVICE_KEY가 필요한 실제 네트워크 호출이 있어 CI 대상이 아님)
 import 'dart:io';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:neummuk_ver2/features/mode_b/domain/entities/spot_entity.dart';
-import 'package:neummuk_ver2/features/mode_b/domain/services/mode_b_course_generator.dart';
-
 import 'gpx_writer.dart';
+import 'real_course_generator.dart';
 import 'road_route_fetcher.dart';
+
+// ── 여기만 바꿔서 원하는 위치/목표로 테스트할 것 ──────────────────────────
+const _userLat = 37.4654; // 테스트하려는 위치의 위도
+const _userLng = 127.1445; // 테스트하려는 위치의 경도
+const _targetKcal = 400;
+const _transport = 'walk'; // 'walk' | 'bike'
+const _weightKg = 65.0;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // flutter_test는 기본적으로 HttpOverrides로 모든 네트워크 요청을 가짜 응답(빈 헤더의 400)으로
+  // 가로챈다. TMAP/Kakao/TourAPI 실호출이 전부 이걸 맞고 조용히 실패해 직선 폴백만 남았던 원인이
+  // 이거였다. 실제 네트워크가 필요한 이 테스트는 해제하고 진행한다.
+  HttpOverrides.global = null;
 
-  test('생성 코스 → 도로 기반 GPX 내보내기', () async {
+  test('실제 위치 기준 생성 코스 → 도로 기반 GPX 내보내기', () async {
     await dotenv.load(fileName: '.env');
 
-    // 출발지: 명동역 부근. 필요하면 실제 검색 결과 좌표로 바꿔서 사용할 것.
-    const userLat = 37.5636;
-    const userLng = 126.9827;
-    const spots = <SpotEntity>[
-      SpotEntity(
-        id: 'namsan_tower', name: '남산서울타워',
-        lat: 37.5512, lng: 126.9882,
-        type: 'tourist_sight', source: 'kakao',
-      ),
-      SpotEntity(
-        id: 'myeongdong_cathedral', name: '명동성당',
-        lat: 37.5633, lng: 126.9877,
-        type: 'culture', source: 'kakao',
-      ),
-      SpotEntity(
-        id: 'namsangol', name: '남산골한옥마을',
-        lat: 37.5598, lng: 126.9938,
-        type: 'culture', source: 'kakao',
-      ),
-    ];
+    final gen = RealCourseGenerator(weightKg: _weightKg);
 
-    final route = const ModeBCourseGenerator().generate(
-      spots: spots,
-      userLat: userLat,
-      userLng: userLng,
-      targetKcal: 400,
-      transport: 'walk',
-      weightKg: 65,
-      forceAll: true, // 샘플 스팟 전부 포함
+    final spots = await gen.searchSpots(
+      lat: _userLat,
+      lng: _userLng,
+      transport: _transport,
     );
+    expect(spots, isNotEmpty,
+        reason: 'KAKAO_REST_API_KEY/TOUR_API_SERVICE_KEY를 확인하거나, '
+            '반경 내에 검색되는 스팟이 있는 좌표인지 확인할 것');
 
-    expect(route, isNotNull, reason: '코스 생성 실패 — 샘플 스팟/좌표를 확인할 것');
+    final route = await gen.generateCourse(
+      spots: spots,
+      userLat: _userLat,
+      userLng: _userLng,
+      targetKcal: _targetKcal,
+      transport: _transport,
+    );
+    expect(route, isNotNull, reason: '코스 생성 실패 — targetKcal이 반경 내 스팟으로 도달 가능한지 확인할 것');
     expect(route!.waypoints, isNotEmpty);
 
     final roadPoints = await fetchGeneratedCourseRoadRoute(
-      startLat: userLat,
-      startLng: userLng,
+      startLat: _userLat,
+      startLng: _userLng,
       waypoints: route.waypoints,
     );
     expect(roadPoints.length, greaterThan(1),
@@ -66,7 +63,7 @@ void main() {
 
     final gpxPoints = roadPoints.map((p) => GpxPoint(lat: p.lat, lng: p.lng)).toList();
     final landmarks = [
-      const GpxLandmark(name: '출발지', lat: userLat, lng: userLng),
+      const GpxLandmark(name: '출발지', lat: _userLat, lng: _userLng),
       for (final wp in route.waypoints)
         if (wp.type != '출발지') GpxLandmark(name: wp.name, lat: wp.lat, lng: wp.lng),
     ];
@@ -82,7 +79,7 @@ void main() {
     // ignore: avoid_print
     print('GPX exported: ${outFile.absolute.path}');
     // ignore: avoid_print
-    print('waypoints=${route.waypoints.length}, roadPoints=${roadPoints.length}, '
-        'distanceKm=${route.distanceKm}, kcal=${route.kcal}');
-  }, timeout: const Timeout(Duration(seconds: 30)));
+    print('spotsFound=${spots.length}, waypoints=${route.waypoints.length}, '
+        'roadPoints=${roadPoints.length}, distanceKm=${route.distanceKm}, kcal=${route.kcal}');
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }
