@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mode_a/presentation/providers/mode_a_provider.dart';
+import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
+import '../../../walk/presentation/providers/walk_provider.dart';
 import '../providers/user_provider.dart';
 
 class UserInfoScreen extends ConsumerStatefulWidget {
@@ -17,7 +20,6 @@ class UserInfoScreen extends ConsumerStatefulWidget {
 class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
   bool _deleting = false;
 
-  // '전체' → ['전체'], '경기/성남시' → '경기 성남시' 로 표시
   List<Widget> _buildRegionChips(List<String> regions, dynamic c) {
     if (regions.contains('전체')) {
       return [_CategoryChip(label: '전체', c: c)];
@@ -28,7 +30,14 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
     }).toList();
   }
 
+  Future<void> _clearLocalSessionCache() async {
+    await ref.read(walkSessionProvider.notifier).resetForLogout();
+    await ref.read(modeAProvider.notifier).clearAll();
+    await ref.read(modeBNavProvider.notifier).stop();
+  }
+
   Future<void> _signOut() async {
+    await _clearLocalSessionCache();
     await ref.read(authStateProvider.notifier).signOut();
     if (!mounted) return;
     context.go('/login');
@@ -69,6 +78,7 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _deleting = true);
     try {
+      await _clearLocalSessionCache();
       await ref.read(authStateProvider.notifier).deleteAccount();
       if (mounted) context.go('/login');
     } catch (e) {
@@ -250,6 +260,13 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                         )
                       else
                         Text('-', style: TextStyle(color: c.textMuted)),
+
+                      SizedBox(height: context.hp(3)),
+
+                      // 설정
+                      _SectionLabel(label: '설정', colors: c),
+                      SizedBox(height: context.hp(1)),
+                      const _TrackingToggleTile(),
                     ],
                   ),
                 ),
@@ -364,6 +381,55 @@ class _StatCard extends StatelessWidget {
                 style: TextStyle(fontSize: 11, color: c.textMuted)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TrackingToggleTile extends ConsumerWidget {
+  const _TrackingToggleTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final trackingEnabled = ref.watch(walkSessionProvider).trackingEnabled;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.outline),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.directions_walk_rounded, size: 20, color: c.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('백그라운드 활동 추적',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: c.text)),
+                const SizedBox(height: 2),
+                Text(
+                  '앱을 꺼도 걸음 수·칼로리를 계속 추적해요.\n끄면 배터리 소모를 줄일 수 있어요.',
+                  style: TextStyle(
+                      fontSize: 11.5, color: c.textMuted, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: trackingEnabled,
+            activeThumbColor: c.primary,
+            onChanged: (v) =>
+                ref.read(walkSessionProvider.notifier).setTrackingEnabled(v),
+          ),
+        ],
       ),
     );
   }
