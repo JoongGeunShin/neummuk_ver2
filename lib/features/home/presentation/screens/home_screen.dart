@@ -190,20 +190,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 Stack(
                                   clipBehavior: Clip.none,
                                   children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: c.surface,
-                                        border: Border.all(color: c.outline),
-                                      ),
-                                      child: Icon(
-                                        Icons.notifications_rounded,
-                                        size: 20,
-                                        color: c.text,
-                                      ),
-                                    ),
                                     Positioned(
                                       top: 8,
                                       right: 9,
