@@ -101,7 +101,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                       fontWeight: FontWeight.w600),
                                   decoration: InputDecoration(
                                     hintText:
-                                        '음식 이름으로 검색 (예: 삼겹살, 타코야끼)',
+                                        '음식 이름으로 검색',
                                     hintStyle: TextStyle(
                                         color: c.textMuted,
                                         fontWeight: FontWeight.w500),
