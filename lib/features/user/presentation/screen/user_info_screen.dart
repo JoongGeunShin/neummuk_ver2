@@ -151,12 +151,20 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                           Container(
                             width: 64,
                             height: 64,
+                            // decoration: BoxDecoration(
+                            //   shape: BoxShape.circle,
+                            //   color: c.primarySoft,
+                            // ),
+                            // child: Icon(Icons.person_rounded,
+                            //     color: c.primary, size: 32),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: c.primarySoft,
+                              image: DecorationImage(
+                                image: AssetImage('assets/images/app_icon.png'),
+                                fit: BoxFit.cover,
+                              ),
                             ),
-                            child: Icon(Icons.person_rounded,
-                                color: c.primary, size: 32),
                           ),
                           SizedBox(width: context.wp(4)),
                           Expanded(
