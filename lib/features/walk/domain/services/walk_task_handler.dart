@@ -16,6 +16,7 @@ const kWalkSpeedKmh = 'walk_today_speed_kmh';
 const kWalkProfileHeight = 'walk_profile_height_cm';
 const kWalkProfileWeight = 'walk_profile_weight_kg';
 const kWalkProfileSex = 'walk_profile_sex';
+const kWalkTrackingEnabled = 'walk_tracking_enabled';
 
 /// Foreground Service 진입점 — vm:entry-point 없으면 tree-shaking으로 제거됨.
 /// 이 isolate가 pedometer 구독 + 칼로리 계산 + 알림 갱신을 모두 담당하므로

@@ -49,7 +49,13 @@ class WalkSession extends _$WalkSession {
   }
 
   Future<void> _init() async {
+    if (_sessionStart != null) return; // 이미 추적 중이면 중복 시작 방지
     _prefs = await SharedPreferences.getInstance();
+
+    if (!(_prefs!.getBool(kWalkTrackingEnabled) ?? true)) {
+      state = state.copyWith(trackingEnabled: false);
+      return;
+    }
 
     final status = await Permission.activityRecognition.request();
     if (!status.isGranted) return;
@@ -178,6 +184,56 @@ class WalkSession extends _$WalkSession {
           ),
         )
         .then((_) => ref.invalidate(weekRecordsProvider));
+  }
+
+  /// 개인 설정 화면에서 백그라운드 추적 on/off를 전환한다.
+  /// off로 전환하면 오늘 기록을 저장하고 Foreground Service를 정지한다 —
+  /// 이렇게 명시적으로 stopService()를 호출해 두면 flutter_foreground_task가
+  /// 기기를 "정상 종료" 상태로 기억해 재부팅 후에도 서비스가 다시 켜지지 않는다.
+  Future<void> setTrackingEnabled(bool enabled) async {
+    _prefs ??= await SharedPreferences.getInstance();
+    final current = _prefs!.getBool(kWalkTrackingEnabled) ?? true;
+    if (enabled == current) return;
+    await _prefs!.setBool(kWalkTrackingEnabled, enabled);
+
+    if (enabled) {
+      state = state.copyWith(trackingEnabled: true);
+      if (_sessionStart == null) await _init();
+    } else {
+      await _cleanup();
+      _sessionStart = null;
+      state = const WalkSessionEntity(trackingEnabled: false);
+    }
+  }
+
+  /// 로그인 이후 홈 화면 진입 시 호출 — 이미 추적 중이면 _init()의 가드로 아무 일도
+  /// 하지 않으므로, 로그아웃 후 재로그인처럼 세션이 정지된 상태에서만 실제로 재시작한다.
+  Future<void> restart() => _init();
+
+  /// 로그아웃/회원탈퇴 시 호출 — 다음 계정에 이전 계정의 걸음 수·칼로리·신체 프로필이
+  /// 그대로 노출되지 않도록 Foreground Service를 정지하고 로컬 캐시를 전부 지운다.
+  Future<void> resetForLogout() async {
+    await _cleanup();
+    _sessionStart = null;
+    _displaySteps = 0;
+
+    final p = _prefs ??= await SharedPreferences.getInstance();
+    for (final key in [
+      kWalkDate,
+      kWalkBaseline,
+      kWalkCalories,
+      kWalkTrueSteps,
+      kWalkDistanceM,
+      kWalkSpeedKmh,
+      kWalkProfileHeight,
+      kWalkProfileWeight,
+      kWalkProfileSex,
+      kWalkTrackingEnabled,
+    ]) {
+      await p.remove(key);
+    }
+
+    state = const WalkSessionEntity();
   }
 
   Future<void> _cleanup() async {

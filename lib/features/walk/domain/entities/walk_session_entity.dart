@@ -7,6 +7,7 @@ class WalkSessionEntity {
     this.elapsed = Duration.zero,
     this.isTracking = false,
     this.activityType = 'sedentary',
+    this.trackingEnabled = true,
   });
   final int steps;
   final double distanceM;
@@ -18,6 +19,9 @@ class WalkSessionEntity {
   /// activityRecognition 권한이 없거나 센서 미지원 기기면 false.
   final bool isTracking;
   final String activityType;
+  /// 사용자가 개인 설정에서 백그라운드 추적(Foreground Service)을 켜 두었는지 여부.
+  /// false면 서비스가 아예 시작되지 않아 배터리를 소모하지 않는다.
+  final bool trackingEnabled;
   WalkSessionEntity copyWith({
     int? steps,
     double? distanceM,
@@ -26,6 +30,7 @@ class WalkSessionEntity {
     Duration? elapsed,
     bool? isTracking,
     String? activityType,
+    bool? trackingEnabled,
   }) =>
       WalkSessionEntity(
         steps: steps ?? this.steps,
@@ -35,5 +40,6 @@ class WalkSessionEntity {
         elapsed: elapsed ?? this.elapsed,
         isTracking: isTracking ?? this.isTracking,
         activityType: activityType ?? this.activityType,
+        trackingEnabled: trackingEnabled ?? this.trackingEnabled,
       );
 }
