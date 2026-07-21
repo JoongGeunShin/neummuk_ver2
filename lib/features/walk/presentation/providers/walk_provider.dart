@@ -24,6 +24,7 @@ class WalkSession extends _$WalkSession {
 
   SharedPreferences? _prefs;
   DateTime? _sessionStart;
+  bool _initInFlight = false;
 
   // UI 드립 애니메이션용 표시 걸음 수 (trueSteps에 200ms마다 1씩 수렴)
   int _displaySteps = 0;
@@ -49,54 +50,65 @@ class WalkSession extends _$WalkSession {
   }
 
   Future<void> _init() async {
-    if (_sessionStart != null) return; // 이미 추적 중이면 중복 시작 방지
-    _prefs = await SharedPreferences.getInstance();
+    // _sessionStart는 권한 요청(비동기) 이후에야 설정되므로, 그것만으로는 build()의
+    // Future.microtask(_init)과 다른 호출부(예: 홈 화면 재시작 시 restart())가 거의 동시에
+    // 들어오는 걸 막지 못한다 — 둘 다 이 값이 null인 상태로 통과해 Permission.request()를
+    // 중복 호출하면 안드로이드가 "Can request only one set of permissions at a time"로
+    // 하나를 취소시켜 PermissionRequestCancelledException이 던져진다. await 이전에 동기적으로
+    // 세우는 이 플래그가 그 경합을 막는다.
+    if (_sessionStart != null || _initInFlight) return;
+    _initInFlight = true;
+    try {
+      _prefs = await SharedPreferences.getInstance();
 
-    if (!(_prefs!.getBool(kWalkTrackingEnabled) ?? true)) {
-      state = state.copyWith(trackingEnabled: false);
-      return;
-    }
-
-    final status = await Permission.activityRecognition.request();
-    if (!status.isGranted) return;
-
-    _sessionStart = DateTime.now();
-
-    // Foreground service가 onStart에서 읽을 수 있도록 먼저 기록
-    _writeProfileToPrefs(_profile);
-
-    await _startForegroundService();
-
-    // 서비스 시작 직후 현재 프로필을 task isolate로 전송
-    FlutterForegroundTask.sendDataToTask({
-      'heightCm': _profile.heightCm,
-      'weightKg': _profile.weightKg,
-      'sex': _profile.sex,
-    });
-
-    // 앱 재시작 시 이미 쌓인 걸음 수로 바로 초기화 — 0부터 드립하지 않음
-    _displaySteps = _prefs!.getInt(kWalkTrueSteps) ?? 0;
-
-    // 1초마다 task isolate 최신값을 reload 후 UI 갱신 + Firestore 동기화.
-    // reload()가 없으면 main isolate의 SharedPreferences 캐시가 stale 상태로
-    // 남아 알림과 홈화면의 수치가 다르게 보이는 버그가 발생한다.
-    _uiTicker = Timer.periodic(const Duration(seconds: 1), (_) async {
-      await _prefs?.reload();
-      _emit();
-      _maybeSync();
-    });
-
-    // 200ms마다 걸음 수를 1씩 드립해 신규 걸음만 카운터 애니메이션
-    _stepDrip = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      final trueSteps = _prefs?.getInt(kWalkTrueSteps) ?? 0;
-      if (_displaySteps > trueSteps) {
-        // 날짜 변경으로 리셋된 경우 즉시 0으로 맞춤
-        _displaySteps = 0;
-      } else if (_displaySteps < trueSteps) {
-        _displaySteps++;
+      if (!(_prefs!.getBool(kWalkTrackingEnabled) ?? true)) {
+        state = state.copyWith(trackingEnabled: false);
+        return;
       }
-      _emit();
-    });
+
+      final status = await Permission.activityRecognition.request();
+      if (!status.isGranted) return;
+
+      _sessionStart = DateTime.now();
+
+      // Foreground service가 onStart에서 읽을 수 있도록 먼저 기록
+      _writeProfileToPrefs(_profile);
+
+      await _startForegroundService();
+
+      // 서비스 시작 직후 현재 프로필을 task isolate로 전송
+      FlutterForegroundTask.sendDataToTask({
+        'heightCm': _profile.heightCm,
+        'weightKg': _profile.weightKg,
+        'sex': _profile.sex,
+      });
+
+      // 앱 재시작 시 이미 쌓인 걸음 수로 바로 초기화 — 0부터 드립하지 않음
+      _displaySteps = _prefs!.getInt(kWalkTrueSteps) ?? 0;
+
+      // 1초마다 task isolate 최신값을 reload 후 UI 갱신 + Firestore 동기화.
+      // reload()가 없으면 main isolate의 SharedPreferences 캐시가 stale 상태로
+      // 남아 알림과 홈화면의 수치가 다르게 보이는 버그가 발생한다.
+      _uiTicker = Timer.periodic(const Duration(seconds: 1), (_) async {
+        await _prefs?.reload();
+        _emit();
+        _maybeSync();
+      });
+
+      // 200ms마다 걸음 수를 1씩 드립해 신규 걸음만 카운터 애니메이션
+      _stepDrip = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        final trueSteps = _prefs?.getInt(kWalkTrueSteps) ?? 0;
+        if (_displaySteps > trueSteps) {
+          // 날짜 변경으로 리셋된 경우 즉시 0으로 맞춤
+          _displaySteps = 0;
+        } else if (_displaySteps < trueSteps) {
+          _displaySteps++;
+        }
+        _emit();
+      });
+    } finally {
+      _initInFlight = false;
+    }
   }
 
   Future<void> _startForegroundService() async {

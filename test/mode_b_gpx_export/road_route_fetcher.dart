@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -60,7 +61,14 @@ Future<List<RoadPoint>> _fetchLeg({
       toLat: toLat, toLng: toLng,
       tmapKey: tmapKey,
     );
-    if (pts.isNotEmpty) return pts;
+    if (pts.isNotEmpty) {
+      // mode_b_mixin.dart의 _fetchApproachRoute와 동일: TMAP이 반환한 첫 좌표가 실제
+      // 출발 지점에서 10m 넘게 스냅되어 있으면(예: 넓은 광장·건물 진입로) 그 사이를 이어주는
+      // 연결선을 넣는다. 이걸 빠뜨리면 도로에 붙기 전까지의 접근 구간이 통째로 잘려서
+      // 실제 앱이 그리는 폴리라인과 시작 부분 모양이 달라진다.
+      final snapDistM = _haversineM(fromLat, fromLng, pts.first.lat, pts.first.lng);
+      return snapDistM > 10 ? [RoadPoint(fromLat, fromLng), ...pts] : pts;
+    }
   }
 
   final kakaoKey = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
@@ -73,6 +81,17 @@ Future<List<RoadPoint>> _fetchLeg({
   }
 
   return const [];
+}
+
+double _haversineM(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371000.0;
+  final phi1 = lat1 * math.pi / 180;
+  final phi2 = lat2 * math.pi / 180;
+  final dPhi = (lat2 - lat1) * math.pi / 180;
+  final dLambda = (lng2 - lng1) * math.pi / 180;
+  final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
+      math.cos(phi1) * math.cos(phi2) * math.sin(dLambda / 2) * math.sin(dLambda / 2);
+  return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 }
 
 Future<List<RoadPoint>> _fetchTmapPedestrianLeg({

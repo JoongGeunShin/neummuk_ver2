@@ -15,12 +15,23 @@ import 'gpx_writer.dart';
 import 'real_course_generator.dart';
 import 'road_route_fetcher.dart';
 
-// ── 여기만 바꿔서 원하는 위치/목표로 테스트할 것 ──────────────────────────
-const _userLat = 37.4654; // 테스트하려는 위치의 위도
-const _userLng = 127.1445; // 테스트하려는 위치의 경도
-const _targetKcal = 400;
-const _transport = 'walk'; // 'walk' | 'bike'
-const _weightKg = 65.0;
+// adb shell dumpsys location으로 확인한 에뮬레이터 실측 GPS (fused/gps 둘 다 동일):
+// Location[gps 37.465385,127.144538 ...] — 반올림된 37.4654/127.1445와는 3~4m 차이가 나며,
+// 밀집 도심에서는 이 정도로도 TMAP이 다른 골목으로 스냅해 경로 모양이 달라질 수 있다.
+const _userLat = 37.465385;
+const _userLng = 127.144538;
+const _targetKcal = 330; // 마라탕으로 테스트
+const _transport = 'walk';
+const _weightKg = 70.6;
+
+// 실제 앱은 도로 폴리라인을 가져올 때 course.startLat/startLng가 아니라 그 순간의
+// 실시간 GPS(mode_b_mixin.dart의 _position)를 우선 쓴다 (_drawGeneratedCourseOnMap,
+// _onStartModeBCourse 둘 다 `pos?.latitude ?? course.startLat!` 패턴). 코스 생성 시점과
+// 폴리라인이 그려진 시점 사이 에뮬레이터 GPS가 조금이라도 다르면 구간별 도로 스냅이 달라져
+// 경로 모양이 살짝 어긋난다 — 버그가 아니라 이 우선순위 때문. 앱에서 실제로 관찰한 좌표를
+// 안다면 여기에 넣어서 그 순간을 그대로 재현할 것. 모르면 _userLat/_userLng와 동일하게 둘 것.
+const _drawLat = _userLat;
+const _drawLng = _userLng;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -54,8 +65,8 @@ void main() {
     expect(route!.waypoints, isNotEmpty);
 
     final roadPoints = await fetchGeneratedCourseRoadRoute(
-      startLat: _userLat,
-      startLng: _userLng,
+      startLat: _drawLat,
+      startLng: _drawLng,
       waypoints: route.waypoints,
     );
     expect(roadPoints.length, greaterThan(1),
@@ -63,7 +74,7 @@ void main() {
 
     final gpxPoints = roadPoints.map((p) => GpxPoint(lat: p.lat, lng: p.lng)).toList();
     final landmarks = [
-      const GpxLandmark(name: '출발지', lat: _userLat, lng: _userLng),
+      const GpxLandmark(name: '출발지', lat: _drawLat, lng: _drawLng),
       for (final wp in route.waypoints)
         if (wp.type != '출발지') GpxLandmark(name: wp.name, lat: wp.lat, lng: wp.lng),
     ];
