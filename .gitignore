@@ -52,6 +52,9 @@ app.*.map.json
 google-services.json
 GoogleService-Info.plist
 
+# Mode B GPX export test output (generated fixtures, not source)
+/test/mode_b_gpx_export/output/
+
 # AI
 .claude
 CLAUDE.md
