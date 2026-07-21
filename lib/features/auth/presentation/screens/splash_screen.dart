@@ -41,7 +41,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _timerDone = true;
     final auth = ref.read(authStateProvider);
     if (!auth.isLoading) _doRoute(auth.valueOrNull);
-    // 아직 loading이면 build()의 ref.listen이 auth 확정 시 호출
   }
 
   Future<void> _doRoute(UserEntity? user) async {
@@ -53,32 +52,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       return;
     }
     if (user.isGuest) {
-      // 게스트도 Mode B 네비게이션 복원 확인
       await _tryRestoreModeBNav();
       if (!mounted) return;
-      context.go('/home'); // ignore: use_build_context_synchronously
+      context.go('/home');
       return;
     }
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     final done = prefs.getBool('onboarding_done_${user.uid}') ?? false;
     if (!done) {
-      context.go('/onboarding'); // ignore: use_build_context_synchronously
+      context.go('/onboarding');
       return;
     }
-    // Mode B 네비게이션 복원 확인
     final restored = await _tryRestoreModeBNav();
     if (!mounted) return;
     if (restored) {
-      ref.read(mapModeProvider.notifier).set(MapMode.modeB); // ignore: use_build_context_synchronously
-      context.go('/map'); // ignore: use_build_context_synchronously
+      ref.read(mapModeProvider.notifier).set(MapMode.modeB);
+      context.go('/map');
     } else {
-      context.go('/home'); // ignore: use_build_context_synchronously
+      context.go('/home');
     }
   }
 
-  /// Mode B 네비게이션 상태가 저장되어 있으면 복원한다.
-  /// [true] = 복원 성공 (→ /map으로 이동해야 함)
   Future<bool> _tryRestoreModeBNav() async {
     try {
       final savedState = await ModeBNav.tryRestoreFromPrefs();
@@ -98,7 +93,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 스플래시 중에 Firebase 스트림 구독 시작 (LoginScreen 전에 미리 준비)
     ref.listen<AsyncValue<UserEntity?>>(authStateProvider, (_, next) {
       if (_timerDone && !next.isLoading) _doRoute(next.valueOrNull);
     });
