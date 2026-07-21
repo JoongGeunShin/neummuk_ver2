@@ -39,7 +39,6 @@ class LoginScreen extends ConsumerWidget {
               context.wp(6), context.hp(5), context.wp(6), context.hp(4)),
           child: Column(
             children: [
-              // Center content
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -59,7 +58,7 @@ class LoginScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: context.hp(1.8)),
                     Text(
-                      '관광지 맛집과 활동량을 칼로리로 연결.\n오늘은 어디까지 걸어볼까요?',
+                      '관광지 맛집과 활동량을 칼로리로 연결.\n같이 떠나볼까요?',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: context.wp(3.5),
@@ -69,7 +68,6 @@ class LoginScreen extends ConsumerWidget {
                       ),
                     ),
                     SizedBox(height: context.hp(3)),
-                    // Preview tags
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -94,7 +92,6 @@ class LoginScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              // CTA buttons
               Column(
                 children: [
                   AppButton(
