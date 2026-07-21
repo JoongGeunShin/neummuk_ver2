@@ -40,6 +40,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     debugCheckSharedPreferences();
     super.initState();
+    // 로그아웃 후 재로그인처럼 세션이 정지된 상태라면 다시 시작 — 이미 추적 중이면 no-op.
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user != null) {
+      ref.read(walkSessionProvider.notifier).restart();
+    }
   }
 
   void _handleTabChange(NavTab tab) {
