@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../providers/auth_provider.dart';
@@ -30,10 +31,12 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
   void initState() {
     super.initState();
     ref.listenManual(authStateProvider, (_, next) {
-      next.whenData((user) {
-        if (user != null && !user.isGuest && mounted) {
-          context.go('/onboarding');
-        }
+      next.whenData((user) async {
+        if (user == null || user.isGuest || !mounted) return;
+        final prefs = await SharedPreferences.getInstance();
+        if (!mounted) return;
+        final done = prefs.getBool('onboarding_done_${user.uid}') ?? false;
+        context.go(done ? '/home' : '/onboarding');
       });
     });
   }
