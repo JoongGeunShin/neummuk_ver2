@@ -79,7 +79,11 @@ void main() {
         if (wp.type != '출발지') GpxLandmark(name: wp.name, lat: wp.lat, lng: wp.lng),
     ];
 
-    final gpx = buildGpx(routeName: route.name, points: gpxPoints, landmarks: landmarks);
+    // <wpt>는 GPX에 넣지 않는다 — 안드로이드 스튜디오 에뮬레이터의 Routes 임포터가
+    // <wpt>를 <trk>와 같이 읽어 스팟 사이를 직선으로 잇는 것으로 보였기 때문 (재생이
+    // 아니라 import 파싱 단계에서 섞이는 것으로 추정). 어느 지점이 어느 스팟인지는
+    // 아래 콘솔 출력으로 대조할 것.
+    final gpx = buildGpx(routeName: route.name, points: gpxPoints);
 
     final outDir = Directory('test/mode_b_gpx_export/output')..createSync(recursive: true);
     final outFile = File('${outDir.path}/${route.id}.gpx')..writeAsStringSync(gpx);
@@ -92,5 +96,7 @@ void main() {
     // ignore: avoid_print
     print('spotsFound=${spots.length}, waypoints=${route.waypoints.length}, '
         'roadPoints=${roadPoints.length}, distanceKm=${route.distanceKm}, kcal=${route.kcal}');
+    // ignore: avoid_print
+    print('방문 순서:\n${describeLandmarks(landmarks)}');
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
