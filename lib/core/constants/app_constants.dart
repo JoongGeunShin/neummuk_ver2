@@ -48,4 +48,13 @@ class AppConstants {
 
   static const double defaultSearchRadiusKm = 2.0;
   static const double kcalMatchTolerancePct = 0.20;
+
+  /// Mode B 검색 반경(m) — 이동수단별 공통값 (기성 코스·스팟 검색 모두 사용)
+  static const int modeBWalkRadiusM = 3000;
+  static const int modeBBikeRadiusM = 5000;
+
+  /// Mode B 내비게이션 이탈 판정 통합 임계값(m).
+  /// provider(off-route 플래그), 폴리라인 트리밍 색상, 자동 재경로 트리거가
+  /// 모두 이 값을 공유해 화면과 판정 로직이 서로 다른 기준으로 어긋나지 않도록 한다.
+  static const double modeBOffRouteThresholdM = 80.0;
 }
