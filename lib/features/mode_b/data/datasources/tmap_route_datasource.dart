@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../../domain/entities/spot_entity.dart';
 
 /// 스팟 경유 왕복 코스의 실제 도로 거리 조회 (TMAP 보행자 API 우선, 실패 시 Kakao Mobility 폴백)
@@ -104,7 +104,7 @@ class TmapRouteDatasource {
         if (coords == null) continue;
         for (final c in coords) {
           final pt = (lat: (c[1] as num).toDouble(), lng: (c[0] as num).toDouble());
-          if (prev != null) distM += _haversineM(prev.lat, prev.lng, pt.lat, pt.lng);
+          if (prev != null) distM += haversineDistanceM(prev.lat, prev.lng, pt.lat, pt.lng);
           prev = pt;
         }
       }
@@ -161,14 +161,4 @@ class TmapRouteDatasource {
     }
   }
 
-  double _haversineM(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final phi1 = lat1 * math.pi / 180;
-    final phi2 = lat2 * math.pi / 180;
-    final dPhi = (lat2 - lat1) * math.pi / 180;
-    final dLambda = (lng2 - lng1) * math.pi / 180;
-    final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
-        math.cos(phi1) * math.cos(phi2) * math.sin(dLambda / 2) * math.sin(dLambda / 2);
-    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-  }
 }

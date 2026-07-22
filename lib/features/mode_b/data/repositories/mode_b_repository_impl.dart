@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
 import '../../domain/entities/food_entity.dart';
 import '../../domain/entities/spot_entity.dart';
@@ -120,7 +120,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
     final radiusKm = radiusM / 1000.0;
     final inRadius = all.where((r) {
       if (!r.hasCoordinate) return false;
-      return _haversineKm(lat, lng, r.startLat!, r.startLng!) <= radiusKm;
+      return haversineDistanceKm(lat, lng, r.startLat!, r.startLng!) <= radiusKm;
     }).toList();
 
     debugPrint('[Durunubi] inRadius (${radiusKm.toStringAsFixed(1)}km): ${inRadius.length}/${all.length}');
@@ -143,7 +143,8 @@ class ModeBRepositoryImpl implements ModeBRepository {
     required Set<SpotTag> tags,
     required String transport,
   }) async {
-    final radiusM = transport == 'bike' ? 5000 : 3000;
+    final radiusM =
+        transport == 'bike' ? AppConstants.modeBBikeRadiusM : AppConstants.modeBWalkRadiusM;
     final effectiveTags = tags.isEmpty ? SpotTag.values.toSet() : tags;
 
     // 카카오 로컬 카테고리 코드 수집 (우선순위 높음)
@@ -187,7 +188,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
     final combined = <SpotEntity>[...kakaoSpots];
     for (final ts in tourSpots) {
       final isDuplicate = kakaoSpots.any((ks) =>
-          _haversineKm(ks.lat, ks.lng, ts.lat, ts.lng) < 0.05 &&
+          haversineDistanceKm(ks.lat, ks.lng, ts.lat, ts.lng) < 0.05 &&
           ks.name == ts.name);
       if (!isDuplicate) combined.add(ts);
     }
@@ -385,19 +386,9 @@ class ModeBRepositoryImpl implements ModeBRepository {
   int _distanceFromUser(TouristRouteEntity r, double userLat, double userLng) {
     if (r.distanceFromUserM != null) return r.distanceFromUserM!;
     if (r.startLat != null && r.startLng != null) {
-      return (_haversineKm(userLat, userLng, r.startLat!, r.startLng!) * 1000).round();
+      return (haversineDistanceKm(userLat, userLng, r.startLat!, r.startLng!) * 1000).round();
     }
     return 99999999;
   }
 
-  double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
-    const R = 6371.0;
-    final phi1 = lat1 * math.pi / 180;
-    final phi2 = lat2 * math.pi / 180;
-    final dPhi = (lat2 - lat1) * math.pi / 180;
-    final dLambda = (lng2 - lng1) * math.pi / 180;
-    final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
-        math.cos(phi1) * math.cos(phi2) * math.sin(dLambda / 2) * math.sin(dLambda / 2);
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-  }
 }

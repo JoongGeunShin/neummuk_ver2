@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 
 part 'mode_b_nav_provider.g.dart';
@@ -183,12 +185,120 @@ class ModeBNav extends _$ModeBNav {
         : state.elapsedKcal;
 
     if (route.isGenerated && route.waypoints.isNotEmpty) {
-      _updateGeneratedNav(lat, lng, newKcal, transport, route);
+      // 정상 흐름에서는 mixin이 도로 스냅 폴리라인 기준으로 계산해
+      // updateGeneratedFromRoad를 직접 호출한다. 이 분기는 세그먼트 폴리라인이
+      // 아직 준비되지 않은 예외적 상황에서만 도달하는 최소 폴백이다.
+      state = state.copyWith(elapsedKcal: newKcal);
     } else if (state.gpxPoints.isNotEmpty) {
       _updateGpxNav(lat, lng, newKcal, transport);
     } else {
       state = state.copyWith(elapsedKcal: newKcal);
     }
+
+    _updateNotification(state.nextInstruction);
+    _persistProgressAsync();
+  }
+
+  /// 생성 코스 전용: 도로 스냅 폴리라인 기준으로 계산된 진행률을 반영한다.
+  /// 화면에 그려지는 폴리라인(_segmentPolylines)과 동일한 데이터를 기준으로
+  /// 도착/이탈/잔여거리를 판정해, 직선거리 기반 판정과의 불일치(오차)를 없앤다.
+  void updateGeneratedFromRoad({
+    required double distToTargetM,
+    required double distToRoadM,
+    required double remainingSegM,
+    required double weightKg,
+    required String transport,
+  }) {
+    if (!state.isNavigating) return;
+    final route = state.route;
+    if (route == null || !route.isGenerated) return;
+
+    final now = DateTime.now();
+    final dtHours = _lastUpdateTime != null
+        ? now.difference(_lastUpdateTime!).inMilliseconds / 3600000.0
+        : 1.0 / 3600.0;
+    _lastUpdateTime = now;
+
+    final met = transport == 'bike' ? 6.0 : 3.5;
+    final newKcal = dtHours < (1.0 / 60.0)
+        ? state.elapsedKcal + met * weightKg * dtHours
+        : state.elapsedKcal;
+
+    final wps = route.waypoints;
+    var curIdx = state.currentWaypointIdx;
+
+    if (curIdx >= wps.length) {
+      state = state.copyWith(
+        currentWaypointIdx: curIdx,
+        remainingDistanceM: 0,
+        remainingSec: 0,
+        nextInstruction: '모든 스팟을 방문했어요! 🎉',
+        elapsedKcal: newKcal,
+        isOffRoute: false,
+      );
+      _updateNotification(state.nextInstruction);
+      _persistProgressAsync();
+      return;
+    }
+
+    final target = wps[curIdx];
+    final isBike = transport == 'bike';
+    final speedMs = isBike ? 4.17 : 1.25;
+    final offRoute = distToRoadM > AppConstants.modeBOffRouteThresholdM;
+    if (offRoute != state.isOffRoute) {
+      debugPrint(offRoute
+          ? '[ModeBNav] 이탈 감지: ${target.name} 구간에서 도로 기준 ${distToRoadM.round()}m 이탈'
+          : '[ModeBNav] 이탈 해제: 경로 구간으로 복귀');
+    }
+
+    String instruction;
+    final arrived = distToTargetM < 50;
+
+    if (arrived) {
+      curIdx++;
+      if (curIdx < wps.length) {
+        final next = wps[curIdx];
+        final isNextOrigin = next.type == '출발지';
+        instruction = isNextOrigin
+            ? '${target.name} 도착! ➡ 출발지로 귀환'
+            : '${target.name} 도착! ➡ ${next.name}으로 이동';
+      } else {
+        final isOriginReturn = target.type == '출발지';
+        instruction = isOriginReturn ? '출발지 귀환 완료! 🎉' : '${target.name} 도착! 코스 완료 🎉';
+      }
+    } else {
+      final distLabel = distToTargetM < 1000
+          ? '${distToTargetM.round()}m'
+          : '${(distToTargetM / 1000).toStringAsFixed(1)}km';
+      final isOrigin = target.type == '출발지';
+      instruction = isOrigin ? '출발지까지 $distLabel' : '${target.name}까지 $distLabel';
+    }
+
+    // 현재 목표 유지 시: 이번 틱에 계산된 도로 잔여거리 사용.
+    // 방금 도착해 목표가 바뀐 틱에서는 새 구간의 사전계산 도로거리(segmentDistancesM)로
+    // 근사하고, 다음 틱부터 도로 폴리라인 기준으로 정확히 갱신된다.
+    final segs = state.segmentDistancesM;
+    double remM = curIdx == state.currentWaypointIdx
+        ? remainingSegM
+        : (curIdx < segs.length ? segs[curIdx] : remainingSegM);
+    if (segs.isNotEmpty) {
+      for (int i = curIdx + 1; i < wps.length && i < segs.length; i++) {
+        remM += segs[i];
+      }
+    } else {
+      for (int i = curIdx; i < wps.length - 1; i++) {
+        remM += _dist(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
+      }
+    }
+
+    state = state.copyWith(
+      currentWaypointIdx: curIdx,
+      remainingDistanceM: remM.round(),
+      remainingSec: (remM / speedMs).round(),
+      nextInstruction: instruction,
+      isOffRoute: offRoute,
+      elapsedKcal: newKcal,
+    );
 
     _updateNotification(state.nextInstruction);
     _persistProgressAsync();
@@ -218,99 +328,13 @@ class ModeBNav extends _$ModeBNav {
     final isBike = transport == 'bike';
     final speedMs = isBike ? 4.17 : 1.25;
     final isNearEnd = bestIdx >= pts.length - 10;
-    final offRoute = bestDist > 80;
+    final offRoute = bestDist > AppConstants.modeBOffRouteThresholdM;
 
     state = state.copyWith(
       nearestGpxPtIdx: bestIdx,
       remainingDistanceM: remM.round(),
       remainingSec: (remM / speedMs).round(),
       nextInstruction: isNearEnd ? '코스 종점에 거의 다 왔어요!' : '경로를 따라 계속 이동하세요',
-      isOffRoute: offRoute,
-      elapsedKcal: newKcal,
-    );
-  }
-
-  void _updateGeneratedNav(
-    double lat,
-    double lng,
-    double newKcal,
-    String transport,
-    TouristRouteEntity route,
-  ) {
-    final wps = route.waypoints;
-    var curIdx = state.currentWaypointIdx;
-
-    if (curIdx >= wps.length) {
-      state = state.copyWith(
-        currentWaypointIdx: curIdx, // Bug 9: 명시적 설정 (_checkModeBNavArrival 트리거 보장)
-        remainingDistanceM: 0,
-        remainingSec: 0,
-        nextInstruction: '모든 스팟을 방문했어요! 🎉',
-        elapsedKcal: newKcal,
-        isOffRoute: false,
-      );
-      return;
-    }
-
-    final target = wps[curIdx];
-    final distToTarget = _dist(lat, lng, target.lat, target.lng);
-    final isBike = transport == 'bike';
-    final speedMs = isBike ? 4.17 : 1.25;
-
-    // 현재 구간(직전 지점 → 목표 웨이포인트) 직선 대비 이탈 감지
-    final prevLat = curIdx == 0 ? (route.startLat ?? target.lat) : wps[curIdx - 1].lat;
-    final prevLng = curIdx == 0 ? (route.startLng ?? target.lng) : wps[curIdx - 1].lng;
-    final offRoute = _distToSegmentM(lat, lng, prevLat, prevLng, target.lat, target.lng) > 80;
-    if (offRoute != state.isOffRoute) {
-      debugPrint(offRoute
-          ? '[ModeBNav] 이탈 감지: ${target.name} 구간에서 80m 이상 벗어남'
-          : '[ModeBNav] 이탈 해제: 경로 구간으로 복귀');
-    }
-
-    String instruction;
-
-    if (distToTarget < 50) {
-      curIdx++;
-      if (curIdx < wps.length) {
-        final next = wps[curIdx];
-        // 출발지 귀환 waypoint로 이동 시 메시지 구분
-        final isNextOrigin = next.type == '출발지';
-        instruction = isNextOrigin
-            ? '${target.name} 도착! ➡ 출발지로 귀환'
-            : '${target.name} 도착! ➡ ${next.name}으로 이동';
-      } else {
-        final isOriginReturn = target.type == '출발지';
-        instruction = isOriginReturn ? '출발지 귀환 완료! 🎉' : '${target.name} 도착! 코스 완료 🎉';
-      }
-    } else {
-      final distLabel = distToTarget < 1000
-          ? '${distToTarget.round()}m'
-          : '${(distToTarget / 1000).toStringAsFixed(1)}km';
-      final isOrigin = target.type == '출발지';
-      instruction = isOrigin ? '출발지까지 $distLabel' : '${target.name}까지 $distLabel';
-    }
-
-    // 현재 구간: 현재 위치 → 다음 waypoint 직선 (근사)
-    // 이후 구간: 실제 도로 거리(segmentDistancesM)가 있으면 사용, 없으면 직선 폴백
-    double remM = curIdx < wps.length
-        ? _dist(lat, lng, wps[curIdx].lat, wps[curIdx].lng)
-        : 0;
-    final segs = state.segmentDistancesM;
-    if (segs.isNotEmpty) {
-      for (int i = curIdx + 1; i < wps.length && i < segs.length; i++) {
-        remM += segs[i];
-      }
-    } else {
-      for (int i = curIdx; i < wps.length - 1; i++) {
-        remM += _dist(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
-      }
-    }
-
-    state = state.copyWith(
-      currentWaypointIdx: curIdx,
-      remainingDistanceM: remM.round(),
-      remainingSec: (remM / speedMs).round(),
-      nextInstruction: instruction,
       isOffRoute: offRoute,
       elapsedKcal: newKcal,
     );
@@ -430,33 +454,7 @@ class ModeBNav extends _$ModeBNav {
     return '경로를 따라 이동하세요';
   }
 
-  double _dist(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0, toRad = math.pi / 180;
-    final dLat = (lat2 - lat1) * toRad;
-    final dLng = (lng2 - lng1) * toRad;
-    final cosLat = math.cos(lat1 * toRad);
-    return r * math.sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
-  }
-
-  /// 점(lat,lng)에서 선분(aLat,aLng)-(bLat,bLng)까지 최단 거리(m) — 평면 근사
-  double _distToSegmentM(
-    double lat, double lng,
-    double aLat, double aLng,
-    double bLat, double bLng,
-  ) {
-    const r = 6371000.0, toRad = math.pi / 180;
-    final cosLat = math.cos(aLat * toRad);
-    double toX(double lg) => (lg - aLng) * toRad * cosLat * r;
-    double toY(double lt) => (lt - aLat) * toRad * r;
-
-    final px = toX(lng), py = toY(lat);
-    final bx = toX(bLng), by = toY(bLat);
-
-    final segLenSq = bx * bx + by * by;
-    if (segLenSq == 0) return _dist(lat, lng, aLat, aLng);
-
-    final t = ((px * bx + py * by) / segLenSq).clamp(0.0, 1.0);
-    final dx = px - bx * t, dy = py - by * t;
-    return math.sqrt(dx * dx + dy * dy);
-  }
+  /// 실시간 GPS 틱마다 호출되므로 [fastDistanceM](Equirectangular 근사)을 사용한다.
+  double _dist(double lat1, double lng1, double lat2, double lng2) =>
+      fastDistanceM(lat1, lng1, lat2, lng2);
 }

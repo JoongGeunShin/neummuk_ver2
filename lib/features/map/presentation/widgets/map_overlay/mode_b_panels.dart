@@ -652,7 +652,7 @@ class _SpotListItem extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  _tagEmoji(spot.type),
+                  _spotTypeEmoji(spot.type),
                   style: const TextStyle(fontSize: 18),
                 ),
               ),
@@ -698,16 +698,6 @@ class _SpotListItem extends StatelessWidget {
     );
   }
 
-  String _tagEmoji(String type) {
-    switch (type) {
-      case 'tourist_sight': return '🏛️';
-      case 'culture': return '🎭';
-      case 'event': return '🎉';
-      case 'sports': return '⛹️';
-      case 'shopping': return '🛍️';
-      default: return '📍';
-    }
-  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

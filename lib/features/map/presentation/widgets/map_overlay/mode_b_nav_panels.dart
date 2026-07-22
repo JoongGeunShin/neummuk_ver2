@@ -13,12 +13,17 @@ class _TurnPoint {
     required this.lat,
     required this.lng,
     required this.instruction,
+    this.segIdx = 0,
   });
   final _TurnType type;
+  /// 소속 구간(segment) 내에서의 포인트 인덱스. GPX 코스는 구간이 없으므로
+  /// 전체 트랙 기준 인덱스를 그대로 쓴다(segIdx는 항상 0).
   final int gpxIdx;
   final double lat;
   final double lng;
   final String instruction;
+  /// 생성 코스: _segmentPolylines의 구간 인덱스. GPX 코스는 항상 0.
+  final int segIdx;
 }
 
 /// 맵 위에 그려지는 교차로 방향 마커 아이콘
@@ -40,7 +45,7 @@ class _TurnDirectionMarker extends StatelessWidget {
       width: 28,
       height: 28,
       decoration: BoxDecoration(
-        color: context.colors.pinUser,
+        color: context.colors.accent,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
@@ -65,13 +70,7 @@ class _ModeBNavTopCard extends StatelessWidget {
   /// null이면 단계별 전환 버튼 숨김 (생성 코스에서는 사용 안 함)
   final VoidCallback? onStepMode;
 
-  Color _accentColor(BuildContext context) {
-    final c = context.colors;
-    final route = navState.route;
-    if (route == null) return c.pinUser;
-    if (route.isGenerated) return c.secondary;
-    return route.type == '자전거' ? c.warn : c.pinUser;
-  }
+  Color _accentColor(BuildContext context) => context.colors.accent;
 
   IconData get _icon {
     if (navState.remainingDistanceM < 100) return Icons.flag_rounded;
@@ -260,13 +259,7 @@ class _ModeBNavBottomStrip extends StatelessWidget {
     return ((total - remaining) / total).clamp(0.0, 1.0);
   }
 
-  Color _accentColor(BuildContext context) {
-    final c = context.colors;
-    final route = navState.route;
-    if (route == null) return c.pinUser;
-    if (route.isGenerated) return c.secondary;
-    return route.type == '자전거' ? c.warn : c.pinUser;
-  }
+  Color _accentColor(BuildContext context) => context.colors.accent;
 
   @override
   Widget build(BuildContext context) {
@@ -874,12 +867,7 @@ class _ModeBTurnBar extends StatelessWidget {
   final ModeBNavState navState;
   final VoidCallback onOverview;
 
-  Color _accentColor(BuildContext context) {
-    final c = context.colors;
-    final route = navState.route;
-    if (route?.isGenerated ?? false) return c.secondary;
-    return route?.type == '자전거' ? c.warn : c.pinUser;
-  }
+  Color _accentColor(BuildContext context) => context.colors.accent;
 
   IconData get _turnIcon => switch (turnType) {
     _TurnType.right    => Icons.turn_right_rounded,

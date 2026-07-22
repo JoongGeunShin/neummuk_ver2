@@ -19,14 +19,25 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// 단계별 안내 모드 (GPX 코스 + 생성 코스 공통)
   bool _modeBNavStepMode = false;
 
-  /// 경로에서 추출한 방향 전환 포인트 목록 (GPX 또는 생성 코스 도로 경로)
+  /// 경로에서 추출한 방향 전환 포인트 목록 — 현재 구간(생성 코스) 또는 전체 트랙(GPX)
+  /// 기준. 단계별 안내 카드(다음 턴 문구·거리)에만 쓰인다.
   List<_TurnPoint> _modeBTurnPoints = [];
+
+  /// 지도 위에 표시되는 "코스 전체" 턴 마커 목록. _modeBTurnPoints와 달리 생성 코스도
+  /// 모든 구간의 턴을 한번에 담고 있어, 지도를 보면 코스 전체의 좌우회전 지점이
+  /// 한눈에 보인다. 사용자가 지나간 턴은 실시간으로 이 목록과 지도에서 제거된다.
+  List<_TurnPoint> _allRouteTurnMarkers = [];
 
   /// 단계별 세그먼트 폴리라인 마지막 갱신 시각 (스로틀)
   DateTime? _lastStepSegmentUpdate;
 
   /// 현재 구간 도로 경로 상의 현재 위치 인덱스 (단계별 모드용)
   int _modeBRoadNearestPtIdx = 0;
+
+  /// 생성 코스: 도로 스냅 폴리라인 기준 이번 GPS 틱의 진행률 계산 결과.
+  /// 틱당 1회만 계산해 provider 갱신·폴리라인 트리밍·자동 재경로 판정이
+  /// 모두 동일한 값을 공유하도록 한다(중복 계산으로 인한 판정 불일치 방지).
+  ({int nearestIdx, double distToRoadM, double remainingSegM})? _lastGeneratedRoadProgress;
 
   /// 네비게이션 시작 이후 누적 이동 거리 (자동 단계별 전환 트리거)
   double _movedSinceNavStart = 0.0;
@@ -50,8 +61,13 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   Future<void> _rerouteGeneratedCourse(
       Position p, TouristRouteEntity route, int wpIdx);
   Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns);
+  Set<String> get _drawnTurnMarkerIds;
   Future<void> _drawNavSpotMarkers(List<SpotWaypoint> waypoints, {required int currentIdx});
   void _clearNavPolylineCache();
+  List<SpotEntity> get _currentSearchedSpots;
+  Future<void> _drawSearchedSpotMarkers(List<SpotEntity> spots);
+  Future<void> _updateModeBMarkers(List<TouristRouteEntity> routes, {int selectedIdx});
+  Future<void> _addCartMarkersToMap(List<SpotEntity> items);
 
   void _disposeModeBNav() {
     _clearNavPolylineCache();
@@ -85,6 +101,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         _modeBNavPrevPosition = null;
         _modeBNavStepMode = false;
         _modeBRoadNearestPtIdx = 0;
+        _lastGeneratedRoadProgress = null;
         _movedSinceNavStart = 0.0;
         _arrivalHandled = false;
       });
@@ -96,6 +113,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           .map((p) => (lat: p.latitude, lng: p.longitude))
           .toList();
       _modeBTurnPoints = _computeTurnPoints(pts);
+      // GPX는 구간이 없는 단일 트랙이라 _modeBTurnPoints가 이미 전체 경로 기준이다.
+      _allRouteTurnMarkers = List.of(_modeBTurnPoints);
     } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
       final firstSeg = _segmentPolylines[0];
       if (firstSeg.isNotEmpty) {
@@ -105,12 +124,16 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         _modeBTurnPoints = [];
       }
       _modeBRoadNearestPtIdx = 0;
+      // 지도 마커는 현재 구간뿐 아니라 코스 전체 구간의 턴을 한번에 표시한다.
+      _allRouteTurnMarkers = _computeAllGeneratedRouteTurnPoints();
     } else {
       _modeBTurnPoints = [];
+      _allRouteTurnMarkers = [];
     }
-    // 실제 교차로 turn 포인트가 있을 때만 맵에 마커 그리기
-    if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
-      unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
+    // 턴 마커 그리기 — 실제 턴이 없어도 항상 호출해 이전 구간의 마커를 정리한다
+    // (조건부로만 호출하면 새 구간에 턴이 없을 때 이전 마커가 지도에 남는다).
+    if (mounted) {
+      unawaited(_drawTurnMarkersOnMap(_allRouteTurnMarkers));
     }
 
     // 시트 접기
@@ -131,9 +154,15 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── Navigation 종료 ───────────────────────────────────────────
 
-  Future<void> _stopModeBNavigation() async {
+  /// 안내 종료 공통 정리: provider 상태 리셋, 로컬 플래그·턴 마커 리셋, 폴리라인 캐시
+  /// 정리, 지도 오버레이 삭제, 카메라 원위치. 수동 종료(_stopModeBNavigation)·도착
+  /// (_checkModeBNavArrival)·뒤로가기 확인 모두 이 함수 하나로 처리해, 한쪽만 고치고
+  /// 다른 쪽은 빠뜨리는 일이 없도록 한다 — 과거엔 도착 시에는 이 정리가 전혀 호출되지
+  /// 않아 완주 후에도 폴리라인·턴 마커가 지도에 그대로 남아있던 버그가 있었다.
+  /// [alreadySaved]가 true면 기록 저장을 건너뛴다(도착 처리에서 이미 저장한 경우).
+  Future<void> _resetModeBNavState({bool alreadySaved = false}) async {
     final navState = ref.read(modeBNavProvider);
-    if (navState.isNavigating && navState.elapsedKcal >= 1.0) {
+    if (!alreadySaved && navState.isNavigating && navState.elapsedKcal >= 1.0) {
       await _saveModeBRecord(navState);
     }
     await ref.read(modeBNavProvider.notifier).stop();
@@ -148,17 +177,28 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _modeBNavWaypointPageIdx = 0;
       _modeBNavStepMode = false;
       _modeBTurnPoints = [];
+      _allRouteTurnMarkers = [];
       _lastStepSegmentUpdate = null;
       _modeBRoadNearestPtIdx = 0;
+      _lastGeneratedRoadProgress = null;
     });
 
     _arrivalHandled = false;
     _clearNavPolylineCache();
 
+    // 안내 중 그려진 폴리라인·마커(seg_N, route_path, route_done, turn_N, nav_spot_N 등)를
+    // 실제로 지도에서 제거한다. 위의 _clearNavPolylineCache()는 내부 캐시 참조만 비울 뿐
+    // NaverMap 오버레이 자체는 지우지 않는다.
+    final ctrl = _ctrl;
+    if (ctrl != null) {
+      await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
+      await ctrl.clearOverlays(type: NOverlayType.marker);
+    }
+
     // 카메라 초기화
     final pos = _position;
-    if (_ctrl != null && pos != null) {
-      await _ctrl!.updateCamera(
+    if (ctrl != null && pos != null) {
+      await ctrl.updateCamera(
         NCameraUpdate.withParams(
           target: NLatLng(pos.latitude, pos.longitude),
           zoom: 15,
@@ -170,14 +210,38 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           ),
       );
     }
+  }
+
+  /// 안내 종료 후(food가 남아있으면) 탐색 화면 상태(카트/검색결과/기성코스)에 맞춰
+  /// 마커를 복원한다. 방금 _resetModeBNavState가 마커를 모두 지웠으므로 필요하다.
+  void _restoreModeBExploreMarkersIfAny() {
+    final food = ref.read(selectedFoodProvider);
+    if (food == null) return;
+    final modeBState = ref.read(routeSearchProvider);
+    if (_currentSearchedSpots.isNotEmpty) {
+      unawaited(_drawSearchedSpotMarkers(_currentSearchedSpots));
+    } else if (modeBState.searchedSpots.isNotEmpty) {
+      unawaited(_drawSearchedSpotMarkers(modeBState.searchedSpots));
+    } else if (modeBState.routes.isNotEmpty) {
+      unawaited(_updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx));
+    } else {
+      final cartItems = ref.read(cartProvider);
+      if (cartItems.isNotEmpty) unawaited(_addCartMarkersToMap(cartItems));
+    }
+  }
+
+  Future<void> _stopModeBNavigation() async {
+    await _resetModeBNavState();
 
     // 종료 후 화면 처리: 음식이 없으면 (앱 재시작 복원 케이스) mode-b 선택으로
     if (!mounted) return;
     final food = ref.read(selectedFoodProvider);
     if (food == null) {
       context.go('/mode-b'); // ignore: use_build_context_synchronously
+      return;
     }
-    // food가 있으면 mode_b 탐색 화면 자동 복귀 (BottomPanel 표시)
+    // food가 있으면 mode_b 탐색 화면 자동 복귀
+    _restoreModeBExploreMarkersIfAny();
   }
 
   // ── GPS 위치 업데이트 처리 ─────────────────────────────────────
@@ -187,18 +251,61 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
     final profile = ref.read(userProfileProvider).valueOrNull;
     final weightKg = profile?.weightKg ?? AppConstants.defaultWeightKg;
-    final transport = navState.route?.type == '자전거' ? 'bike' : 'walk';
-
+    final route = navState.route;
+    final transport = route?.type == '자전거' ? 'bike' : 'walk';
     final prevWpIdx = navState.currentWaypointIdx;
-    ref.read(modeBNavProvider.notifier).onPositionUpdate(
-          p.latitude, p.longitude, weightKg, transport);
+
+    final isGenerated = route != null && route.isGenerated && route.waypoints.isNotEmpty;
+    final segmentsReady = isGenerated &&
+        _segmentPolylines.isNotEmpty &&
+        prevWpIdx < _segmentPolylines.length;
+
+    // 이번 틱에 계산한 진행률 — provider 갱신뿐 아니라 아래 지나간 턴 마커 제거에도 재사용
+    ({int nearestIdx, double distToRoadM, double remainingSegM})? progress;
+
+    if (segmentsReady) {
+      // 화면에 그려지는 도로 스냅 폴리라인(_segmentPolylines) 기준으로 진행률을
+      // 틱당 1회만 계산 — provider 갱신·트리밍 색상·자동 재경로 판정이 모두 이 값을 공유한다.
+      progress = _computeGeneratedRoadProgress(p.latitude, p.longitude, prevWpIdx);
+      _lastGeneratedRoadProgress = progress;
+
+      final target = route.waypoints[prevWpIdx];
+      final distToTargetM = Geolocator.distanceBetween(
+          p.latitude, p.longitude, target.lat, target.lng);
+
+      ref.read(modeBNavProvider.notifier).updateGeneratedFromRoad(
+            distToTargetM: distToTargetM,
+            distToRoadM: progress.distToRoadM,
+            remainingSegM: progress.remainingSegM,
+            weightKg: weightKg,
+            transport: transport,
+          );
+    } else {
+      ref.read(modeBNavProvider.notifier).onPositionUpdate(
+            p.latitude, p.longitude, weightKg, transport);
+    }
+
     final updatedState = ref.read(modeBNavProvider);
     final newWpIdx = updatedState.currentWaypointIdx;
     final wpAdvanced = newWpIdx != prevWpIdx;
     // 세그먼트가 바뀌면 이전 세그먼트 기준 위치 인덱스는 새 세그먼트에 무의미하므로
     // _onGeneratedCourseWaypointAdvanced(비동기)가 처리하기 전에 이번 틱에서 즉시 리셋한다.
-    // (안 하면 아래 _updateRoadNearestPtIdx가 옛 인덱스로 새 폴리라인을 탐색하는 race가 생김)
-    if (wpAdvanced) _modeBRoadNearestPtIdx = 0;
+    if (wpAdvanced) {
+      _modeBRoadNearestPtIdx = 0;
+      _lastGeneratedRoadProgress = null;
+    }
+
+    // 지나온 턴 마커 제거 — 완료된 코스 구간이 회색으로 바뀌는 것과 동일하게,
+    // 사용자가 실제로 지나친 좌/우회전 아이콘도 실시간으로 지도에서 사라지게 한다.
+    if (isGenerated) {
+      // wpAdvanced가 이번 틱에 막 일어났으면 progress는 "이전" 구간 기준이라
+      // 새 구간(newWpIdx)의 턴과 비교하면 안 된다 — segIdx 비교만으로 이전 구간
+      // 전체는 이미 걸러지므로 ptIdx 비교는 생략(-1)한다.
+      final ptIdx = wpAdvanced ? -1 : (progress?.nearestIdx ?? -1);
+      _pruneRouteTurnMarkers(currentSegIdx: newWpIdx, currentPtIdx: ptIdx);
+    } else {
+      _pruneRouteTurnMarkers(currentSegIdx: 0, currentPtIdx: updatedState.nearestGpxPtIdx);
+    }
 
     // 이동 방향 계산 (GPS 기반)
     final prev = _modeBNavPrevPosition;
@@ -217,13 +324,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       _followModeBCamera(p.latitude, p.longitude, cameraBearing);
     }
 
-    // 생성 코스: 현재 구간 내 위치 인덱스 갱신
-    if ((navState.route?.isGenerated ?? false) && _segmentPolylines.isNotEmpty) {
-      _updateRoadNearestPtIdx(p.latitude, p.longitude, newWpIdx);
-    }
-
     // 자동 단계별 전환: 생성 코스에서 50m 이동 시
-    if (!_modeBNavStepMode && (navState.route?.isGenerated ?? false)) {
+    if (!_modeBNavStepMode && isGenerated) {
       if (movedNow >= 2.0) {
         _movedSinceNavStart += movedNow;
         if (_movedSinceNavStart >= 50.0) {
@@ -237,13 +339,13 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     }
 
     // 단계별 모드: GPX 코스 전용 세그먼트 갱신
-    if (_modeBNavStepMode && !((navState.route?.isGenerated) ?? false) &&
+    if (_modeBNavStepMode && !isGenerated &&
         _modeBTurnPoints.any((t) => t.type != _TurnType.arrival)) {
       unawaited(_updateStepModeSegment(updatedState));
     }
 
     // 생성 코스: 다음 waypoint 도착 감지 → 구간 교체
-    if ((navState.route?.isGenerated ?? false) && wpAdvanced) {
+    if (isGenerated && wpAdvanced) {
       unawaited(_onGeneratedCourseWaypointAdvanced(
           updatedState.route!, newWpIdx));
     }
@@ -251,31 +353,51 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     // GPX 코스 이탈 스낵바는 map_overlay.dart의 ref.listen(modeBNavProvider)에서
     // isOffRoute 전환을 감지해 단일 지점에서 처리한다 (여기서 중복 트리거하지 않음).
 
-    // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로
-    final route = navState.route;
-    if (route != null && route.isGenerated && _segmentPolylines.isNotEmpty) {
-      final currentIdx =
-          navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
-      final pts = _segmentPolylines[currentIdx];
-      if (pts.isNotEmpty) {
-        double minDist = double.infinity;
-        for (var i = 0; i < pts.length; i++) {
-          final d = Geolocator.distanceBetween(
-              p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
-          if (d < minDist) minDist = d;
-          if (minDist < 20) break; // 충분히 가까우면 조기 종료
-        }
-        if (minDist > 100) {
+    // 생성 코스 이탈 감지 → 30초 유지 시 자동 재경로.
+    // 위에서 이미 계산한 도로까지 거리(distToRoadM)를 재사용해 서로 다른 판정 기준이
+    // 생기지 않도록 한다.
+    if (isGenerated && !wpAdvanced) {
+      final progress = _lastGeneratedRoadProgress;
+      if (progress != null) {
+        if (progress.distToRoadM > AppConstants.modeBOffRouteThresholdM) {
           _offRouteStartTime ??= DateTime.now();
           if (DateTime.now().difference(_offRouteStartTime!).inSeconds >= 30) {
             _offRouteStartTime = null;
-            _showGeneratedOffRouteDialog(p, route, navState.currentWaypointIdx);
+            _showGeneratedOffRouteDialog(p, route, prevWpIdx);
           }
         } else {
           _offRouteStartTime = null;
         }
       }
     }
+  }
+
+  /// 도로 스냅 폴리라인(_segmentPolylines[currentWpIdx]) 기준 최근접점 탐색.
+  /// GPS 지터로 인덱스가 잘못 앞으로 튀는 문제를 줄이기 위해 소폭 역탐색을 허용한다
+  /// (순증가 전용이 아님) — 화면에 그려지는 경로와 동일한 데이터를 사용하므로
+  /// 이 결과가 도착/이탈/잔여거리 판정의 유일한 근거가 된다.
+  ({int nearestIdx, double distToRoadM, double remainingSegM})
+      _computeGeneratedRoadProgress(double lat, double lng, int currentWpIdx) {
+    final pts = _segmentPolylines[currentWpIdx];
+    final searchStart = (_modeBRoadNearestPtIdx - 30).clamp(0, pts.length - 1);
+    final searchEnd = (_modeBRoadNearestPtIdx + 200).clamp(0, pts.length);
+    int best = _modeBRoadNearestPtIdx.clamp(0, pts.length - 1);
+    double bestDist = double.infinity;
+    for (int i = searchStart; i < searchEnd; i++) {
+      final d = _preciseDistM(lat, lng, pts[i].latitude, pts[i].longitude);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    _modeBRoadNearestPtIdx = best;
+
+    double remainingSegM = 0;
+    for (int i = best; i < pts.length - 1; i++) {
+      remainingSegM += _preciseDistM(
+          pts[i].latitude, pts[i].longitude, pts[i + 1].latitude, pts[i + 1].longitude);
+    }
+    return (nearestIdx: best, distToRoadM: bestDist, remainingSegM: remainingSegM);
   }
 
   // 생성 코스 waypoint 진행 시 호출 — 구간 교체 + 턴 포인트 재계산
@@ -287,22 +409,23 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     // 폴리라인 교체
     await _drawSegmentsOnMap(newWpIdx, showAll: _modeBShowAllSegments);
 
-    // 새 구간의 턴 포인트 계산
+    // 새 구간의 턴 포인트 계산 (단계별 안내 카드용 — 지도 마커는 _allRouteTurnMarkers가
+    // 이미 코스 전체를 커버하고 있어 여기서 다시 그릴 필요 없다. _drawTurnMarkersOnMap을
+    // 이 구간만으로 다시 호출하면 다른 구간의 마커까지 전부 지워지므로 호출하지 않는다 —
+    // 지나온 구간의 마커 정리는 다음 GPS 틱의 _pruneRouteTurnMarkers가 담당한다).
     if (newWpIdx < _segmentPolylines.length) {
       final seg = _segmentPolylines[newWpIdx];
       if (seg.isNotEmpty) {
         final pts = seg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
-        _modeBTurnPoints = _computeTurnPoints(pts);
+        _modeBTurnPoints = _computeTurnPoints(pts, segIdx: newWpIdx);
       } else {
         _modeBTurnPoints = [];
       }
+    } else {
+      _modeBTurnPoints = [];
     }
     _modeBRoadNearestPtIdx = 0;
-
-    // 단계별 모드 중이면 턴 마커 갱신
-    if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
-      unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
-    }
+    _lastGeneratedRoadProgress = null;
     // nav spot 마커 갱신은 modeBNavProvider listener에서 처리
   }
 
@@ -439,26 +562,14 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         : navState.nearestGpxPtIdx;
   }
 
-  /// 현재 구간(_segmentPolylines[currentWpIdx]) 상의 위치 인덱스 갱신.
-  void _updateRoadNearestPtIdx(double lat, double lng, int currentWpIdx) {
-    if (_segmentPolylines.isEmpty || currentWpIdx >= _segmentPolylines.length) return;
-    final pts = _segmentPolylines[currentWpIdx];
-    if (pts.isEmpty) return;
-    final searchEnd = pts.length.clamp(0, _modeBRoadNearestPtIdx + 200);
-    int best = _modeBRoadNearestPtIdx;
-    double bestDist = double.infinity;
-    for (int i = _modeBRoadNearestPtIdx; i < searchEnd; i++) {
-      final d = _fastDistM(lat, lng, pts[i].latitude, pts[i].longitude);
-      if (d < bestDist) { bestDist = d; best = i; }
-    }
-    if (best > _modeBRoadNearestPtIdx) _modeBRoadNearestPtIdx = best;
-  }
-
   // ── 방향 전환 포인트 계산 ──────────────────────────────────────
 
   /// GPX 포인트 목록에서 교차로 방향 전환 지점을 추출.
   /// 인덱스 기반이 아닌 실거리(m) 기반 윈도우를 사용해 GPX 밀도에 무관하게 동작.
-  List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts) {
+  List<_TurnPoint> _computeTurnPoints(
+    List<({double lat, double lng})> pts, {
+    int segIdx = 0,
+  }) {
     if (pts.length < 6) return [];
 
     // 누적 거리(m) 계산 — 고밀도 GPX 포인트이므로 Equirectangular 근사로 충분
@@ -521,6 +632,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           lat: pts[i].lat,
           lng: pts[i].lng,
           instruction: instruction,
+          segIdx: segIdx,
         ));
         lastTurnDist = d;
       }
@@ -533,10 +645,54 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       lat: pts.last.lat,
       lng: pts.last.lng,
       instruction: '목적지에 도착합니다',
+      segIdx: segIdx,
     ));
 
     debugPrint('[TurnDetect] pts=${pts.length} totalDist=${totalDist.round()}m turns=${turns.length - 1}');
     return turns;
+  }
+
+  /// 생성 코스: _segmentPolylines 전 구간을 순회하며 턴 포인트를 계산해
+  /// 하나의 리스트로 합친다 — 지도에는 현재 구간뿐 아니라 코스 전체의
+  /// 좌우회전 지점이 한 번에 표시된다.
+  List<_TurnPoint> _computeAllGeneratedRouteTurnPoints() {
+    final all = <_TurnPoint>[];
+    for (var segIdx = 0; segIdx < _segmentPolylines.length; segIdx++) {
+      final seg = _segmentPolylines[segIdx];
+      if (seg.isEmpty) continue;
+      final pts = seg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+      all.addAll(_computeTurnPoints(pts, segIdx: segIdx));
+    }
+    return all;
+  }
+
+  /// 사용자가 지나온 턴 마커를 목록·지도에서 제거한다.
+  /// [currentSegIdx]: 현재 위치가 속한 구간(생성 코스는 currentWaypointIdx, GPX는 항상 0)
+  /// [currentPtIdx]: 그 구간 내에서의 최근접점 인덱스 — currentSegIdx로 막 넘어온 틱에는
+  ///   이전 구간 기준 값이라 의미가 없으므로 -1을 넘겨 "이 구간의 부분 통과분"은
+  ///   판정에서 제외한다(segIdx 비교만으로 이전 구간 전체는 이미 걸러진다).
+  void _pruneRouteTurnMarkers({required int currentSegIdx, required int currentPtIdx}) {
+    if (_allRouteTurnMarkers.isEmpty) return;
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+
+    final remaining = <_TurnPoint>[];
+    for (final t in _allRouteTurnMarkers) {
+      final passed = t.segIdx < currentSegIdx ||
+          (t.segIdx == currentSegIdx && currentPtIdx >= 0 && t.gpxIdx <= currentPtIdx);
+      if (passed) {
+        final id = _turnMarkerId(t);
+        _drawnTurnMarkerIds.remove(id);
+        unawaited(ctrl
+            .deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: id))
+            .catchError((_) {}));
+      } else {
+        remaining.add(t);
+      }
+    }
+    if (remaining.length != _allRouteTurnMarkers.length) {
+      _allRouteTurnMarkers = remaining;
+    }
   }
 
   /// 단계별 모드에서 다음 턴까지의 거리 계산 (GPX + 생성 코스 공통)
@@ -631,34 +787,15 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
     if (isArrived) {
       _arrivalHandled = true;
-      await _saveModeBRecord(navState);
       // stop() 전에 표시용 데이터 캡처 — stop()이 state를 ModeBNavState()로 리셋하므로
       final arrivedNavState = navState;
-      ref.read(modeBNavProvider.notifier).stop();
-      _resetModeBNavCamera();
+      await _saveModeBRecord(navState);
+      // 수동 종료·뒤로가기 종료와 동일한 정리(폴리라인·턴 마커·오버레이 삭제)를 거친다 —
+      // 과거엔 여기서 provider.stop()만 호출해 도착 후에도 지도에 경로선이 남아있었다.
+      await _resetModeBNavState(alreadySaved: true);
+      if (mounted) _restoreModeBExploreMarkersIfAny();
       _showModeBNavArrivalMessage(route.name, arrivedNavState);
     }
-  }
-
-  Future<void> _resetModeBNavCamera() async {
-    if (_ctrl == null || _position == null) return;
-    setState(() {
-      _modeBNavCameraFollow = true;
-      _modeBNavCameraUpdating = false;
-      _modeBNavLastBearing = 0.0;
-      _modeBNavPrevPosition = null;
-    });
-    await _ctrl!.updateCamera(
-      NCameraUpdate.withParams(
-        target: NLatLng(_position!.latitude, _position!.longitude),
-        zoom: 15,
-        bearing: 0,
-        tilt: 0,
-      )..setAnimation(
-          animation: NCameraAnimation.easing,
-          duration: const Duration(milliseconds: 600),
-        ),
-    );
   }
 
   void _showModeBNavArrivalMessage(String routeName, ModeBNavState navState) {
@@ -766,11 +903,49 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             },
             child: Text('재경로',
                 style: TextStyle(
-                    color: context.colors.pinUser, fontWeight: FontWeight.w800)),
+                    color: context.colors.accent, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
     );
+  }
+
+  /// 안내 중 뒤로가기(하드웨어/제스처) 시 확인. true = 안내 종료 후 화면 이탈 동의.
+  Future<bool> _showModeBExitNavConfirmDialog() async {
+    if (!mounted) return false;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kMapPanel,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(Icons.warning_amber_rounded, color: context.colors.warn, size: 22),
+          const SizedBox(width: 8),
+          const Text('안내 종료',
+              style: TextStyle(
+                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: const Text(
+          '진행 중인 코스 안내가 종료됩니다.\n안내를 종료하시겠습니까?',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('계속 안내받기',
+                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('종료',
+                style: TextStyle(
+                    color: context.colors.danger, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   void _navigateToSpotFromWaypoint(SpotWaypoint wp) {
@@ -833,8 +1008,13 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     try {
       final points = await _fetchGpxPoints(gpxUrl);
       if (!mounted || points.isEmpty) return;
-      ref.read(modeBNavProvider.notifier).setGpxPoints(
-            points.map((p) => (lat: p.latitude, lng: p.longitude)).toList());
+      final pts = points.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+      ref.read(modeBNavProvider.notifier).setGpxPoints(pts);
+
+      // 턴 마커 복원 — 정상 시작 흐름과 동일하게 전체 트랙 기준으로 계산해 그린다.
+      _modeBTurnPoints = _computeTurnPoints(pts);
+      _allRouteTurnMarkers = List.of(_modeBTurnPoints);
+      if (mounted) unawaited(_drawTurnMarkersOnMap(_allRouteTurnMarkers));
 
       final pos = _position;
       if (pos != null) {

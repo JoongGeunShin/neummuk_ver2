@@ -5,29 +5,17 @@ const double _kGenerateBarHeight = 68.0;
 
 // ── 공유 지오 헬퍼 (mode_b_mixin / mode_b_nav_mixin 공용) ──────────────────
 //
-// 두 가지 거리 계산을 의도적으로 분리한다:
+// 두 가지 거리 계산을 의도적으로 분리한다 (core/utils/geo_utils.dart 위임):
 //   • _preciseDistM  : Haversine — 구간 거리 합산 등 정밀 배치 계산
 //   • _fastDistM     : Equirectangular — GPS 틱마다 호출되는 실시간 근접점 탐색
 //                      (오차 ~0.1% 이내, 속도 우선)
 //   • Geolocator.distanceBetween : 플랫폼 정밀 계산 — 단발성 이동 감지에만 사용
 
-double _preciseDistM(double lat1, double lng1, double lat2, double lng2) {
-  const r = 6371000.0;
-  const toRad = pi / 180;
-  final dLat = (lat2 - lat1) * toRad;
-  final dLng = (lng2 - lng1) * toRad;
-  final a = sin(dLat / 2) * sin(dLat / 2) +
-      cos(lat1 * toRad) * cos(lat2 * toRad) * sin(dLng / 2) * sin(dLng / 2);
-  return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-}
+double _preciseDistM(double lat1, double lng1, double lat2, double lng2) =>
+    haversineDistanceM(lat1, lng1, lat2, lng2);
 
-double _fastDistM(double lat1, double lng1, double lat2, double lng2) {
-  const toRad = pi / 180;
-  final dLat = (lat2 - lat1) * toRad;
-  final dLng = (lng2 - lng1) * toRad;
-  final cosLat = cos(lat1 * toRad);
-  return 6371000.0 * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
-}
+double _fastDistM(double lat1, double lng1, double lat2, double lng2) =>
+    fastDistanceM(lat1, lng1, lat2, lng2);
 
 double _bearingDeg(double lat1, double lng1, double lat2, double lng2) {
   const toRad = pi / 180;
@@ -37,6 +25,20 @@ double _bearingDeg(double lat1, double lng1, double lat2, double lng2) {
       sin(lat1 * toRad) * cos(lat2 * toRad) * cos(dLng);
   return (atan2(y, x) * 180 / pi + 360) % 360;
 }
+
+/// 턴 마커의 지도 오버레이 ID — 구간+구간 내 인덱스로 결정되는 내용 기반 ID라서
+/// 리스트 순서가 바뀌어도(지나간 턴 제거 등) 항상 같은 턴을 가리킨다.
+String _turnMarkerId(_TurnPoint t) => 'turn_${t.segIdx}_${t.gpxIdx}';
+
+/// 스팟 타입 → 대표 이모지 (마커/리스트 공용)
+String _spotTypeEmoji(String type) => switch (type) {
+      'tourist_sight' => '🏛️',
+      'culture' => '🎭',
+      'event' => '🎉',
+      'sports' => '⛹️',
+      'shopping' => '🛍️',
+      _ => '📍',
+    };
 
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -53,14 +55,29 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   List<_TurnPoint> get _modeBTurnPoints;
   set _modeBTurnPoints(List<_TurnPoint> value);
 
+  /// _ModeBNavOverlayMixin에서 구현 — 지도에 표시되는 코스 전체 턴 마커 목록
+  List<_TurnPoint> get _allRouteTurnMarkers;
+  set _allRouteTurnMarkers(List<_TurnPoint> value);
+
   /// _ModeBNavOverlayMixin에서 구현 — 도로 경로 포인트 → 턴포인트 계산
-  List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts);
+  List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts, {int segIdx});
 
   /// _ModeBNavOverlayMixin에서 구현 — 현재 구간 도로 경로상의 위치 인덱스
   set _modeBRoadNearestPtIdx(int value);
 
+  /// _ModeBNavOverlayMixin에서 구현 — 이번 GPS 틱의 도로 스냅 기준 진행률 캐시
+  /// (폴리라인 트리밍이 provider와 동일한 최근접점/이탈거리를 사용하도록 공유)
+  ({int nearestIdx, double distToRoadM, double remainingSegM})? get _lastGeneratedRoadProgress;
+  set _lastGeneratedRoadProgress(
+      ({int nearestIdx, double distToRoadM, double remainingSegM})? value);
+
   /// 생성 코스 구간별 도로 폴리라인 (인덱스 N = 이전 waypoint → waypoint[N])
   List<List<NLatLng>> _segmentPolylines = [];
+
+  /// 현재 _segmentPolylines를 채운 API 소스 ('tmap' | 'kakao' | null=미확정).
+  /// 세그먼트 0 재요청·재경로 시에도 이 소스를 우선 사용해, 한 코스 안에서
+  /// TMAP 구간과 Kakao 구간이 섞이지 않도록 한다.
+  String? _generatedCourseRouteSource;
 
   /// 폴리라인 페치 진행 중일 때 non-null — 동시 요청 간 경쟁 방지용
   Completer<void>? _segmentsFetchCompleter;
@@ -74,10 +91,15 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // 네비게이션 폴리라인 실시간 트리밍 캐시
   NPolylineOverlay? _cachedNavRoutePolyline;
+  NPolylineOverlay? _cachedNavDonePolyline;
+  NPolylineOverlay? _cachedNavSegDonePolyline;
   final Map<int, NPolylineOverlay> _cachedNavSegPolylines = {};
   int _lastTrimGpxIdx = -1;
   int _lastTrimSegIdx = -1;
   bool _lastTrimOffRoute = false;
+
+  /// 현재 지도에 그려져 있는 턴 마커의 오버레이 ID 집합 (_turnMarkerId 기준)
+  final Set<String> _drawnTurnMarkerIds = {};
 
   // 검색된 스팟 목록 (마커 탭과 연결용)
   List<SpotEntity> _currentSearchedSpots = [];
@@ -101,21 +123,17 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
     try {
       final wp = route.waypoints[currentWpIdx];
+      // 코스가 확정한 소스를 그대로 따른다 (세그먼트 0 재요청과 동일한 이유).
       final newPts = await _fetchApproachRoute(
         fromLat: p.latitude,
         fromLng: p.longitude,
         toLat: wp.lat,
         toLng: wp.lng,
+        preferredSource: _generatedCourseRouteSource,
       );
       if (!mounted || newPts.length < 2) return;
 
-      final userPos = NLatLng(p.latitude, p.longitude);
-      final snapDist = Geolocator.distanceBetween(
-        p.latitude, p.longitude,
-        newPts.first.latitude, newPts.first.longitude,
-      );
-      _segmentPolylines[currentWpIdx] =
-          snapDist > 10 ? [userPos, ...newPts] : newPts;
+      _segmentPolylines[currentWpIdx] = newPts;
 
       await _drawSegmentsOnMap(currentWpIdx, showAll: _modeBShowAllSegments);
 
@@ -127,14 +145,24 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       // (_onGeneratedCourseWaypointAdvanced와 동일하게 처리 — 안 하면 재경로 후에도
       // 옛 경로 기준 턴 안내가 남는다)
       final newSeg = _segmentPolylines[currentWpIdx];
-      _modeBTurnPoints = newSeg.isNotEmpty
+      final newSegTurns = newSeg.isNotEmpty
           ? _computeTurnPoints(
-              newSeg.map((pt) => (lat: pt.latitude, lng: pt.longitude)).toList())
-          : [];
+              newSeg.map((pt) => (lat: pt.latitude, lng: pt.longitude)).toList(),
+              segIdx: currentWpIdx,
+            )
+          : <_TurnPoint>[];
+      _modeBTurnPoints = newSegTurns;
       _modeBRoadNearestPtIdx = 0;
+      _lastGeneratedRoadProgress = null;
 
-      if (_modeBTurnPoints.any((t) => t.type != _TurnType.arrival) && mounted) {
-        unawaited(_drawTurnMarkersOnMap(_modeBTurnPoints));
+      // 지도 마커: 이 구간(currentWpIdx)의 턴만 새 경로 기준으로 교체하고
+      // 다른 구간의 턴 마커는 그대로 둔다.
+      _allRouteTurnMarkers = [
+        ..._allRouteTurnMarkers.where((t) => t.segIdx != currentWpIdx),
+        ...newSegTurns,
+      ];
+      if (mounted) {
+        unawaited(_drawTurnMarkersOnMap(_allRouteTurnMarkers));
       }
     } catch (_) {}
   }
@@ -148,34 +176,75 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   // ── 구간별 도로 경로 일괄 페치 ────────────────────────────────────
+  //
+  // 코스 전체를 하나의 API 소스로 통일한다: TMAP(도보 정확도가 더 높음)으로
+  // 전 구간을 먼저 시도하고, 단 한 구간이라도 실패하면 그 결과는 버리고
+  // 코스 전체를 Kakao Mobility로 다시 시도한다. 구간별로 독립적으로
+  // TMAP→Kakao 폴백을 판단하면 한 코스 안에서 도로 스냅 스타일이 섞여
+  // 부자연스러운 경로가 나올 수 있어, "전체 성공/전체 실패" 단위로만 전환한다.
 
   Future<void> _fetchAllSegmentPolylines({
     required double startLat,
     required double startLng,
     required List<SpotWaypoint> waypoints,
   }) async {
+    final tmapPass = await _fetchSegmentsBySource(
+      startLat: startLat, startLng: startLng, waypoints: waypoints, source: 'tmap',
+    );
+    if (tmapPass.allSucceeded) {
+      _segmentPolylines = tmapPass.segments;
+      _generatedCourseRouteSource = 'tmap';
+      return;
+    }
+
+    debugPrint('[ModeB] TMAP으로 코스 전체 구간을 채우지 못해 Kakao로 코스 전체 재시도');
+    final kakaoPass = await _fetchSegmentsBySource(
+      startLat: startLat, startLng: startLng, waypoints: waypoints, source: 'kakao',
+    );
+    // kakaoPass도 일부 구간이 실패하면 그 구간은 직선으로 채워져 있다(마지막 안전망) —
+    // 그래도 TMAP 결과와 섞지 않고 Kakao 패스 하나로 통일해 사용한다.
+    _segmentPolylines = kakaoPass.segments;
+    _generatedCourseRouteSource = kakaoPass.allSucceeded ? 'kakao' : null;
+  }
+
+  /// [source]("tmap" | "kakao") 하나만으로 전 구간을 시도한다. 실패한 구간은
+  /// 직선으로 채우되 [allSucceeded]로 실제 전체 성공 여부를 함께 반환한다.
+  Future<({List<List<NLatLng>> segments, bool allSucceeded})> _fetchSegmentsBySource({
+    required double startLat,
+    required double startLng,
+    required List<SpotWaypoint> waypoints,
+    required String source,
+  }) async {
     final segments = <List<NLatLng>>[];
+    var allSucceeded = true;
     double prevLat = startLat, prevLng = startLng;
 
     for (final wp in waypoints) {
-      // _fetchApproachRoute: TMAP → Kakao 폴백 순서로 시도
-      final pts = await _fetchApproachRoute(
-        fromLat: prevLat,
-        fromLng: prevLng,
-        toLat: wp.lat,
-        toLng: wp.lng,
-      );
+      final pts = source == 'tmap'
+          ? await _fetchPedestrianRoute(
+              startLat: prevLat, startLng: prevLng,
+              waypointCoords: [(lat: wp.lat, lng: wp.lng)],
+            )
+          : await _fetchKakaoMobilityRoute(prevLat, prevLng, wp.lat, wp.lng);
+
       if (pts.isNotEmpty) {
-        final snapDist = Geolocator.distanceBetween(
-            prevLat, prevLng, pts.first.latitude, pts.first.longitude);
-        segments.add(snapDist > 10 ? [NLatLng(prevLat, prevLng), ...pts] : pts);
+        segments.add(_withSnapPrefix(prevLat, prevLng, pts));
       } else {
         segments.add([NLatLng(prevLat, prevLng), NLatLng(wp.lat, wp.lng)]);
+        allSucceeded = false;
       }
       prevLat = wp.lat;
       prevLng = wp.lng;
     }
-    _segmentPolylines = segments;
+    return (segments: segments, allSucceeded: allSucceeded);
+  }
+
+  /// 요청 출발점과 API가 반환한 첫 포인트가 10m 이상 떨어져 있으면 출발점을
+  /// 맨 앞에 이어붙인다 (도로 스냅 지점과 실제 출발 위치 사이 끊김 방지).
+  List<NLatLng> _withSnapPrefix(double fromLat, double fromLng, List<NLatLng> pts) {
+    final snapDist = Geolocator.distanceBetween(
+        fromLat, fromLng, pts.first.latitude, pts.first.longitude);
+    return snapDist > 10 ? [NLatLng(fromLat, fromLng), ...pts] : pts;
   }
 
   // ── 구간별 폴리라인 그리기 ────────────────────────────────────────
@@ -186,17 +255,21 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
     // context는 await 전에 캡처
     final completedColor = kMapWhite45;
-    final upcomingColor = context.colors.pinUser.withValues(alpha: 0.4);
+    final upcomingColor = context.colors.accent.withValues(alpha: 0.35);
     final accentColor = context.colors.accent;
 
     // 구간 교체 시 트리밍 캐시 무효화 (새 폴리라인 인스턴스로 교체되므로)
     _cachedNavSegPolylines.clear();
+    _cachedNavSegDonePolyline = null;
     _lastTrimSegIdx = -1;
     _lastTrimOffRoute = false;
 
     for (var i = 0; i < _segmentPolylines.length; i++) {
       await ctrl.deleteOverlay(
         NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_$i'),
+      ).catchError((_) {});
+      await ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_done_$i'),
       ).catchError((_) {});
     }
 
@@ -278,10 +351,13 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   void _clearNavPolylineCache() {
     _cachedNavRoutePolyline = null;
+    _cachedNavDonePolyline = null;
+    _cachedNavSegDonePolyline = null;
     _cachedNavSegPolylines.clear();
     _lastTrimGpxIdx = -1;
     _lastTrimSegIdx = -1;
     _lastTrimOffRoute = false;
+    _drawnTurnMarkerIds.clear();
   }
 
   double _modeBTopBarHeight(BuildContext context) =>
@@ -996,13 +1072,13 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         await pendingFetch.future.catchError((_) {});
       }
 
-      // 구간별 폴리라인 페치 (아직 없으면) — 미리보기에서 이미 페치됐을 수도 있음
+      final startLat = pos?.latitude ?? route.startLat!;
+      final startLng = pos?.longitude ?? route.startLng!;
+
       if (_segmentPolylines.length != route.waypoints.length) {
-        final startLat = pos?.latitude ?? route.startLat!;
-        final startLng = pos?.longitude ?? route.startLng!;
+        // 미리보기에서 전혀 페치되지 않은 경우 — 전체 구간 신규 페치
         setState(() => _gpxLoading = true);
         try {
-          // 기존 preview 폴리라인 제거 후 구간별로 교체
           await ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
           await _fetchAllSegmentPolylines(
             startLat: startLat,
@@ -1013,36 +1089,63 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           if (mounted) setState(() => _gpxLoading = false);
         }
       } else {
-        // 기존 generated_course 미리보기 폴리라인 제거 — seg_N으로 교체
+        // 스팟↔스팟 구간(1..N-1)은 사용자 위치와 무관하므로 미리보기 결과를 재사용하고,
+        // 세그먼트 0(현재 위치 → 첫 스팟)만 안내 시작 시점의 최신 GPS로 다시 요청한다.
+        // (재사용만 하면 미리보기 당시 origin이 stale해 파란 접근경로와 어긋나 보이던 원인 —
+        //  이제 접근 경로는 별도 오버레이 없이 seg_0 자체가 항상 현재 위치에서 시작한다.)
         await ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
+        if (route.waypoints.isNotEmpty) {
+          setState(() => _gpxLoading = true);
+          try {
+            final firstWp = route.waypoints.first;
+            // 코스가 이미 확정한 소스(_generatedCourseRouteSource)를 그대로 따른다 —
+            // 나머지 구간이 Kakao로 채워진 코스에서 이 구간만 TMAP으로 성공해
+            // 소스가 섞이는 것을 방지한다.
+            final pts = await _fetchApproachRoute(
+              fromLat: startLat, fromLng: startLng,
+              toLat: firstWp.lat, toLng: firstWp.lng,
+              preferredSource: _generatedCourseRouteSource,
+            );
+            // 두 API 모두 실패하면 직선으로 대체한다 — 비워두면 미리보기 시점의
+            // stale한 세그먼트 0(옛 위치 기준)이 그대로 남는 문제가 재발한다.
+            _segmentPolylines[0] =
+                pts.isNotEmpty ? pts : [NLatLng(startLat, startLng), NLatLng(firstWp.lat, firstWp.lng)];
+          } finally {
+            if (mounted) setState(() => _gpxLoading = false);
+          }
+        }
       }
 
-      // 내비게이션 시작: 전체 구간 표시 (완료=회색, 예정=회색, 현재=accent)
+      // 내비게이션 시작: 전체 구간 표시 (완료=회색, 예정=옅은노랑, 현재=노랑)
       if (mounted) {
         setState(() => _modeBShowAllSegments = true);
         await _drawSegmentsOnMap(0, showAll: true);
       }
       if (mounted) await _drawNavSpotMarkers(route.waypoints, currentIdx: 0);
-
-      // 생성 코스: 현재 위치 → 첫 번째 스팟 접근 경로
-      if (ctrl != null && pos != null && route.waypoints.isNotEmpty) {
-        final firstWp = route.waypoints.first;
-        final approachPoints = await _fetchApproachRoute(
-          fromLat: pos.latitude, fromLng: pos.longitude,
-          toLat: firstWp.lat, toLng: firstWp.lng,
-        );
-        if (mounted && approachPoints.isNotEmpty) {
-          final c = context.colors;
-          await ctrl.addOverlay(NPolylineOverlay(
-            id: 'approach_path',
-            coords: approachPoints,
-            color: c.pinUser,
-            width: 4,
-          ));
-        }
-      }
     } else {
-      if (route.gpxpath != null) {
+      // 기성(GPX) 코스: 현재 위치 → 코스 시작점 접근 구간을 별도 오버레이가 아니라
+      // gpxPoints 앞에 이어붙여 단일 폴리라인으로 만든다. 이렇게 하면 렌더링과
+      // 이탈/잔여거리 판정(_updateGpxNav)이 동일한 좌표 배열을 기준으로 계산되어
+      // 접근 구간에서 발생하던 오탐 이탈이 함께 해결된다.
+      List<NLatLng> approachPts = [];
+      if (ctrl != null && route.hasCoordinate && pos != null) {
+        setState(() => _gpxLoading = true);
+        try {
+          final results = await Future.wait<List<NLatLng>>([
+            _fetchApproachRoute(
+              fromLat: pos.latitude, fromLng: pos.longitude,
+              toLat: route.startLat!, toLng: route.startLng!,
+            ),
+            route.gpxpath != null
+                ? _fetchGpxPoints(route.gpxpath!)
+                : Future.value(const <NLatLng>[]),
+          ]);
+          approachPts = results[0];
+          gpxPoints = results[1];
+        } finally {
+          if (mounted) setState(() => _gpxLoading = false);
+        }
+      } else if (route.gpxpath != null) {
         setState(() => _gpxLoading = true);
         try {
           gpxPoints = await _fetchGpxPoints(route.gpxpath!);
@@ -1051,20 +1154,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         }
       }
 
-      if (ctrl != null && route.hasCoordinate && pos != null) {
-        final approachPoints = await _fetchApproachRoute(
-          fromLat: pos.latitude, fromLng: pos.longitude,
-          toLat: route.startLat!, toLng: route.startLng!,
-        );
-        if (mounted && approachPoints.isNotEmpty) {
-          final c = context.colors;
-          await ctrl.addOverlay(NPolylineOverlay(
-            id: 'approach_path',
-            coords: approachPoints,
-            color: c.pinUser,
-            width: 4,
-          ));
-        }
+      if (approachPts.isNotEmpty) {
+        gpxPoints = [...approachPts, ...gpxPoints];
       }
     }
 
@@ -1080,27 +1171,35 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 접근 경로 (OSRM 우선 → Kakao Mobility fallback) ────────────
 
+  /// 단일 구간 접근 경로 조회. [preferredSource]가 'kakao'면 TMAP을 건너뛰고
+  /// 바로 Kakao를 시도한다 — 이미 코스 전체가 Kakao로 확정된 상태(세그먼트 0
+  /// 재요청·재경로)에서 이 구간만 TMAP으로 성공해 코스 안에 소스가 섞이는
+  /// 것을 막기 위함. 그 외에는 TMAP 우선 → Kakao 폴백.
   Future<List<NLatLng>> _fetchApproachRoute({
     required double fromLat,
     required double fromLng,
     required double toLat,
     required double toLng,
+    String? preferredSource,
   }) async {
-    final pedestrianPts = await _fetchPedestrianRoute(
-      startLat: fromLat,
-      startLng: fromLng,
-      waypointCoords: [(lat: toLat, lng: toLng)],
-    );
-    if (pedestrianPts.isNotEmpty) {
-      final snapDist = Geolocator.distanceBetween(
-        fromLat, fromLng,
-        pedestrianPts.first.latitude, pedestrianPts.first.longitude,
+    if (preferredSource != 'kakao') {
+      final pedestrianPts = await _fetchPedestrianRoute(
+        startLat: fromLat,
+        startLng: fromLng,
+        waypointCoords: [(lat: toLat, lng: toLng)],
       );
-      return snapDist > 10
-          ? [NLatLng(fromLat, fromLng), ...pedestrianPts]
-          : pedestrianPts;
+      if (pedestrianPts.isNotEmpty) {
+        return _withSnapPrefix(fromLat, fromLng, pedestrianPts);
+      }
     }
 
+    final kakaoPts = await _fetchKakaoMobilityRoute(fromLat, fromLng, toLat, toLng);
+    return kakaoPts.isNotEmpty ? _withSnapPrefix(fromLat, fromLng, kakaoPts) : kakaoPts;
+  }
+
+  Future<List<NLatLng>> _fetchKakaoMobilityRoute(
+    double fromLat, double fromLng, double toLat, double toLng,
+  ) async {
     try {
       final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
       if (key.isEmpty) return [];
@@ -1261,8 +1360,17 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     if (ctrl == null || !mounted) return;
     final ctx = context;
 
-    for (int i = 0; i < turns.length; i++) {
-      final turn = turns[i];
+    // 이전에 그려둔 턴 마커를 전부 지운다 — 내용 기반 ID(_turnMarkerId)를 추적하므로
+    // 개수 추정 없이 정확히 그 마커들만 지울 수 있다.
+    for (final id in _drawnTurnMarkerIds) {
+      await ctrl.deleteOverlay(
+        NOverlayInfo(type: NOverlayType.marker, id: id),
+      ).catchError((_) {});
+    }
+    _drawnTurnMarkerIds.clear();
+    if (!mounted) return;
+
+    for (final turn in turns) {
       if (turn.type == _TurnType.straight || turn.type == _TurnType.arrival) continue;
 
       final icon = await NOverlayImage.fromWidget(
@@ -1272,13 +1380,15 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       );
       if (!mounted) break;
 
+      final id = _turnMarkerId(turn);
       await ctrl.addOverlay(NMarker(
-        id: 'turn_$i',
+        id: id,
         position: NLatLng(turn.lat, turn.lng),
         icon: icon,
         anchor: const NPoint(0.5, 0.5),
         isHideCollidedMarkers: false,
       ));
+      _drawnTurnMarkerIds.add(id);
     }
   }
 
@@ -1317,8 +1427,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           .toList();
       if (trimmed.length < 2) return;
 
-      final polylineColor =
-          isOffRoute ? offRouteColor : (route.type == '자전거' ? c.warn : c.primary);
+      // 이탈이 아니면 항상 accent(노랑) — 생성 코스와 동일한 진행중 색상으로 통일
+      final polylineColor = isOffRoute ? offRouteColor : c.accent;
 
       final cached = _cachedNavRoutePolyline;
       if (cached != null) {
@@ -1342,6 +1452,36 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         if (mounted) _cachedNavRoutePolyline = poly;
       }
 
+      // 완료 구간(시작 ~ 현재 위치)을 회색으로 표시 — 생성 코스와 동일한 색상 규칙
+      // (기성 GPX 코스는 웨이포인트가 없는 단일 트랙이므로 완료/진행중 2단계로 표시)
+      if (startIdx != _lastTrimGpxIdx) {
+        final donePts = pts
+            .sublist(0, startIdx + 1)
+            .map((pt) => NLatLng(pt.lat, pt.lng))
+            .toList();
+        if (donePts.length >= 2) {
+          final doneCached = _cachedNavDonePolyline;
+          if (doneCached != null) {
+            doneCached.setCoords(donePts);
+          } else {
+            await ctrl.deleteOverlay(
+              NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'route_done'),
+            ).catchError((_) {});
+            if (!mounted) return;
+            final donePoly = NPolylineOverlay(
+              id: 'route_done',
+              coords: donePts,
+              color: kMapWhite45,
+              width: 4,
+              lineCap: NLineCap.round,
+              lineJoin: NLineJoin.round,
+            );
+            await ctrl.addOverlay(donePoly);
+            if (mounted) _cachedNavDonePolyline = donePoly;
+          }
+        }
+      }
+
       _lastTrimGpxIdx = startIdx;
       _lastTrimOffRoute = isOffRoute;
 
@@ -1353,17 +1493,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       final pts = _segmentPolylines[currentIdx];
       if (pts.isEmpty) return;
 
-      int nearestIdx = 0;
-      double nearestDistM = double.infinity;
-      for (int i = 0; i < pts.length; i++) {
-        final d = _fastDistM(p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
-        if (d < nearestDistM) {
-          nearestDistM = d;
-          nearestIdx = i;
-        }
-      }
-
-      final isOffRoute = nearestDistM > 90;
+      // _onModeBNavPositionUpdate에서 이번 GPS 틱에 이미 계산한 도로 스냅 진행률을
+      // 재사용 — 렌더링 색상이 provider의 도착/이탈 판정과 항상 동일한 값을 근거로 한다.
+      final progress = _lastGeneratedRoadProgress;
+      if (progress == null) return;
+      final nearestIdx = progress.nearestIdx.clamp(0, pts.length - 1);
+      final isOffRoute = progress.distToRoadM > AppConstants.modeBOffRouteThresholdM;
 
       if (nearestIdx == _lastTrimSegIdx && isOffRoute == _lastTrimOffRoute) return;
       if (nearestIdx <= 0) return;
@@ -1393,6 +1528,32 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         );
         await ctrl.addOverlay(poly);
         if (mounted) _cachedNavSegPolylines[currentIdx] = poly;
+      }
+
+      // 현재 구간 내에서 지나온 부분(구간 시작 ~ 현재 위치)을 실시간으로 회색 표시
+      if (nearestIdx != _lastTrimSegIdx) {
+        final donePts = pts.sublist(0, nearestIdx + 1);
+        if (donePts.length >= 2) {
+          final doneCached = _cachedNavSegDonePolyline;
+          if (doneCached != null) {
+            doneCached.setCoords(donePts);
+          } else {
+            await ctrl.deleteOverlay(
+              NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_done_$currentIdx'),
+            ).catchError((_) {});
+            if (!mounted) return;
+            final donePoly = NPolylineOverlay(
+              id: 'seg_done_$currentIdx',
+              coords: donePts,
+              color: kMapWhite45,
+              width: 4,
+              lineCap: NLineCap.round,
+              lineJoin: NLineJoin.round,
+            );
+            await ctrl.addOverlay(donePoly);
+            if (mounted) _cachedNavSegDonePolyline = donePoly;
+          }
+        }
       }
 
       _lastTrimSegIdx = nearestIdx;
@@ -1515,6 +1676,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
                     lng: _position?.longitude ?? 126.9869);
                 // 맞춤 코스 프리뷰 초기화
                 _segmentPolylines = [];
+                _generatedCourseRouteSource = null;
                 await _ctrl?.clearOverlays(type: NOverlayType.polylineOverlay);
                 await _ctrl?.clearOverlays(type: NOverlayType.marker);
                 if (!mounted) return;
@@ -1654,16 +1816,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     );
   }
 
-  String _spotTypeEmoji(String type) {
-    switch (type) {
-      case 'tourist_sight': return '🏛️';
-      case 'culture': return '🎭';
-      case 'event': return '🎉';
-      case 'sports': return '⛹️';
-      case 'shopping': return '🛍️';
-      default: return '📍';
-    }
-  }
 }
 
 class _StepNumberBadge extends StatelessWidget {
