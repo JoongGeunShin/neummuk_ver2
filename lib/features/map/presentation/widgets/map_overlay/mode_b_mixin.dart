@@ -1402,6 +1402,17 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── Mode B overlay widgets ─────────────────────────────────────
 
+  /// 뒤로가기 스택이 비어 있을 수 있음 (splash 복원·검색화면에서 go()로 진입한 경우).
+  /// context.pop()만 쓰면 "There is nothing to pop" 에러가 나므로,
+  /// pop 가능 여부를 먼저 확인하고 불가능하면 음식 선택 화면으로 명시적 이동한다.
+  void _modeBSafeBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/mode-b');
+    }
+  }
+
   List<Widget> _buildModeBOverlays(
     BuildContext context,
     MapMode mode,
@@ -1431,7 +1442,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _ModeBTopBar(food: food, onBack: () => context.pop()),
+              _ModeBTopBar(food: food, onBack: _modeBSafeBack),
               _ModeBKcalMiniBar(
                 todayKcal: walkKcal,
                 targetKcal: food.kcal,
@@ -1447,7 +1458,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           child: _ModeBNavRestoreTopBar(
             foodName: navState.foodName,
             foodKcal: navState.foodKcal,
-            onBack: () => context.pop(),
+            onBack: _modeBSafeBack,
           ),
         ),
       // GPX 로딩 칩
