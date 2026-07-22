@@ -14,6 +14,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/context_ext.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../../../../core/widgets/calorie_compare_donut.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/map_widgets.dart';
@@ -300,6 +301,22 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       );
       final dists = _segmentPolylines.map(_totalPolylineLength).toList();
       ref.read(modeBNavProvider.notifier).updateSegmentDistances(dists);
+
+      // 턴 마커 복원 — 정상 시작 흐름(_startModeBNavigation)과 동일하게
+      // 코스 전체 구간의 턴을 계산해 그린다. 이게 없으면 앱을 강제종료 후
+      // 재실행했을 때 다음 웨이포인트 도착까지 턴 마커가 아예 안 보인다.
+      final currentIdx =
+          navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
+      final curSeg = _segmentPolylines[currentIdx];
+      _modeBTurnPoints = curSeg.isNotEmpty
+          ? _computeTurnPoints(
+              curSeg.map((p) => (lat: p.latitude, lng: p.longitude)).toList(),
+              segIdx: currentIdx,
+            )
+          : [];
+      _modeBRoadNearestPtIdx = 0;
+      _allRouteTurnMarkers = _computeAllGeneratedRouteTurnPoints();
+      if (mounted) unawaited(_drawTurnMarkersOnMap(_allRouteTurnMarkers));
     }
 
     if (!mounted) return;
@@ -586,6 +603,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       if (prev?.generatedCourse?.id != next.generatedCourse?.id &&
           next.generatedCourse != null) {
         _segmentPolylines = []; // 이전 코스 구간 캐시 초기화
+        _generatedCourseRouteSource = null;
         unawaited(_drawGeneratedCourseOnMap(next.generatedCourse!));
         ref.read(routeSearchProvider.notifier).selectGeneratedCourse();
         // sheet를 기본 높이로 올려 카드가 보이도록
@@ -715,7 +733,16 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
 
     final categories = ['전체', ...?profileAsync.valueOrNull?.preferredCategories];
 
-    return Stack(
+    return PopScope(
+      canPop: !modeBNavState.isNavigating,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final confirmed = await _showModeBExitNavConfirmDialog();
+        if (!confirmed || !mounted) return;
+        await _stopModeBNavigation();
+        if (mounted) _modeBSafeBack();
+      },
+      child: Stack(
       fit: StackFit.expand,
       children: [
         // ── Explore overlays ───────────────────────────────────
@@ -810,6 +837,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
             },
           ),
       ],
+      ),
     );
   }
 }
