@@ -8,8 +8,6 @@ import '../../../../core/constants/app_constants.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 
 class TourApiCoursesDatasource {
-  static const _enabled = true;
-
   /// 현재 위치 반경 내 여행코스(contentTypeId=25) 조회.
   /// [weightKg]: 칼로리 추산에 사용. TourAPI는 코스 거리를 제공하지 않으므로
   /// 이동수단별 표준 거리(도보 5km / 자전거 15km)로 추정한다.
@@ -21,11 +19,6 @@ class TourApiCoursesDatasource {
     int radiusM = 3000,
     int numOfRows = 20,
   }) async {
-    if (!_enabled) {
-      debugPrint('[TourApi] disabled');
-      return [];
-    }
-
     final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
     if (key.isEmpty) {
       debugPrint('[TourApi] TOUR_API_SERVICE_KEY not set');
