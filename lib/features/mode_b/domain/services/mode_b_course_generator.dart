@@ -1,6 +1,5 @@
-import 'dart:math' as math;
-
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../entities/spot_entity.dart';
 import '../entities/tourist_route_entity.dart';
 
@@ -143,11 +142,11 @@ class ModeBCourseGenerator {
       double straightKm = 0.0;
       double curLat = userLat, curLng = userLng;
       for (final s in selected) {
-        straightKm += _distKm(curLat, curLng, s.lat, s.lng);
+        straightKm += haversineDistanceKm(curLat, curLng, s.lat, s.lng);
         curLat = s.lat;
         curLng = s.lng;
       }
-      straightKm += _distKm(curLat, curLng, userLat, userLng);
+      straightKm += haversineDistanceKm(curLat, curLng, userLat, userLng);
       actualDistKm = straightKm * routeFactor;
     }
 
@@ -206,11 +205,11 @@ class ModeBCourseGenerator {
     double accumulated = 0.0;
     double curLat = userLat, curLng = userLng;
     for (final s in ordered) {
-      accumulated += _distKm(curLat, curLng, s.lat, s.lng);
+      accumulated += haversineDistanceKm(curLat, curLng, s.lat, s.lng);
       curLat = s.lat;
       curLng = s.lng;
     }
-    final returnDist = _distKm(curLat, curLng, userLat, userLng);
+    final returnDist = haversineDistanceKm(curLat, curLng, userLat, userLng);
 
     // 3) 필수만으로 목표 이미 달성 or 추가 슬롯 없으면 종료
     final slotsLeft = maxWaypoints - ordered.length;
@@ -256,7 +255,7 @@ class ModeBCourseGenerator {
   }) {
     // 필터: 출발지에서 왕복 최소 거리 기준 (spot까지 직선 * 2 ≤ maxKm)
     final candidates = spots
-        .map((s) => (spot: s, d: _distKm(userLat, userLng, s.lat, s.lng)))
+        .map((s) => (spot: s, d: haversineDistanceKm(userLat, userLng, s.lat, s.lng)))
         .where((e) => e.d > 0 && e.d <= maxKm / 2)
         .toList()
       ..sort((a, b) => a.d.compareTo(b.d));
@@ -273,7 +272,7 @@ class ModeBCourseGenerator {
       int nearestIdx = 0;
       double nearestDist = double.infinity;
       for (var i = 0; i < remaining.length; i++) {
-        final d = _distKm(curLat, curLng, remaining[i].spot.lat, remaining[i].spot.lng);
+        final d = haversineDistanceKm(curLat, curLng, remaining[i].spot.lat, remaining[i].spot.lng);
         if (d < nearestDist) {
           nearestDist = d;
           nearestIdx = i;
@@ -282,7 +281,7 @@ class ModeBCourseGenerator {
 
       final pick = remaining[nearestIdx];
       final newTotal = acc + nearestDist;
-      final returnDist = _distKm(pick.spot.lat, pick.spot.lng, userLat, userLng);
+      final returnDist = haversineDistanceKm(pick.spot.lat, pick.spot.lng, userLat, userLng);
 
       if (newTotal + returnDist > maxKm && selected.isNotEmpty) break;
 
@@ -292,7 +291,7 @@ class ModeBCourseGenerator {
       curLat = pick.spot.lat;
       curLng = pick.spot.lng;
 
-      final totalWithReturn = acc + _distKm(curLat, curLng, userLat, userLng);
+      final totalWithReturn = acc + haversineDistanceKm(curLat, curLng, userLat, userLng);
       if (totalWithReturn >= targetKm * (1 - tolerance)) break;
     }
 
@@ -317,12 +316,12 @@ class ModeBCourseGenerator {
     void permute(List<int> arr, int k) {
       if (k == arr.length) {
         double dist =
-            _distKm(startLat, startLng, spots[arr[0]].lat, spots[arr[0]].lng);
+            haversineDistanceKm(startLat, startLng, spots[arr[0]].lat, spots[arr[0]].lng);
         for (var i = 0; i < arr.length - 1; i++) {
-          dist += _distKm(spots[arr[i]].lat, spots[arr[i]].lng,
+          dist += haversineDistanceKm(spots[arr[i]].lat, spots[arr[i]].lng,
               spots[arr[i + 1]].lat, spots[arr[i + 1]].lng);
         }
-        dist += _distKm(
+        dist += haversineDistanceKm(
             spots[arr.last].lat, spots[arr.last].lng, startLat, startLng);
         if (dist < bestDist) {
           bestDist = dist;
@@ -355,7 +354,7 @@ class ModeBCourseGenerator {
       int nearestIdx = 0;
       double nearestDist = double.infinity;
       for (var i = 0; i < remaining.length; i++) {
-        final d = _distKm(curLat, curLng, remaining[i].lat, remaining[i].lng);
+        final d = haversineDistanceKm(curLat, curLng, remaining[i].lat, remaining[i].lng);
         if (d < nearestDist) {
           nearestDist = d;
           nearestIdx = i;
@@ -369,19 +368,4 @@ class ModeBCourseGenerator {
     return result;
   }
 
-  // ── 거리 계산 ─────────────────────────────────────────────────────
-
-  double _distKm(double lat1, double lng1, double lat2, double lng2) {
-    const R = 6371.0;
-    final phi1 = lat1 * math.pi / 180;
-    final phi2 = lat2 * math.pi / 180;
-    final dPhi = (lat2 - lat1) * math.pi / 180;
-    final dLambda = (lng2 - lng1) * math.pi / 180;
-    final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
-        math.cos(phi1) *
-            math.cos(phi2) *
-            math.sin(dLambda / 2) *
-            math.sin(dLambda / 2);
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-  }
 }
