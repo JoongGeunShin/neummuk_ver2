@@ -1,3 +1,6 @@
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
+
 /// MOVEMENT_CONVENTION 기반 칼로리·속도·보폭 계산
 class WalkCalculator {
   WalkCalculator._();
@@ -47,11 +50,11 @@ class WalkCalculator {
 
   // ── 칼로리 ────────────────────────────────────────────────
 
-  /// MET × 체중(kg) × 경과 시간(h) → 소모 칼로리(kcal)
+  /// MET × (BMR/24) × 경과 시간(h) → 소모 칼로리(kcal)
   /// provider에서는 1초 단위로 증분 호출하지 않고, 이 공식을 직접 쓰지 않는다.
-  /// (provider는 _elapsedTicker에서 MET × weightKg / 3600 을 1초마다 직접 더함)
-  static double caloriesKcal(double met, double weightKg, Duration elapsed) =>
-      met * weightKg * elapsed.inSeconds / 3600.0;
+  /// (provider는 _elapsedTicker에서 MET × (BMR/24) / 3600 을 1초마다 직접 더함)
+  static double caloriesKcal(double met, BodyMetrics metrics, Duration elapsed) =>
+      met * (AppConstants.calculateBmr(metrics) / 24.0) * elapsed.inSeconds / 3600.0;
 
   // ── 속도 (30초 슬라이딩 윈도우) ──────────────────────────
 

@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
 import '../../domain/entities/food_entity.dart';
@@ -21,12 +22,12 @@ import '../datasources/tour_api_spots_datasource.dart';
 class ModeBRepositoryImpl implements ModeBRepository {
   ModeBRepositoryImpl({
     required FoodCatalogRepository foodCatalogRepo,
-    required double weightKg,
+    required BodyMetrics metrics,
   })  : _foodCatalogRepo = foodCatalogRepo,
-        _weightKg = weightKg;
+        _metrics = metrics;
 
   final FoodCatalogRepository _foodCatalogRepo;
-  final double _weightKg;
+  final BodyMetrics _metrics;
   final _durunubi = DurunubiDatasource();
   final _tourApi = TourApiCoursesDatasource();
   final _kakaoSpots = KakaoLocalSpotsDatasource();
@@ -42,7 +43,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
     final results = (query == null || query.trim().isEmpty)
         ? await _foodCatalogRepo.getPopularFoods(category: resolvedCategory, limit: 30)
         : await _foodCatalogRepo.searchFoods(query.trim(), category: resolvedCategory);
-    return results.map((c) => FoodEntity.fromCatalog(c, weightKg: _weightKg)).toList();
+    return results.map((c) => FoodEntity.fromCatalog(c, metrics: _metrics)).toList();
   }
 
   // ── 기성 코스 검색 (두루누비 + TourAPI 여행코스) ───────────────────
@@ -60,7 +61,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
         lat: latitude,
         lng: longitude,
         transport: transport,
-        weightKg: _weightKg,
+        metrics: _metrics,
         radiusM: radiusM,
       ),
       _fetchDurunubiRoutes(latitude, longitude, transport, radiusM),
@@ -104,12 +105,8 @@ class ModeBRepositoryImpl implements ModeBRepository {
     final items = await _durunubi.fetchAllCoursesCached();
     if (items.isEmpty) return [];
 
-    final met = transport == 'bike'
-        ? AppConstants.metValues['bike']!
-        : AppConstants.metValues['walk']!;
-
     final all = items
-        .map((item) => _parseDurunubi(item, met, transport))
+        .map((item) => _parseDurunubi(item, transport))
         .whereType<TouristRouteEntity>()
         .toList();
 
@@ -218,7 +215,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
       userLng: userLng,
       targetKcal: targetKcal,
       transport: transport,
-      weightKg: _weightKg,
+      metrics: _metrics,
       mandatorySpots: mandatorySpots,
       forceAll: forceAll,
     );
@@ -249,7 +246,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
         userLat: userLat,
         userLng: userLng,
         transport: transport,
-        weightKg: _weightKg,
+        metrics: _metrics,
         actualDistKmOverride: realDistKm,
       );
       if (result == null) return null;
@@ -277,7 +274,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
   @override
   Future<List<TouristRouteEntity>> enrichBatch(List<TouristRouteEntity> batch) async {
     final futures = batch.map((r) => r.id.startsWith('tour_')
-        ? _tourApi.enrichCourse(r, weightKg: _weightKg)
+        ? _tourApi.enrichCourse(r, metrics: _metrics)
         : Future.value(r));
     return Future.wait(futures);
   }
@@ -321,7 +318,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
         (region.sigungu.isNotEmpty && routeSigun.contains(region.sigungu));
   }
 
-  TouristRouteEntity? _parseDurunubi(Map<String, dynamic> item, double met, String transport) {
+  TouristRouteEntity? _parseDurunubi(Map<String, dynamic> item, String transport) {
     try {
       final id = item['crsIdx']?.toString() ?? '';
       final name = item['crsKorNm']?.toString() ?? '';
@@ -331,7 +328,11 @@ class ModeBRepositoryImpl implements ModeBRepository {
       final totMin = double.tryParse(item['crsTotlRqrmHour']?.toString() ?? '') ?? 0.0;
       if (totMin <= 0) return null;
 
-      final kcal = (met * _weightKg * (totMin / 60.0)).round();
+      final kcal = AppConstants.calculateKcal(
+        transport: transport == 'bike' ? 'bike' : 'walk',
+        metrics: _metrics,
+        durationSeconds: (totMin * 60).round(),
+      ).round();
       final level = item['crsLevel']?.toString() ?? '';
       final sigun = item['sigun']?.toString() ?? '';
       final gpxpath = item['gpxpath']?.toString();

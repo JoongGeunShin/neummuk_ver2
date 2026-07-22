@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:neummuk_ver2/core/models/body_metrics.dart';
 
 import 'gpx_writer.dart';
 import 'real_course_generator.dart';
@@ -22,7 +23,7 @@ const _userLat = 37.465515;
 const _userLng = 127.144647;
 const _targetKcal = 330; // 마라탕으로 테스트
 const _transport = 'walk';
-const _weightKg = 70.6;
+const _metrics = BodyMetrics(weightKg: 70.6, heightCm: 170.0, age: 30, sex: 'male');
 
 // 실제 앱은 도로 폴리라인을 가져올 때 course.startLat/startLng가 아니라 그 순간의
 // 실시간 GPS(mode_b_mixin.dart의 _position)를 우선 쓴다 (_drawGeneratedCourseOnMap,
@@ -43,7 +44,7 @@ void main() {
   test('실제 위치 기준 생성 코스 → 도로 기반 GPX 내보내기', () async {
     await dotenv.load(fileName: '.env');
 
-    final gen = RealCourseGenerator(weightKg: _weightKg);
+    final gen = RealCourseGenerator(metrics: _metrics);
 
     final spots = await gen.searchSpots(
       lat: _userLat,

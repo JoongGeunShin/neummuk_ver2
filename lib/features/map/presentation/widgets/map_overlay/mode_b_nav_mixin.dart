@@ -250,7 +250,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (!navState.isNavigating) return;
 
     final profile = ref.read(userProfileProvider).valueOrNull;
-    final weightKg = profile?.weightKg ?? AppConstants.defaultWeightKg;
+    final metrics = profile?.toBodyMetrics() ?? BodyMetrics.defaultMetrics;
     final route = navState.route;
     final transport = route?.type == '자전거' ? 'bike' : 'walk';
     final prevWpIdx = navState.currentWaypointIdx;
@@ -277,12 +277,12 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             distToTargetM: distToTargetM,
             distToRoadM: progress.distToRoadM,
             remainingSegM: progress.remainingSegM,
-            weightKg: weightKg,
+            metrics: metrics,
             transport: transport,
           );
     } else {
       ref.read(modeBNavProvider.notifier).onPositionUpdate(
-            p.latitude, p.longitude, weightKg, transport);
+            p.latitude, p.longitude, metrics, transport);
     }
 
     final updatedState = ref.read(modeBNavProvider);

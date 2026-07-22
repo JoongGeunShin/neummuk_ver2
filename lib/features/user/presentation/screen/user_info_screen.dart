@@ -217,6 +217,17 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                             icon: Icons.monitor_weight_outlined,
                             c: c,
                           ),
+                        ],
+                      ),
+                      SizedBox(height: context.hp(1.2)),
+                      Row(
+                        children: [
+                          _StatCard(
+                            label: '나이',
+                            value: profile != null ? '${profile.age}세' : '-',
+                            icon: Icons.cake_outlined,
+                            c: c,
+                          ),
                           SizedBox(width: context.wp(2.5)),
                           _StatCard(
                             label: '성별',

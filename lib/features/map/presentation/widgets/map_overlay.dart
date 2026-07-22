@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../../../core/widgets/calorie_compare_donut.dart';

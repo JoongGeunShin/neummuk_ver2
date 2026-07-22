@@ -163,7 +163,7 @@ class _WeightStep extends ConsumerWidget {
         ),
         SizedBox(height: context.hp(1.2)),
         Text(
-          '키, 체중과 평소 이동 수단을 알려주시면\n맞춤 칼로리·루트를 추천해 드려요.',
+          '키, 체중, 나이와 평소 이동 수단을 알려주시면\n맞춤 칼로리·루트를 추천해 드려요.',
           style: TextStyle(fontSize: context.wp(3.5), color: c.textMuted, height: 1.5),
         ),
         SizedBox(height: context.hp(4.5)),
@@ -266,6 +266,57 @@ class _WeightStep extends ConsumerWidget {
           children: [
             Text('35', style: TextStyle(fontSize: 11, color: c.textFaint, fontWeight: FontWeight.w600)),
             Text('120', style: TextStyle(fontSize: 11, color: c.textFaint, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        // Age display
+        SizedBox(height: context.hp(1)),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '${profile.age}',
+                style: TextStyle(
+                  fontSize: context.wp(18),
+                  fontWeight: FontWeight.w800,
+                  color: c.primary,
+                  letterSpacing: -3,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('세',
+                  style: TextStyle(
+                      fontSize: context.wp(5.5),
+                      fontWeight: FontWeight.w700,
+                      color: c.textMuted)),
+            ],
+          ),
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: c.primary,
+            inactiveTrackColor: c.surfaceHi,
+            thumbColor: Colors.white,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+            trackHeight: 6,
+          ),
+          child: Slider(
+            value: profile.age.toDouble(),
+            min: 14,
+            max: 100,
+            divisions: 86,
+            onChanged: (v) => notifier.setAge(v.round()),
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('14', style: TextStyle(fontSize: 11, color: c.textFaint, fontWeight: FontWeight.w600)),
+            Text('100', style: TextStyle(fontSize: 11, color: c.textFaint, fontWeight: FontWeight.w600)),
           ],
         ),
         SizedBox(height: context.hp(3.5)),

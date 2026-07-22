@@ -80,6 +80,7 @@ class WalkSession extends _$WalkSession {
       FlutterForegroundTask.sendDataToTask({
         'heightCm': _profile.heightCm,
         'weightKg': _profile.weightKg,
+        'age': _profile.age,
         'sex': _profile.sex,
       });
 
@@ -146,6 +147,7 @@ class WalkSession extends _$WalkSession {
     FlutterForegroundTask.sendDataToTask({
       'heightCm': profile.heightCm,
       'weightKg': profile.weightKg,
+      'age': profile.age,
       'sex': profile.sex,
     });
   }
@@ -153,6 +155,7 @@ class WalkSession extends _$WalkSession {
   void _writeProfileToPrefs(UserProfileEntity profile) {
     _prefs?.setDouble(kWalkProfileHeight, profile.heightCm);
     _prefs?.setDouble(kWalkProfileWeight, profile.weightKg);
+    _prefs?.setInt(kWalkProfileAge, profile.age);
     _prefs?.setString(kWalkProfileSex, profile.sex);
   }
 
@@ -239,6 +242,7 @@ class WalkSession extends _$WalkSession {
       kWalkSpeedKmh,
       kWalkProfileHeight,
       kWalkProfileWeight,
+      kWalkProfileAge,
       kWalkProfileSex,
       kWalkTrackingEnabled,
     ]) {

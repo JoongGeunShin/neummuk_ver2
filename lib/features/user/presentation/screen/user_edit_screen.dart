@@ -22,6 +22,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
 
   double _heightCm = 170.0;
   double _weightKg = 65.0;
+  int _age = 30;
   String _sex = 'male';
   String _transport = 'walk';
   List<String> _categories = ['한식'];
@@ -47,6 +48,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     _initialized = true;
     _heightCm = profile.heightCm;
     _weightKg = profile.weightKg;
+    _age = profile.age;
     _sex = profile.sex;
     _transport = profile.preferredTransport;
     _categories = List<String>.from(profile.preferredCategories);
@@ -63,6 +65,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
             UserProfileEntity(
               heightCm: _heightCm,
               weightKg: _weightKg,
+              age: _age,
               sex: _sex,
               preferredTransport: _transport,
               preferredCategories: List<String>.from(_categories),
@@ -161,6 +164,20 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                       divisions: 850,
                       c: c,
                       onChanged: (v) => setState(() => _weightKg = v),
+                    ),
+                    SizedBox(height: context.hp(2)),
+
+                    // Age
+                    _SliderRow(
+                      label: '나이',
+                      value: _age.toDouble(),
+                      unit: '세',
+                      min: 14,
+                      max: 100,
+                      divisions: 86,
+                      decimals: 0,
+                      c: c,
+                      onChanged: (v) => setState(() => _age = v.round()),
                     ),
                     SizedBox(height: context.hp(2.5)),
 
@@ -360,6 +377,7 @@ class _SliderRow extends StatelessWidget {
     required this.divisions,
     required this.c,
     required this.onChanged,
+    this.decimals = 1,
   });
 
   final String label;
@@ -370,6 +388,7 @@ class _SliderRow extends StatelessWidget {
   final int divisions;
   final dynamic c;
   final ValueChanged<double> onChanged;
+  final int decimals;
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +402,7 @@ class _SliderRow extends StatelessWidget {
                     fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
             const Spacer(),
             Text(
-              '${value.toStringAsFixed(1)} $unit',
+              '${value.toStringAsFixed(decimals)} $unit',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,

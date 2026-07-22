@@ -829,16 +829,17 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         final roadDistKm = roadDistM / 1000;
         final isBike = course.type == '자전거';
         final speedKmh = isBike ? 15.0 : 4.0;
-        final met = isBike
-            ? AppConstants.metValues['bike']!
-            : AppConstants.metValues['walk']!;
-        final weightKg = ref.read(userProfileProvider).valueOrNull?.weightKg ??
-            AppConstants.defaultWeightKg;
+        final metrics = ref.read(userProfileProvider).valueOrNull?.toBodyMetrics() ??
+            BodyMetrics.defaultMetrics;
         final hours = roadDistKm / speedKmh;
         ref.read(routeSearchProvider.notifier).updateGeneratedCourseMetrics(
           distanceKm: double.parse(roadDistKm.toStringAsFixed(2)),
           durationMinutes: (hours * 60).round().clamp(1, 9999),
-          kcal: (met * weightKg * hours).round(),
+          kcal: AppConstants.calculateKcal(
+            transport: isBike ? 'bike' : 'walk',
+            metrics: metrics,
+            durationSeconds: (hours * 3600).round(),
+          ).round(),
         );
       }
 

@@ -272,7 +272,7 @@ class ModeA extends _$ModeA {
     if (state.from.isEmpty || state.to.isEmpty) return;
     state = state.copyWith(isLoading: true);
     try {
-      final weightKg = ref.read(userProfileProvider).weightKg;
+      final metrics = ref.read(userProfileProvider).toBodyMetrics();
       final result = await ref.read(modeARepositoryProvider).getRoute(
             from: state.from,
             to: state.to,
@@ -281,7 +281,7 @@ class ModeA extends _$ModeA {
             destLat: state.destLat,
             destLng: state.destLng,
             transport: state.transport,
-            weightKg: weightKg,
+            metrics: metrics,
             waypoints: state.waypoints,
           );
       state = state.copyWith(routeResult: result, isLoading: false);
@@ -322,7 +322,7 @@ class ModeA extends _$ModeA {
 
     state = state.copyWith(loadingCandidates: true, waypointCandidates: const []);
     try {
-      final weightKg = ref.read(userProfileProvider).weightKg;
+      final metrics = ref.read(userProfileProvider).toBodyMetrics();
       final candidates = await ref.read(modeARepositoryProvider).getWaypointCandidates(
             midLat: midLat,
             midLng: midLng,
@@ -332,7 +332,7 @@ class ModeA extends _$ModeA {
             destLng: dest.$2!,
             extraKcalNeeded: extraKcalNeeded,
             transport: state.transport,
-            weightKg: weightKg,
+            metrics: metrics,
           );
       state = state.copyWith(
         waypointCandidates: candidates,
@@ -354,9 +354,10 @@ class ModeA extends _$ModeA {
         return;
       }
       if (tab == ModeANearbyTab.durunubi) {
+        final metrics = ref.read(userProfileProvider).toBodyMetrics();
         final courses = await ref
             .read(modeARepositoryProvider)
-            .getNearbyDurunubiCourses(latitude: lat, longitude: lng);
+            .getNearbyDurunubiCourses(latitude: lat, longitude: lng, metrics: metrics);
         state = state.copyWith(nearbyDurunubi: courses, nearbyLoading: false);
         return;
       }

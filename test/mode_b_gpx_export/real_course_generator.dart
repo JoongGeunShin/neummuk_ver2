@@ -1,4 +1,5 @@
 import 'package:neummuk_ver2/core/constants/app_constants.dart';
+import 'package:neummuk_ver2/core/models/body_metrics.dart';
 import 'package:neummuk_ver2/core/utils/geo_utils.dart';
 import 'package:neummuk_ver2/features/mode_b/data/datasources/kakao_local_spots_datasource.dart';
 import 'package:neummuk_ver2/features/mode_b/data/datasources/tmap_route_datasource.dart';
@@ -13,9 +14,9 @@ import 'package:neummuk_ver2/features/mode_b/domain/services/mode_b_course_gener
 /// (원본은 FoodCatalogRepository를 함께 받는 리포지토리라 이 테스트에서 그대로 못 씀 —
 /// 코스 생성에 필요한 부분만 그대로 옮겨왔다.)
 class RealCourseGenerator {
-  RealCourseGenerator({required this.weightKg});
+  RealCourseGenerator({required this.metrics});
 
-  final double weightKg;
+  final BodyMetrics metrics;
   final _kakaoSpots = KakaoLocalSpotsDatasource();
   final _tourApiSpots = TourApiSpotsDatasource();
   final _tmapRoute = TmapRouteDatasource();
@@ -79,7 +80,7 @@ class RealCourseGenerator {
       userLng: userLng,
       targetKcal: targetKcal,
       transport: transport,
-      weightKg: weightKg,
+      metrics: metrics,
     );
     if (picked.selected.isEmpty) return null;
 
@@ -102,7 +103,7 @@ class RealCourseGenerator {
         userLat: userLat,
         userLng: userLng,
         transport: transport,
-        weightKg: weightKg,
+        metrics: metrics,
         actualDistKmOverride: realDistKm,
       );
       if (result == null) return null;

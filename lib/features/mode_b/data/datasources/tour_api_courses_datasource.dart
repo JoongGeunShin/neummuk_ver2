@@ -5,17 +5,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 
 class TourApiCoursesDatasource {
   /// 현재 위치 반경 내 여행코스(contentTypeId=25) 조회.
-  /// [weightKg]: 칼로리 추산에 사용. TourAPI는 코스 거리를 제공하지 않으므로
+  /// [metrics]: 칼로리 추산에 사용. TourAPI는 코스 거리를 제공하지 않으므로
   /// 이동수단별 표준 거리(도보 5km / 자전거 15km)로 추정한다.
   Future<List<TouristRouteEntity>> fetchNearbyCourses({
     required double lat,
     required double lng,
     String transport = 'walk',
-    double weightKg = AppConstants.defaultWeightKg,
+    BodyMetrics metrics = BodyMetrics.defaultMetrics,
     int radiusM = 3000,
     int numOfRows = 20,
   }) async {
@@ -71,7 +72,7 @@ class TourApiCoursesDatasource {
       debugPrint('[TourApi] ${list.length} courses found');
 
       return list
-          .map((item) => _parse(item, transport, weightKg))
+          .map((item) => _parse(item, transport, metrics))
           .whereType<TouristRouteEntity>()
           .toList();
     } catch (e) {
@@ -84,7 +85,7 @@ class TourApiCoursesDatasource {
   /// 실제 거리·소요시간·kcal를 채운 새 엔티티를 반환한다.
   Future<TouristRouteEntity> enrichCourse(
     TouristRouteEntity base, {
-    required double weightKg,
+    required BodyMetrics metrics,
   }) async {
     // 두루누비 코스(id가 숫자)는 이미 상세 정보가 있으므로 그대로 반환
     if (!base.id.startsWith('tour_')) return base;
@@ -123,10 +124,13 @@ class TourApiCoursesDatasource {
       if (distKm <= 0 && durationMin <= 0) return base;
 
       final isBike = base.type == '자전거';
-      final met = AppConstants.metValues[isBike ? 'bike' : 'walk']!;
       final effectiveDuration =
           durationMin > 0 ? durationMin : (distKm / (isBike ? 15.0 : 4.0) * 60).round();
-      final kcal = (met * weightKg * (effectiveDuration / 60.0)).round();
+      final kcal = AppConstants.calculateKcal(
+        transport: isBike ? 'bike' : 'walk',
+        metrics: metrics,
+        durationSeconds: effectiveDuration * 60,
+      ).round();
 
       return base.copyWith(
         distanceKm: distKm > 0 ? distKm : null,
@@ -161,7 +165,7 @@ class TourApiCoursesDatasource {
   }
 
   TouristRouteEntity? _parse(
-      Map<String, dynamic> item, String transport, double weightKg) {
+      Map<String, dynamic> item, String transport, BodyMetrics metrics) {
     try {
       final id = 'tour_${item['contentid'] ?? ''}';
       final name = item['title']?.toString() ?? '';
@@ -189,8 +193,11 @@ class TourApiCoursesDatasource {
       final isBike = transport == 'bike';
       final distKm = isBike ? 15.0 : 5.0;
       final durationMin = isBike ? 60 : 75;
-      final met = AppConstants.metValues[isBike ? 'bike' : 'walk']!;
-      final kcal = (met * weightKg * (durationMin / 60.0)).round();
+      final kcal = AppConstants.calculateKcal(
+        transport: isBike ? 'bike' : 'walk',
+        metrics: metrics,
+        durationSeconds: durationMin * 60,
+      ).round();
 
       return TouristRouteEntity(
         id: id,

@@ -1,5 +1,6 @@
 import '../../../explore/domain/entities/food_catalog_entity.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 
 class FoodEntity {
   const FoodEntity({
@@ -22,19 +23,21 @@ class FoodEntity {
 
   factory FoodEntity.fromCatalog(
     FoodCatalogEntity c, {
-    double weightKg = AppConstants.defaultWeightKg,
+    BodyMetrics metrics = BodyMetrics.defaultMetrics,
   }) {
     final kcal = c.nutrition.caloriesKcal.round();
-    final walkMet = AppConstants.metValues['walk']!;
-    final bikeMet = AppConstants.metValues['bike']!;
+    final walkRatePerMin =
+        AppConstants.kcalPerHour(transport: 'walk', metrics: metrics) / 60;
+    final bikeRatePerMin =
+        AppConstants.kcalPerHour(transport: 'bike', metrics: metrics) / 60;
     return FoodEntity(
       id: c.canonicalName,
       name: c.displayName,
       kcal: kcal,
       category: c.category,
       emoji: c.emoji,
-      walkMinutes: kcal <= 0 ? 0 : (kcal / (walkMet * weightKg / 60)).round(),
-      bikeMinutes: kcal <= 0 ? 0 : (kcal / (bikeMet * weightKg / 60)).round(),
+      walkMinutes: kcal <= 0 ? 0 : (kcal / walkRatePerMin).round(),
+      bikeMinutes: kcal <= 0 ? 0 : (kcal / bikeRatePerMin).round(),
     );
   }
 

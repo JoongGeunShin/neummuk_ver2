@@ -1,4 +1,5 @@
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../entities/spot_entity.dart';
 import '../entities/tourist_route_entity.dart';
@@ -20,7 +21,7 @@ class ModeBCourseGenerator {
     required double userLng,
     required int targetKcal,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     List<SpotEntity> mandatorySpots = const [],
     bool forceAll = false,
     int maxWaypoints = 5,
@@ -31,7 +32,7 @@ class ModeBCourseGenerator {
       userLng: userLng,
       targetKcal: targetKcal,
       transport: transport,
-      weightKg: weightKg,
+      metrics: metrics,
       mandatorySpots: mandatorySpots,
       forceAll: forceAll,
       maxWaypoints: maxWaypoints,
@@ -42,7 +43,7 @@ class ModeBCourseGenerator {
       userLat: userLat,
       userLng: userLng,
       transport: transport,
-      weightKg: weightKg,
+      metrics: metrics,
     );
   }
 
@@ -55,7 +56,7 @@ class ModeBCourseGenerator {
     required double userLng,
     required int targetKcal,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     List<SpotEntity> mandatorySpots = const [],
     bool forceAll = false,
     int maxWaypoints = 5,
@@ -65,12 +66,15 @@ class ModeBCourseGenerator {
     }
 
     final isBike = transport == 'bike';
-    final met = isBike ? AppConstants.metValues['bike']! : AppConstants.metValues['walk']!;
     final speedKmh = isBike ? 15.0 : 4.0;
     // 직선거리 → 도로 실거리 보정 계수 (도심 보행 1.3, 자전거 1.25)
     final routeFactor = isBike ? 1.25 : 1.3;
 
-    final targetHours = targetKcal / (met * weightKg);
+    final targetHours = AppConstants.hoursForTargetKcal(
+      transport: isBike ? 'bike' : 'walk',
+      metrics: metrics,
+      targetKcal: targetKcal,
+    );
     final targetKmRoad = targetHours * speedKmh;
     // 선택 알고리즘은 직선거리 기반이므로 목표를 역보정해서 전달
     final targetKm = targetKmRoad / routeFactor;
@@ -124,13 +128,12 @@ class ModeBCourseGenerator {
     required double userLat,
     required double userLng,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     double? actualDistKmOverride,
   }) {
     if (selected.isEmpty) return null;
 
     final isBike = transport == 'bike';
-    final met = isBike ? AppConstants.metValues['bike']! : AppConstants.metValues['walk']!;
     final speedKmh = isBike ? 15.0 : 4.0;
     final routeFactor = isBike ? 1.25 : 1.3;
 
@@ -151,7 +154,11 @@ class ModeBCourseGenerator {
     }
 
     final actualHours = actualDistKm / speedKmh;
-    final actualKcal = (met * weightKg * actualHours).round();
+    final actualKcal = AppConstants.calculateKcal(
+      transport: isBike ? 'bike' : 'walk',
+      metrics: metrics,
+      durationSeconds: (actualHours * 3600).round(),
+    ).round();
     final actualMinutes = (actualHours * 60).round().clamp(1, 9999);
 
     final waypoints = [

@@ -6,6 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 
@@ -166,7 +167,7 @@ class ModeBNav extends _$ModeBNav {
     state = state.copyWith(segmentDistancesM: distancesM);
   }
 
-  void onPositionUpdate(double lat, double lng, double weightKg, String transport) {
+  void onPositionUpdate(double lat, double lng, BodyMetrics metrics, String transport) {
     if (!state.isNavigating) return;
     final route = state.route;
     if (route == null) return;
@@ -179,9 +180,12 @@ class ModeBNav extends _$ModeBNav {
     _lastUpdateTime = now;
 
     // 이동 중일 때만 칼로리 누적 (1분 이상 경과는 GPS 끊김으로 보고 무시)
-    final met = transport == 'bike' ? 6.0 : 3.5;
+    final rate = AppConstants.kcalPerHour(
+      transport: transport == 'bike' ? 'bike' : 'walk',
+      metrics: metrics,
+    );
     final newKcal = dtHours < (1.0 / 60.0)
-        ? state.elapsedKcal + met * weightKg * dtHours
+        ? state.elapsedKcal + rate * dtHours
         : state.elapsedKcal;
 
     if (route.isGenerated && route.waypoints.isNotEmpty) {
@@ -206,7 +210,7 @@ class ModeBNav extends _$ModeBNav {
     required double distToTargetM,
     required double distToRoadM,
     required double remainingSegM,
-    required double weightKg,
+    required BodyMetrics metrics,
     required String transport,
   }) {
     if (!state.isNavigating) return;
@@ -219,9 +223,12 @@ class ModeBNav extends _$ModeBNav {
         : 1.0 / 3600.0;
     _lastUpdateTime = now;
 
-    final met = transport == 'bike' ? 6.0 : 3.5;
+    final rate = AppConstants.kcalPerHour(
+      transport: transport == 'bike' ? 'bike' : 'walk',
+      metrics: metrics,
+    );
     final newKcal = dtHours < (1.0 / 60.0)
-        ? state.elapsedKcal + met * weightKg * dtHours
+        ? state.elapsedKcal + rate * dtHours
         : state.elapsedKcal;
 
     final wps = route.waypoints;

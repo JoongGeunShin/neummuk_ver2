@@ -1,3 +1,4 @@
+import '../../../../core/models/body_metrics.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../entities/restaurant_entity.dart';
@@ -16,7 +17,7 @@ abstract interface class ModeARepository {
     double? destLat,
     double? destLng,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     List<RouteWaypoint> waypoints,
   });
 
@@ -39,6 +40,7 @@ abstract interface class ModeARepository {
   Future<List<TouristRouteEntity>> getNearbyDurunubiCourses({
     required double latitude,
     required double longitude,
+    required BodyMetrics metrics,
   });
 
   /// 경유지 추천 후보 조회
@@ -52,6 +54,6 @@ abstract interface class ModeARepository {
     required double destLng,
     required int extraKcalNeeded,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
   });
 }

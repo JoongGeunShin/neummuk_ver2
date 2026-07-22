@@ -1,3 +1,5 @@
+import '../models/body_metrics.dart';
+
 class AppConstants {
   AppConstants._();
 
@@ -12,15 +14,39 @@ class AppConstants {
     'transit': 1.5,
   };
 
-  /// 소비 칼로리 = MET × 체중(kg) × 시간(hour)
-  static double calculateKcal({
+  /// Mifflin-St Jeor 기본대사량(kcal/day). 성별·키·나이를 반영해 칼로리를 개인화한다.
+  static double calculateBmr(BodyMetrics m) {
+    final base = 10 * m.weightKg + 6.25 * m.heightCm - 5 * m.age;
+    return m.sex == 'female' ? base - 161 : base + 5;
+  }
+
+  /// 이동수단별 시간당 소모 칼로리(kcal/h) = MET × (BMR/24)
+  static double kcalPerHour({
     required String transport,
-    required double weightKg,
-    required int durationSeconds,
+    required BodyMetrics metrics,
   }) {
     final met = metValues[transport] ?? metValues['walk']!;
-    final hours = durationSeconds / 3600.0;
-    return met * weightKg * hours;
+    return met * (calculateBmr(metrics) / 24.0);
+  }
+
+  /// 소비 칼로리 = MET × (BMR/24) × 시간(hour)
+  static double calculateKcal({
+    required String transport,
+    required BodyMetrics metrics,
+    required int durationSeconds,
+  }) {
+    return kcalPerHour(transport: transport, metrics: metrics) *
+        durationSeconds /
+        3600.0;
+  }
+
+  /// targetKcal 소모에 필요한 이동 시간(hour) 역산
+  static double hoursForTargetKcal({
+    required String transport,
+    required BodyMetrics metrics,
+    required int targetKcal,
+  }) {
+    return targetKcal / kcalPerHour(transport: transport, metrics: metrics);
   }
   // 한국관광공사_국문 관광정보 서비스_GW
   static const String tourApiBaseUrl =

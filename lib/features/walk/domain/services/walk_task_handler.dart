@@ -4,6 +4,8 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer/pedometer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import 'walk_calculator.dart';
 
 // SharedPreferences 키 — walk_provider.dart에서도 임포트해서 사용
@@ -15,6 +17,7 @@ const kWalkDistanceM = 'walk_today_distance_m';
 const kWalkSpeedKmh = 'walk_today_speed_kmh';
 const kWalkProfileHeight = 'walk_profile_height_cm';
 const kWalkProfileWeight = 'walk_profile_weight_kg';
+const kWalkProfileAge = 'walk_profile_age';
 const kWalkProfileSex = 'walk_profile_sex';
 const kWalkTrackingEnabled = 'walk_tracking_enabled';
 
@@ -37,9 +40,7 @@ class WalkTaskHandler extends TaskHandler {
   double _caloriesKcal = 0.0;
 
   // 앱이 SharedPreferences에 기록해 둔 프로필을 읽어 사용
-  double _heightCm = 170.0;
-  double _weightKg = 65.0;
-  String _sex = 'male';
+  BodyMetrics _metrics = BodyMetrics.defaultMetrics;
 
   final _window = <(DateTime, double)>[];
 
@@ -68,7 +69,8 @@ class WalkTaskHandler extends TaskHandler {
     _prefs?.setDouble(kWalkSpeedKmh, _speedKmh);
 
     if (_speedKmh >= 1.0) {
-      _caloriesKcal += WalkCalculator.met(_speedKmh) * _weightKg / 3600.0;
+      _caloriesKcal +=
+          WalkCalculator.met(_speedKmh) * (AppConstants.calculateBmr(_metrics) / 24.0) / 3600.0;
       _prefs?.setDouble(kWalkCalories, _caloriesKcal);
     }
 
@@ -93,21 +95,29 @@ class WalkTaskHandler extends TaskHandler {
     if (data is! Map) return;
     final h = (data['heightCm'] as num?)?.toDouble();
     final w = (data['weightKg'] as num?)?.toDouble();
+    final a = (data['age'] as num?)?.toInt();
     final s = data['sex'] as String?;
-    if (h != null) _heightCm = h;
-    if (w != null) _weightKg = w;
-    if (s != null) _sex = s;
+    _metrics = BodyMetrics(
+      heightCm: h ?? _metrics.heightCm,
+      weightKg: w ?? _metrics.weightKg,
+      age: a ?? _metrics.age,
+      sex: s ?? _metrics.sex,
+    );
     // 앱 재시작 시에도 프로필이 유지되도록 SharedPreferences에도 기록
-    _prefs?.setDouble(kWalkProfileHeight, _heightCm);
-    _prefs?.setDouble(kWalkProfileWeight, _weightKg);
-    _prefs?.setString(kWalkProfileSex, _sex);
+    _prefs?.setDouble(kWalkProfileHeight, _metrics.heightCm);
+    _prefs?.setDouble(kWalkProfileWeight, _metrics.weightKg);
+    _prefs?.setInt(kWalkProfileAge, _metrics.age);
+    _prefs?.setString(kWalkProfileSex, _metrics.sex);
   }
 
   void _loadProfile() {
     final p = _prefs!;
-    _heightCm = p.getDouble(kWalkProfileHeight) ?? 170.0;
-    _weightKg = p.getDouble(kWalkProfileWeight) ?? 65.0;
-    _sex = p.getString(kWalkProfileSex) ?? 'male';
+    _metrics = BodyMetrics(
+      heightCm: p.getDouble(kWalkProfileHeight) ?? 170.0,
+      weightKg: p.getDouble(kWalkProfileWeight) ?? 65.0,
+      age: p.getInt(kWalkProfileAge) ?? 30,
+      sex: p.getString(kWalkProfileSex) ?? 'male',
+    );
   }
 
   void _loadSavedState() {
@@ -148,7 +158,7 @@ class WalkTaskHandler extends TaskHandler {
       _trueSteps = event.steps - _baselineSteps!;
     }
 
-    final stride = WalkCalculator.strideM(_heightCm, _sex);
+    final stride = WalkCalculator.strideM(_metrics.heightCm, _metrics.sex);
     _distanceM = WalkCalculator.distanceM(_trueSteps, stride);
 
     final now = DateTime.now();

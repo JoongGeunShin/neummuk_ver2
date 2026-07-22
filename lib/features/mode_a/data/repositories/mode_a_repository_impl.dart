@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../domain/entities/restaurant_entity.dart';
@@ -75,13 +76,13 @@ class ModeARepositoryImpl implements ModeARepository {
     double? destLat,
     double? destLng,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     List<RouteWaypoint> waypoints = const [],
   }) async {
     // 좌표 없으면 mock 반환 (개발 초기 / GPS 없는 경우)
     if (originLat == null || originLng == null ||
         destLat == null || destLng == null) {
-      return _mockRoute(from, to, transport, weightKg, waypoints);
+      return _mockRoute(from, to, transport, metrics, waypoints);
     }
 
     try {
@@ -90,20 +91,20 @@ class ModeARepositoryImpl implements ModeARepository {
           from: from, to: to,
           originLat: originLat, originLng: originLng,
           destLat: destLat, destLng: destLng,
-          weightKg: weightKg, waypoints: waypoints,
+          metrics: metrics, waypoints: waypoints,
         );
       } else {
         return await _getTmapWalkBikeRoute(
           from: from, to: to,
           originLat: originLat, originLng: originLng,
           destLat: destLat, destLng: destLng,
-          transport: transport, weightKg: weightKg,
+          transport: transport, metrics: metrics,
           waypoints: waypoints,
         );
       }
     } catch (e) {
       debugPrint('[ModeA] getRoute error: $e — falling back to mock');
-      return _mockRoute(from, to, transport, weightKg, waypoints);
+      return _mockRoute(from, to, transport, metrics, waypoints);
     }
   }
 
@@ -117,7 +118,7 @@ class ModeARepositoryImpl implements ModeARepository {
     required double destLat,
     required double destLng,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     required List<RouteWaypoint> waypoints,
   }) async {
     final allCoords = [
@@ -152,7 +153,7 @@ class ModeARepositoryImpl implements ModeARepository {
         from: from, to: to,
         originLat: originLat, originLng: originLng,
         destLat: destLat, destLng: destLng,
-        transport: transport, weightKg: weightKg,
+        transport: transport, metrics: metrics,
         waypoints: waypoints,
       );
     }
@@ -172,7 +173,7 @@ class ModeARepositoryImpl implements ModeARepository {
 
     final kcalBurn = AppConstants.calculateKcal(
       transport: transport,
-      weightKg: weightKg,
+      metrics: metrics,
       durationSeconds: durationSec,
     ).round();
 
@@ -199,7 +200,7 @@ class ModeARepositoryImpl implements ModeARepository {
     required double destLat,
     required double destLng,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
     required List<RouteWaypoint> waypoints,
   }) async {
     final requestBody = <String, dynamic>{
@@ -230,19 +231,19 @@ class ModeARepositoryImpl implements ModeARepository {
 
     if (response.statusCode != 200) {
       debugPrint('[ModeA] Kakao Mobility ${response.statusCode}: ${response.body}');
-      return _mockRoute(from, to, transport, weightKg, waypoints);
+      return _mockRoute(from, to, transport, metrics, waypoints);
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final routes = json['routes'] as List? ?? [];
-    if (routes.isEmpty) return _mockRoute(from, to, transport, weightKg, waypoints);
+    if (routes.isEmpty) return _mockRoute(from, to, transport, metrics, waypoints);
 
     final route = routes[0] as Map<String, dynamic>;
     final resultCode = (route['result_code'] as num?)?.toInt() ?? -1;
     // 0 = 성공, 1 = 경로 없음, 101 = 도보 거리내
     if (resultCode != 0) {
       debugPrint('[ModeA] Kakao Mobility result_code=$resultCode');
-      return _mockRoute(from, to, transport, weightKg, waypoints);
+      return _mockRoute(from, to, transport, metrics, waypoints);
     }
 
     final summary = route['summary'] as Map<String, dynamic>;
@@ -267,7 +268,7 @@ class ModeARepositoryImpl implements ModeARepository {
 
     final kcalBurn = AppConstants.calculateKcal(
       transport: transport,
-      weightKg: weightKg,
+      metrics: metrics,
       durationSeconds: durationSec,
     ).round();
 
@@ -293,7 +294,7 @@ class ModeARepositoryImpl implements ModeARepository {
     required double originLng,
     required double destLat,
     required double destLng,
-    required double weightKg,
+    required BodyMetrics metrics,
     required List<RouteWaypoint> waypoints,
   }) async {
     final uri = Uri.parse('https://api.odsay.com/v1/api/searchPubTransPathT')
@@ -309,21 +310,21 @@ class ModeARepositoryImpl implements ModeARepository {
 
     if (response.statusCode != 200) {
       debugPrint('[ModeA] ODsay ${response.statusCode}: ${response.body}');
-      return _mockRoute(from, to, 'transit', weightKg, waypoints);
+      return _mockRoute(from, to, 'transit', metrics, waypoints);
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (json.containsKey('error')) {
       debugPrint('[ModeA] ODsay error: ${json['error']}');
-      return _mockRoute(from, to, 'transit', weightKg, waypoints);
+      return _mockRoute(from, to, 'transit', metrics, waypoints);
     }
 
     final result = json['result'] as Map<String, dynamic>?;
-    if (result == null) return _mockRoute(from, to, 'transit', weightKg, waypoints);
+    if (result == null) return _mockRoute(from, to, 'transit', metrics, waypoints);
 
     final paths = result['path'] as List? ?? [];
-    if (paths.isEmpty) return _mockRoute(from, to, 'transit', weightKg, waypoints);
+    if (paths.isEmpty) return _mockRoute(from, to, 'transit', metrics, waypoints);
 
     final path = paths[0] as Map<String, dynamic>;
     final info = path['info'] as Map<String, dynamic>? ?? {};
@@ -551,9 +552,9 @@ class ModeARepositoryImpl implements ModeARepository {
     final transitTimeSec = max(0, durationSec - walkTimeSec);
 
     final walkKcal = AppConstants.calculateKcal(
-      transport: 'walk', weightKg: weightKg, durationSeconds: walkTimeSec);
+      transport: 'walk', metrics: metrics, durationSeconds: walkTimeSec);
     final transitKcal = AppConstants.calculateKcal(
-      transport: 'transit', weightKg: weightKg, durationSeconds: transitTimeSec);
+      transport: 'transit', metrics: metrics, durationSeconds: transitTimeSec);
 
     return RouteResultEntity(
       fromName: from,
@@ -840,7 +841,7 @@ class ModeARepositoryImpl implements ModeARepository {
     String from,
     String to,
     String transport,
-    double weightKg,
+    BodyMetrics metrics,
     List<RouteWaypoint> waypoints,
   ) {
     final extraSec = waypoints.length * 600;
@@ -849,7 +850,7 @@ class ModeARepositoryImpl implements ModeARepository {
     final distanceKm = 3.2 + extraKm;
     final kcalBurn = AppConstants.calculateKcal(
       transport: transport,
-      weightKg: weightKg,
+      metrics: metrics,
       durationSeconds: durationSec,
     ).round();
     return RouteResultEntity(
@@ -1029,7 +1030,7 @@ class ModeARepositoryImpl implements ModeARepository {
     required double destLng,
     required int extraKcalNeeded,
     required String transport,
-    required double weightKg,
+    required BodyMetrics metrics,
   }) async {
     try {
       final results = await _fetchTourApiPlaces(midLat, midLng, 3000);
@@ -1060,7 +1061,7 @@ class ModeARepositoryImpl implements ModeARepository {
             double.parse((detourM / 1000.0).toStringAsFixed(1));
         final extraKcal = AppConstants.calculateKcal(
           transport: transport,
-          weightKg: weightKg,
+          metrics: metrics,
           durationSeconds: detourSec,
         ).round();
 
@@ -1216,6 +1217,7 @@ class ModeARepositoryImpl implements ModeARepository {
   Future<List<TouristRouteEntity>> getNearbyDurunubiCourses({
     required double latitude,
     required double longitude,
+    required BodyMetrics metrics,
   }) async {
     try {
       final uri =
@@ -1245,7 +1247,7 @@ class ModeARepositoryImpl implements ModeARepository {
         final lat = _parseDouble(item['mapy']);
         final lng = _parseDouble(item['mapx']);
         if (lat == null || lng == null) continue;
-        final route = _parseDurunubiItem(item, lat, lng);
+        final route = _parseDurunubiItem(item, lat, lng, metrics);
         if (route == null) continue;
         withDist.add((route: route, distM: _haversine(latitude, longitude, lat, lng)));
       }
@@ -1258,13 +1260,13 @@ class ModeARepositoryImpl implements ModeARepository {
   }
 
   TouristRouteEntity? _parseDurunubiItem(
-      Map<String, dynamic> item, double lat, double lng) {
+      Map<String, dynamic> item, double lat, double lng, BodyMetrics metrics) {
     final name = (item['crsKorNm'] as String? ?? '').trim();
     if (name.isEmpty) return null;
     final distKm = _parseDouble(item['crsDstnc']) ?? 0.0;
     final durationHrs = _parseDouble(item['crsTotlRqrmHour']) ?? 1.0;
     final kcal =
-        AppConstants.calculateKcal(transport: 'walk', weightKg: AppConstants.defaultWeightKg,
+        AppConstants.calculateKcal(transport: 'walk', metrics: metrics,
             durationSeconds: (durationHrs * 3600).round()).round();
     final levelRaw = item['crsLevel']?.toString() ?? '';
     final levelTag = switch (levelRaw) {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
 import '../../../explore/presentation/providers/explore_provider.dart';
 import '../../../user/presentation/providers/user_provider.dart';
 import '../../data/repositories/mode_b_repository_impl.dart';
@@ -18,11 +19,11 @@ const _pageSize = 5;
 @Riverpod(keepAlive: true)
 ModeBRepository modeBRepository(ModeBRepositoryRef ref) {
   final foodCatalog = ref.watch(foodCatalogRepositoryProvider);
-  final weightKg =
-      ref.watch(userProfileProvider).valueOrNull?.weightKg ?? AppConstants.defaultWeightKg;
+  final metrics =
+      ref.watch(userProfileProvider).valueOrNull?.toBodyMetrics() ?? BodyMetrics.defaultMetrics;
   return ModeBRepositoryImpl(
     foodCatalogRepo: foodCatalog,
-    weightKg: weightKg,
+    metrics: metrics,
   );
 }
 

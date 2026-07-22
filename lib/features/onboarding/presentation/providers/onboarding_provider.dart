@@ -19,6 +19,10 @@ class UserProfile extends _$UserProfile {
     state = state.copyWith(heightCm: height);
   }
 
+  void setAge(int age) {
+    state = state.copyWith(age: age);
+  }
+
   void setSex(String sex){
     state = state.copyWith(sex: sex);
   }

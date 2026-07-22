@@ -6,7 +6,7 @@ part of 'mode_b_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$modeBRepositoryHash() => r'e2eb455288d4ab7325fc238cb7b3e504db0c3e68';
+String _$modeBRepositoryHash() => r'29ccb339d01a913c23528ce12a500a7a383ad8c1';
 
 /// See also [modeBRepository].
 @ProviderFor(modeBRepository)
