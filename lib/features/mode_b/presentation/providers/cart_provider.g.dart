@@ -6,7 +6,7 @@ part of 'cart_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$cartHash() => r'915d7ca54e8bc1e9f2ad05362f54e20b776522f0';
+String _$cartHash() => r'89c3ac4b1251c63f7d3b395e68482febbfa58778';
 
 /// See also [Cart].
 @ProviderFor(Cart)

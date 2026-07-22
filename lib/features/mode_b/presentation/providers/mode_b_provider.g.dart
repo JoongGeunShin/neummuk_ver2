@@ -55,7 +55,7 @@ final selectedFoodProvider =
     );
 
 typedef _$SelectedFood = Notifier<FoodEntity?>;
-String _$routeSearchHash() => r'9ca5ecaaebfd4263d42ced146e73ab47d60297ba';
+String _$routeSearchHash() => r'99b2551f25bc4286e7559d2e8f91fd8f5ca88791';
 
 /// See also [RouteSearch].
 @ProviderFor(RouteSearch)
