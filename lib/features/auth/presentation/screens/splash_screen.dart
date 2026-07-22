@@ -51,9 +51,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       return;
     }
     if (user.isGuest) {
-      await _tryRestoreModeBNav();
+      final restored = await _tryRestoreModeBNav();
       if (!mounted) return;
-      context.go('/home');
+      if (restored) {
+        ref.read(mapModeProvider.notifier).set(MapMode.modeB);
+        context.go('/map');
+      } else {
+        context.go('/home');
+      }
       return;
     }
     final done = await resolveOnboardingDone(ref, user);
