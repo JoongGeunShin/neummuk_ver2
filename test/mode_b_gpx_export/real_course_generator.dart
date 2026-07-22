@@ -1,6 +1,5 @@
-import 'dart:math' as math;
-
 import 'package:neummuk_ver2/core/constants/app_constants.dart';
+import 'package:neummuk_ver2/core/utils/geo_utils.dart';
 import 'package:neummuk_ver2/features/mode_b/data/datasources/kakao_local_spots_datasource.dart';
 import 'package:neummuk_ver2/features/mode_b/data/datasources/tmap_route_datasource.dart';
 import 'package:neummuk_ver2/features/mode_b/data/datasources/tour_api_spots_datasource.dart';
@@ -28,7 +27,8 @@ class RealCourseGenerator {
     required String transport,
     Set<SpotTag> tags = const {},
   }) async {
-    final radiusM = transport == 'bike' ? 5000 : 3000;
+    final radiusM =
+        transport == 'bike' ? AppConstants.modeBBikeRadiusM : AppConstants.modeBWalkRadiusM;
     final effectiveTags = tags.isEmpty ? SpotTag.values.toSet() : tags;
 
     final kakaoCodes = <String>{};
@@ -58,7 +58,7 @@ class RealCourseGenerator {
     final combined = <SpotEntity>[...kakaoSpots];
     for (final ts in tourSpots) {
       final isDuplicate = kakaoSpots.any((ks) =>
-          _haversineKm(ks.lat, ks.lng, ts.lat, ts.lng) < 0.05 && ks.name == ts.name);
+          haversineDistanceKm(ks.lat, ks.lng, ts.lat, ts.lng) < 0.05 && ks.name == ts.name);
       if (!isDuplicate) combined.add(ts);
     }
     combined.sort((a, b) =>
@@ -120,16 +120,5 @@ class RealCourseGenerator {
       }
     }
     return result;
-  }
-
-  double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371.0;
-    final phi1 = lat1 * math.pi / 180;
-    final phi2 = lat2 * math.pi / 180;
-    final dPhi = (lat2 - lat1) * math.pi / 180;
-    final dLambda = (lng2 - lng1) * math.pi / 180;
-    final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
-        math.cos(phi1) * math.cos(phi2) * math.sin(dLambda / 2) * math.sin(dLambda / 2);
-    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 }

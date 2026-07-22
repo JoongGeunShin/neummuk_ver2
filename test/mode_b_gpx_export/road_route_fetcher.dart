@@ -6,9 +6,11 @@ import 'package:http/http.dart' as http;
 
 import 'package:neummuk_ver2/features/mode_b/domain/entities/tourist_route_entity.dart';
 
-/// mode_b_mixin.dart의 _fetchApproachRoute/_fetchAllSegmentPolylines와 동일한 순서
-/// (TMAP 보행자 경로 우선 → Kakao Mobility 차량 경로 폴백)로 구간별 도로 좌표를 가져온다.
-/// 앱이 실제로 화면에 그리고 내비게이션 잔여거리 계산에 쓰는 경로와 동일한 모양을 재현하기 위함.
+/// mode_b_mixin.dart의 _fetchAllSegmentPolylines/_fetchApproachRoute와 동일한 정책으로
+/// 구간별 도로 좌표를 가져온다: 코스 전 구간을 먼저 TMAP 보행자 경로만으로 시도하고,
+/// 단 한 구간이라도 실패하면 그 결과를 버리고 코스 전체를 Kakao Mobility로 다시 시도한다.
+/// 구간마다 독립적으로 TMAP/Kakao를 섞으면(과거 방식) 한 코스 안에서 도로 스냅 스타일이
+/// 달라져 실제 앱과 다른 경로 모양이 나오므로, "코스 단위" 소스 통일을 그대로 재현한다.
 class RoadPoint {
   const RoadPoint(this.lat, this.lng);
   final double lat;
@@ -16,71 +18,70 @@ class RoadPoint {
 }
 
 /// [waypoints]는 TouristRouteEntity.waypoints — 생성 코스라면 스팟들 + 마지막 '출발지' 복귀 지점.
-/// 반환값은 출발지 좌표를 포함한 전체 구간의 순서 있는 도로 좌표 목록.
-Future<List<RoadPoint>> fetchGeneratedCourseRoadRoute({
+/// [points]는 출발지 좌표를 포함한 전체 구간의 순서 있는 도로 좌표 목록.
+/// [source]는 코스 전체를 채운 소스('tmap' | 'kakao') — 일부 구간이 두 API 모두 실패해
+/// 직선으로 대체됐다면 null.
+Future<({List<RoadPoint> points, String? source})> fetchGeneratedCourseRoadRoute({
   required double startLat,
   required double startLng,
   required List<SpotWaypoint> waypoints,
 }) async {
+  final tmapPass = await _fetchAllLegs(
+    startLat: startLat,
+    startLng: startLng,
+    waypoints: waypoints,
+    source: 'tmap',
+  );
+  if (tmapPass.allSucceeded) {
+    return (points: tmapPass.points, source: 'tmap');
+  }
+
+  // ignore: avoid_print
+  print('[RoadRoute] TMAP으로 코스 전체 구간을 채우지 못해 코스 전체를 Kakao로 재시도');
+  final kakaoPass = await _fetchAllLegs(
+    startLat: startLat,
+    startLng: startLng,
+    waypoints: waypoints,
+    source: 'kakao',
+  );
+  return (points: kakaoPass.points, source: kakaoPass.allSucceeded ? 'kakao' : null);
+}
+
+Future<({List<RoadPoint> points, bool allSucceeded})> _fetchAllLegs({
+  required double startLat,
+  required double startLng,
+  required List<SpotWaypoint> waypoints,
+  required String source,
+}) async {
   final all = <RoadPoint>[RoadPoint(startLat, startLng)];
+  var allSucceeded = true;
   var prevLat = startLat;
   var prevLng = startLng;
 
   for (final wp in waypoints) {
-    final legPoints = await _fetchLeg(
-      fromLat: prevLat,
-      fromLng: prevLng,
-      toLat: wp.lat,
-      toLng: wp.lng,
-    );
+    final legPoints = source == 'tmap'
+        ? await _fetchTmapPedestrianLeg(
+            fromLat: prevLat, fromLng: prevLng, toLat: wp.lat, toLng: wp.lng)
+        : await _fetchKakaoCarLeg(
+            fromLat: prevLat, fromLng: prevLng, toLat: wp.lat, toLng: wp.lng);
+
     if (legPoints.isNotEmpty) {
-      all.addAll(legPoints);
+      // mode_b_mixin.dart의 _withSnapPrefix와 동일: 반환된 첫 좌표가 실제 출발 지점에서
+      // 10m 넘게 스냅되어 있으면(예: 넓은 광장·건물 진입로) 그 사이를 이어주는 연결선을
+      // 넣는다. TMAP·Kakao 둘 다 동일하게 적용 — 이전엔 TMAP 쪽에만 적용돼 있었다.
+      final snapDistM = _haversineM(prevLat, prevLng, legPoints.first.lat, legPoints.first.lng);
+      all.addAll(snapDistM > 10 ? [RoadPoint(prevLat, prevLng), ...legPoints] : legPoints);
     } else {
-      // 두 API 모두 실패하면 직선으로 폴백 (앱 쪽 로직과 동일) — 위 로그로 원인 확인할 것
       // ignore: avoid_print
-      print('[RoadRoute] $prevLat,$prevLng → ${wp.lat},${wp.lng}: '
+      print('[RoadRoute] ($source) $prevLat,$prevLng → ${wp.lat},${wp.lng}: '
           '도로 경로 조회 실패, 직선으로 대체됨');
       all.add(RoadPoint(wp.lat, wp.lng));
+      allSucceeded = false;
     }
     prevLat = wp.lat;
     prevLng = wp.lng;
   }
-  return all;
-}
-
-Future<List<RoadPoint>> _fetchLeg({
-  required double fromLat,
-  required double fromLng,
-  required double toLat,
-  required double toLng,
-}) async {
-  final tmapKey = dotenv.env['TMAP_APP_KEY'] ?? '';
-  if (tmapKey.isNotEmpty) {
-    final pts = await _fetchTmapPedestrianLeg(
-      fromLat: fromLat, fromLng: fromLng,
-      toLat: toLat, toLng: toLng,
-      tmapKey: tmapKey,
-    );
-    if (pts.isNotEmpty) {
-      // mode_b_mixin.dart의 _fetchApproachRoute와 동일: TMAP이 반환한 첫 좌표가 실제
-      // 출발 지점에서 10m 넘게 스냅되어 있으면(예: 넓은 광장·건물 진입로) 그 사이를 이어주는
-      // 연결선을 넣는다. 이걸 빠뜨리면 도로에 붙기 전까지의 접근 구간이 통째로 잘려서
-      // 실제 앱이 그리는 폴리라인과 시작 부분 모양이 달라진다.
-      final snapDistM = _haversineM(fromLat, fromLng, pts.first.lat, pts.first.lng);
-      return snapDistM > 10 ? [RoadPoint(fromLat, fromLng), ...pts] : pts;
-    }
-  }
-
-  final kakaoKey = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
-  if (kakaoKey.isNotEmpty) {
-    return _fetchKakaoCarLeg(
-      fromLat: fromLat, fromLng: fromLng,
-      toLat: toLat, toLng: toLng,
-      kakaoKey: kakaoKey,
-    );
-  }
-
-  return const [];
+  return (points: all, allSucceeded: allSucceeded);
 }
 
 double _haversineM(double lat1, double lng1, double lat2, double lng2) {
@@ -99,8 +100,9 @@ Future<List<RoadPoint>> _fetchTmapPedestrianLeg({
   required double fromLng,
   required double toLat,
   required double toLng,
-  required String tmapKey,
 }) async {
+  final tmapKey = dotenv.env['TMAP_APP_KEY'] ?? '';
+  if (tmapKey.isEmpty) return const [];
   try {
     final body = [
       'startX=$fromLng',
@@ -161,8 +163,9 @@ Future<List<RoadPoint>> _fetchKakaoCarLeg({
   required double fromLng,
   required double toLat,
   required double toLng,
-  required String kakaoKey,
 }) async {
+  final kakaoKey = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+  if (kakaoKey.isEmpty) return const [];
   try {
     final res = await http
         .post(

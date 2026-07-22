@@ -15,11 +15,11 @@ import 'gpx_writer.dart';
 import 'real_course_generator.dart';
 import 'road_route_fetcher.dart';
 
-// adb shell dumpsys location으로 확인한 에뮬레이터 실측 GPS (fused/gps 둘 다 동일):
-// Location[gps 37.465385,127.144538 ...] — 반올림된 37.4654/127.1445와는 3~4m 차이가 나며,
-// 밀집 도심에서는 이 정도로도 TMAP이 다른 골목으로 스냅해 경로 모양이 달라질 수 있다.
-const _userLat = 37.465385;
-const _userLng = 127.144538;
+// adb shell dumpsys location으로 확인한 에뮬레이터 실측 GPS (fused/gps 둘 다 동일, 2026-07-22 재확인):
+// Location[gps 37.465515,127.144647 ...] — 이전 기록값(37.465385,127.144538)과도 15~20m
+// 차이가 나며, 밀집 도심에서는 이 정도로도 TMAP이 다른 골목으로 스냅해 경로 모양이 달라질 수 있다.
+const _userLat = 37.465515;
+const _userLng = 127.144647;
 const _targetKcal = 330; // 마라탕으로 테스트
 const _transport = 'walk';
 const _weightKg = 70.6;
@@ -64,13 +64,19 @@ void main() {
     expect(route, isNotNull, reason: '코스 생성 실패 — targetKcal이 반경 내 스팟으로 도달 가능한지 확인할 것');
     expect(route!.waypoints, isNotEmpty);
 
-    final roadPoints = await fetchGeneratedCourseRoadRoute(
+    final roadRoute = await fetchGeneratedCourseRoadRoute(
       startLat: _drawLat,
       startLng: _drawLng,
       waypoints: route.waypoints,
     );
+    final roadPoints = roadRoute.points;
     expect(roadPoints.length, greaterThan(1),
         reason: 'TMAP_APP_KEY/KAKAO_REST_API_KEY가 .env에 있는지, 네트워크가 되는지 확인할 것');
+    // 앱은 코스 전체를 TMAP으로 먼저 시도하고, 한 구간이라도 실패해야만 코스 전체를
+    // Kakao로 다시 시도한다(mode_b_mixin.dart _fetchAllSegmentPolylines). source가 null이면
+    // 두 API 모두 실패한 구간이 있어 일부가 직선으로 대체됐다는 뜻이니 위 [RoadRoute] 로그를 볼 것.
+    // ignore: avoid_print
+    print('roadSource=${roadRoute.source ?? "일부 직선 폴백 포함"}');
 
     final gpxPoints = roadPoints.map((p) => GpxPoint(lat: p.lat, lng: p.lng)).toList();
     final landmarks = [
@@ -91,12 +97,9 @@ void main() {
     expect(outFile.existsSync(), isTrue);
     expect(outFile.lengthSync(), greaterThan(0));
 
-    // ignore: avoid_print
     print('GPX exported: ${outFile.absolute.path}');
-    // ignore: avoid_print
     print('spotsFound=${spots.length}, waypoints=${route.waypoints.length}, '
         'roadPoints=${roadPoints.length}, distanceKm=${route.distanceKm}, kcal=${route.kcal}');
-    // ignore: avoid_print
     print('방문 순서:\n${describeLandmarks(landmarks)}');
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
