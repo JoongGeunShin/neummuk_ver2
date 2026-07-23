@@ -21,12 +21,12 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
   /// 경로에서 추출한 방향 전환 포인트 목록 — 현재 구간(생성 코스) 또는 전체 트랙(GPX)
   /// 기준. 단계별 안내 카드(다음 턴 문구·거리)에만 쓰인다.
-  List<_TurnPoint> _modeBTurnPoints = [];
+  List<TurnPoint> _modeBTurnPoints = [];
 
   /// 지도 위에 표시되는 "코스 전체" 턴 마커 목록. _modeBTurnPoints와 달리 생성 코스도
   /// 모든 구간의 턴을 한번에 담고 있어, 지도를 보면 코스 전체의 좌우회전 지점이
   /// 한눈에 보인다. 사용자가 지나간 턴은 실시간으로 이 목록과 지도에서 제거된다.
-  List<_TurnPoint> _allRouteTurnMarkers = [];
+  List<TurnPoint> _allRouteTurnMarkers = [];
 
   /// 단계별 세그먼트 폴리라인 마지막 갱신 시각 (스로틀)
   DateTime? _lastStepSegmentUpdate;
@@ -60,7 +60,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   void _toggleShowAllSegments(int currentWpIdx);
   Future<void> _rerouteGeneratedCourse(
       Position p, TouristRouteEntity route, int wpIdx);
-  Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns);
+  Future<void> _drawTurnMarkersOnMap(List<TurnPoint> turns);
   Set<String> get _drawnTurnMarkerIds;
   Future<void> _drawNavSpotMarkers(List<SpotWaypoint> waypoints, {required int currentIdx});
   void _clearNavPolylineCache();
@@ -112,14 +112,14 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       final pts = gpxPoints
           .map((p) => (lat: p.latitude, lng: p.longitude))
           .toList();
-      _modeBTurnPoints = _computeTurnPoints(pts);
+      _modeBTurnPoints = computeTurnPoints(pts);
       // GPX는 구간이 없는 단일 트랙이라 _modeBTurnPoints가 이미 전체 경로 기준이다.
       _allRouteTurnMarkers = List.of(_modeBTurnPoints);
     } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
       final firstSeg = _segmentPolylines[0];
       if (firstSeg.isNotEmpty) {
         final pts = firstSeg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
-        _modeBTurnPoints = _computeTurnPoints(pts);
+        _modeBTurnPoints = computeTurnPoints(pts);
       } else {
         _modeBTurnPoints = [];
       }
@@ -330,7 +330,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         _movedSinceNavStart += movedNow;
         if (_movedSinceNavStart >= 50.0) {
           final hasRealTurns =
-              _modeBTurnPoints.any((t) => t.type != _TurnType.arrival);
+              _modeBTurnPoints.any((t) => t.type != TurnType.arrival);
           if (hasRealTurns && mounted) {
             setState(() => _modeBNavStepMode = true);
           }
@@ -340,7 +340,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
     // 단계별 모드: GPX 코스 전용 세그먼트 갱신
     if (_modeBNavStepMode && !isGenerated &&
-        _modeBTurnPoints.any((t) => t.type != _TurnType.arrival)) {
+        _modeBTurnPoints.any((t) => t.type != TurnType.arrival)) {
       unawaited(_updateStepModeSegment(updatedState));
     }
 
@@ -359,7 +359,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (isGenerated && !wpAdvanced) {
       final progress = _lastGeneratedRoadProgress;
       if (progress != null) {
-        if (progress.distToRoadM > AppConstants.modeBOffRouteThresholdM) {
+        if (progress.distToRoadM > AppConstants.offRouteThresholdM) {
           _offRouteStartTime ??= DateTime.now();
           if (DateTime.now().difference(_offRouteStartTime!).inSeconds >= 30) {
             _offRouteStartTime = null;
@@ -417,7 +417,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       final seg = _segmentPolylines[newWpIdx];
       if (seg.isNotEmpty) {
         final pts = seg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
-        _modeBTurnPoints = _computeTurnPoints(pts, segIdx: newWpIdx);
+        _modeBTurnPoints = computeTurnPoints(pts, legIdx: newWpIdx);
       } else {
         _modeBTurnPoints = [];
       }
@@ -536,7 +536,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
   int _getNextTurnGpxIdx(int nearestIdx) {
     for (final t in _modeBTurnPoints) {
-      if (t.gpxIdx > nearestIdx) return t.gpxIdx;
+      if (t.ptIdx > nearestIdx) return t.ptIdx;
     }
     return -1;
   }
@@ -563,105 +563,19 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   // ── 방향 전환 포인트 계산 ──────────────────────────────────────
-
-  /// GPX 포인트 목록에서 교차로 방향 전환 지점을 추출.
-  /// 인덱스 기반이 아닌 실거리(m) 기반 윈도우를 사용해 GPX 밀도에 무관하게 동작.
-  List<_TurnPoint> _computeTurnPoints(
-    List<({double lat, double lng})> pts, {
-    int segIdx = 0,
-  }) {
-    if (pts.length < 6) return [];
-
-    // 누적 거리(m) 계산 — 고밀도 GPX 포인트이므로 Equirectangular 근사로 충분
-    final cumDist = List<double>.filled(pts.length, 0.0);
-    for (int i = 1; i < pts.length; i++) {
-      cumDist[i] = cumDist[i - 1] +
-          _fastDistM(pts[i - 1].lat, pts[i - 1].lng, pts[i].lat, pts[i].lng);
-    }
-
-    final totalDist = cumDist.last;
-    if (totalDist < 50) return [];
-
-    // 25m 윈도우로 접근/이탈 방향 비교, 40m 간격 유지
-    const segLen = 25.0;
-    const turnThreshold = 25.0;
-    const uTurnThreshold = 120.0;
-    const minDistSpacing = 40.0;
-
-    final turns = <_TurnPoint>[];
-    double lastTurnDist = -minDistSpacing;
-
-    for (int i = 0; i < pts.length; i++) {
-      final d = cumDist[i];
-      if (d < segLen || d > totalDist - segLen) continue;
-
-      // 접근 기준점: 현재보다 segLen 뒤
-      int iA = i;
-      while (iA > 0 && cumDist[iA] > d - segLen) { iA--; }
-      // 이탈 기준점: 현재보다 segLen 앞
-      int iL = i;
-      while (iL < pts.length - 1 && cumDist[iL] < d + segLen) { iL++; }
-
-      if (iA == i || iL == i) continue;
-
-      final approachBearing = _calcModeBBearing(
-          pts[iA].lat, pts[iA].lng, pts[i].lat, pts[i].lng);
-      final leaveBearing = _calcModeBBearing(
-          pts[i].lat, pts[i].lng, pts[iL].lat, pts[iL].lng);
-
-      double delta = leaveBearing - approachBearing;
-      while (delta > 180) { delta -= 360; }
-      while (delta < -180) { delta += 360; }
-      final absD = delta.abs();
-
-      if (absD > turnThreshold && d - lastTurnDist >= minDistSpacing) {
-        final type = absD >= uTurnThreshold
-            ? _TurnType.uTurn
-            : delta > 0
-                ? _TurnType.right
-                : _TurnType.left;
-        final instruction = absD >= uTurnThreshold
-            ? '유턴하세요'
-            : delta > 0
-                ? '오른쪽 길로 계속 진행'
-                : '왼쪽 길로 계속 진행';
-
-        turns.add(_TurnPoint(
-          type: type,
-          gpxIdx: i,
-          lat: pts[i].lat,
-          lng: pts[i].lng,
-          instruction: instruction,
-          segIdx: segIdx,
-        ));
-        lastTurnDist = d;
-      }
-    }
-
-    // 도착 포인트
-    turns.add(_TurnPoint(
-      type: _TurnType.arrival,
-      gpxIdx: pts.length - 1,
-      lat: pts.last.lat,
-      lng: pts.last.lng,
-      instruction: '목적지에 도착합니다',
-      segIdx: segIdx,
-    ));
-
-    debugPrint('[TurnDetect] pts=${pts.length} totalDist=${totalDist.round()}m turns=${turns.length - 1}');
-    return turns;
-  }
+  // 알고리즘 자체(거리 윈도우·임계값)는 core/utils/turn_point_utils.dart의
+  // computeTurnPoints를 그대로 쓴다 (Mode A와 동일 엔진 — 아래는 Mode B 전용 응용).
 
   /// 생성 코스: _segmentPolylines 전 구간을 순회하며 턴 포인트를 계산해
   /// 하나의 리스트로 합친다 — 지도에는 현재 구간뿐 아니라 코스 전체의
   /// 좌우회전 지점이 한 번에 표시된다.
-  List<_TurnPoint> _computeAllGeneratedRouteTurnPoints() {
-    final all = <_TurnPoint>[];
-    for (var segIdx = 0; segIdx < _segmentPolylines.length; segIdx++) {
-      final seg = _segmentPolylines[segIdx];
+  List<TurnPoint> _computeAllGeneratedRouteTurnPoints() {
+    final all = <TurnPoint>[];
+    for (var legIdx = 0; legIdx < _segmentPolylines.length; legIdx++) {
+      final seg = _segmentPolylines[legIdx];
       if (seg.isEmpty) continue;
       final pts = seg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
-      all.addAll(_computeTurnPoints(pts, segIdx: segIdx));
+      all.addAll(computeTurnPoints(pts, legIdx: legIdx));
     }
     return all;
   }
@@ -670,18 +584,18 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// [currentSegIdx]: 현재 위치가 속한 구간(생성 코스는 currentWaypointIdx, GPX는 항상 0)
   /// [currentPtIdx]: 그 구간 내에서의 최근접점 인덱스 — currentSegIdx로 막 넘어온 틱에는
   ///   이전 구간 기준 값이라 의미가 없으므로 -1을 넘겨 "이 구간의 부분 통과분"은
-  ///   판정에서 제외한다(segIdx 비교만으로 이전 구간 전체는 이미 걸러진다).
+  ///   판정에서 제외한다(legIdx 비교만으로 이전 구간 전체는 이미 걸러진다).
   void _pruneRouteTurnMarkers({required int currentSegIdx, required int currentPtIdx}) {
     if (_allRouteTurnMarkers.isEmpty) return;
     final ctrl = _ctrl;
     if (ctrl == null) return;
 
-    final remaining = <_TurnPoint>[];
+    final remaining = <TurnPoint>[];
     for (final t in _allRouteTurnMarkers) {
-      final passed = t.segIdx < currentSegIdx ||
-          (t.segIdx == currentSegIdx && currentPtIdx >= 0 && t.gpxIdx <= currentPtIdx);
+      final passed = t.legIdx < currentSegIdx ||
+          (t.legIdx == currentSegIdx && currentPtIdx >= 0 && t.ptIdx <= currentPtIdx);
       if (passed) {
-        final id = _turnMarkerId(t);
+        final id = turnMarkerId(t);
         _drawnTurnMarkerIds.remove(id);
         unawaited(ctrl
             .deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: id))
@@ -713,10 +627,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   /// 현재 위치 기준 다음 턴 포인트 (GPX + 생성 코스 공통)
-  _TurnPoint? _currentTurnPoint(ModeBNavState navState) {
+  TurnPoint? _currentTurnPoint(ModeBNavState navState) {
     final nearestIdx = _activeNearestIdx(navState);
     for (final t in _modeBTurnPoints) {
-      if (t.gpxIdx > nearestIdx) return t;
+      if (t.ptIdx > nearestIdx) return t;
     }
     return _modeBTurnPoints.isNotEmpty ? _modeBTurnPoints.last : null;
   }
@@ -724,7 +638,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   // ── 카메라 팔로우 ──────────────────────────────────────────────
 
   double _calcModeBBearing(double lat1, double lng1, double lat2, double lng2) =>
-      _bearingDeg(lat1, lng1, lat2, lng2);
+      bearingDeg(lat1, lng1, lat2, lng2);
 
   Future<void> _followModeBCamera(double lat, double lng, double bearing) async {
     if (!_modeBNavCameraFollow || _ctrl == null) return;
@@ -1012,7 +926,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       ref.read(modeBNavProvider.notifier).setGpxPoints(pts);
 
       // 턴 마커 복원 — 정상 시작 흐름과 동일하게 전체 트랙 기준으로 계산해 그린다.
-      _modeBTurnPoints = _computeTurnPoints(pts);
+      _modeBTurnPoints = computeTurnPoints(pts);
       _allRouteTurnMarkers = List.of(_modeBTurnPoints);
       if (mounted) unawaited(_drawTurnMarkersOnMap(_allRouteTurnMarkers));
 
@@ -1044,17 +958,17 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final route = navState.route!;
 
     // 단계별 모드용 현재 턴 정보 계산 (GPX + 생성 코스 공통)
-    final bool hasRealTurns = _modeBTurnPoints.any((t) => t.type != _TurnType.arrival);
-    final _TurnType curTurnType;
+    final bool hasRealTurns = _modeBTurnPoints.any((t) => t.type != TurnType.arrival);
+    final TurnType curTurnType;
     final String curTurnInstruction;
     final String distToTurn;
     if (_modeBNavStepMode && hasRealTurns) {
       final tp = _currentTurnPoint(navState);
-      curTurnType = tp?.type ?? _TurnType.straight;
+      curTurnType = tp?.type ?? TurnType.straight;
       curTurnInstruction = tp?.instruction ?? '경로를 따라 이동하세요';
       distToTurn = _distToNextTurn(navState);
     } else {
-      curTurnType = _TurnType.straight;
+      curTurnType = TurnType.straight;
       curTurnInstruction = '';
       distToTurn = '';
     }

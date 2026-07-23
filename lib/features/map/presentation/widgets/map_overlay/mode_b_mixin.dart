@@ -17,18 +17,8 @@ double _preciseDistM(double lat1, double lng1, double lat2, double lng2) =>
 double _fastDistM(double lat1, double lng1, double lat2, double lng2) =>
     fastDistanceM(lat1, lng1, lat2, lng2);
 
-double _bearingDeg(double lat1, double lng1, double lat2, double lng2) {
-  const toRad = pi / 180;
-  final dLng = (lng2 - lng1) * toRad;
-  final y = sin(dLng) * cos(lat2 * toRad);
-  final x = cos(lat1 * toRad) * sin(lat2 * toRad) -
-      sin(lat1 * toRad) * cos(lat2 * toRad) * cos(dLng);
-  return (atan2(y, x) * 180 / pi + 360) % 360;
-}
-
-/// 턴 마커의 지도 오버레이 ID — 구간+구간 내 인덱스로 결정되는 내용 기반 ID라서
-/// 리스트 순서가 바뀌어도(지나간 턴 제거 등) 항상 같은 턴을 가리킨다.
-String _turnMarkerId(_TurnPoint t) => 'turn_${t.segIdx}_${t.gpxIdx}';
+// 턴 방향 감지(TurnType/TurnPoint/computeTurnPoints/turnMarkerId/bearingDeg)는
+// core/utils/turn_point_utils.dart의 공용 구현을 그대로 쓴다 (Mode A와 동일 엔진).
 
 /// 스팟 타입 → 대표 이모지 (마커/리스트 공용)
 String _spotTypeEmoji(String type) => switch (type) {
@@ -52,15 +42,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   bool get _modeBNavStepMode;
 
   /// _ModeBNavOverlayMixin에서 구현 — 방향 전환 포인트 목록 (재경로 시 갱신 필요)
-  List<_TurnPoint> get _modeBTurnPoints;
-  set _modeBTurnPoints(List<_TurnPoint> value);
+  List<TurnPoint> get _modeBTurnPoints;
+  set _modeBTurnPoints(List<TurnPoint> value);
 
   /// _ModeBNavOverlayMixin에서 구현 — 지도에 표시되는 코스 전체 턴 마커 목록
-  List<_TurnPoint> get _allRouteTurnMarkers;
-  set _allRouteTurnMarkers(List<_TurnPoint> value);
-
-  /// _ModeBNavOverlayMixin에서 구현 — 도로 경로 포인트 → 턴포인트 계산
-  List<_TurnPoint> _computeTurnPoints(List<({double lat, double lng})> pts, {int segIdx});
+  List<TurnPoint> get _allRouteTurnMarkers;
+  set _allRouteTurnMarkers(List<TurnPoint> value);
 
   /// _ModeBNavOverlayMixin에서 구현 — 현재 구간 도로 경로상의 위치 인덱스
   set _modeBRoadNearestPtIdx(int value);
@@ -98,7 +85,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   int _lastTrimSegIdx = -1;
   bool _lastTrimOffRoute = false;
 
-  /// 현재 지도에 그려져 있는 턴 마커의 오버레이 ID 집합 (_turnMarkerId 기준)
+  /// 현재 지도에 그려져 있는 턴 마커의 오버레이 ID 집합 (turnMarkerId 기준)
   final Set<String> _drawnTurnMarkerIds = {};
 
   // 검색된 스팟 목록 (마커 탭과 연결용)
@@ -146,11 +133,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       // 옛 경로 기준 턴 안내가 남는다)
       final newSeg = _segmentPolylines[currentWpIdx];
       final newSegTurns = newSeg.isNotEmpty
-          ? _computeTurnPoints(
+          ? computeTurnPoints(
               newSeg.map((pt) => (lat: pt.latitude, lng: pt.longitude)).toList(),
-              segIdx: currentWpIdx,
+              legIdx: currentWpIdx,
             )
-          : <_TurnPoint>[];
+          : <TurnPoint>[];
       _modeBTurnPoints = newSegTurns;
       _modeBRoadNearestPtIdx = 0;
       _lastGeneratedRoadProgress = null;
@@ -158,7 +145,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       // 지도 마커: 이 구간(currentWpIdx)의 턴만 새 경로 기준으로 교체하고
       // 다른 구간의 턴 마커는 그대로 둔다.
       _allRouteTurnMarkers = [
-        ..._allRouteTurnMarkers.where((t) => t.segIdx != currentWpIdx),
+        ..._allRouteTurnMarkers.where((t) => t.legIdx != currentWpIdx),
         ...newSegTurns,
       ];
       if (mounted) {
@@ -1288,7 +1275,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       _preciseDistM(a.latitude, a.longitude, b.latitude, b.longitude);
 
   double _bearingLL(NLatLng a, NLatLng b) =>
-      _bearingDeg(a.latitude, a.longitude, b.latitude, b.longitude);
+      bearingDeg(a.latitude, a.longitude, b.latitude, b.longitude);
 
   double _totalPolylineLength(List<NLatLng> pts) {
     var total = 0.0;
@@ -1356,12 +1343,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 교차로 방향 마커 ───────────────────────────────────────────
 
-  Future<void> _drawTurnMarkersOnMap(List<_TurnPoint> turns) async {
+  Future<void> _drawTurnMarkersOnMap(List<TurnPoint> turns) async {
     final ctrl = _ctrl;
     if (ctrl == null || !mounted) return;
     final ctx = context;
 
-    // 이전에 그려둔 턴 마커를 전부 지운다 — 내용 기반 ID(_turnMarkerId)를 추적하므로
+    // 이전에 그려둔 턴 마커를 전부 지운다 — 내용 기반 ID(turnMarkerId)를 추적하므로
     // 개수 추정 없이 정확히 그 마커들만 지울 수 있다.
     for (final id in _drawnTurnMarkerIds) {
       await ctrl.deleteOverlay(
@@ -1372,7 +1359,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     if (!mounted) return;
 
     for (final turn in turns) {
-      if (turn.type == _TurnType.straight || turn.type == _TurnType.arrival) continue;
+      if (turn.type == TurnType.straight || turn.type == TurnType.arrival) continue;
 
       final icon = await NOverlayImage.fromWidget(
         widget: _TurnDirectionMarker(type: turn.type),
@@ -1381,7 +1368,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       );
       if (!mounted) break;
 
-      final id = _turnMarkerId(turn);
+      final id = turnMarkerId(turn);
       await ctrl.addOverlay(NMarker(
         id: id,
         position: NLatLng(turn.lat, turn.lng),
@@ -1499,7 +1486,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       final progress = _lastGeneratedRoadProgress;
       if (progress == null) return;
       final nearestIdx = progress.nearestIdx.clamp(0, pts.length - 1);
-      final isOffRoute = progress.distToRoadM > AppConstants.modeBOffRouteThresholdM;
+      final isOffRoute = progress.distToRoadM > AppConstants.offRouteThresholdM;
 
       if (nearestIdx == _lastTrimSegIdx && isOffRoute == _lastTrimOffRoute) return;
       if (nearestIdx <= 0) return;

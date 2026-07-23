@@ -1,42 +1,19 @@
 part of '../map_overlay.dart';
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── 방향 안내 타입
-// ══════════════════════════════════════════════════════════════════════════════
-
-enum _TurnType { straight, right, left, uTurn, arrival }
-
-class _TurnPoint {
-  const _TurnPoint({
-    required this.type,
-    required this.gpxIdx,
-    required this.lat,
-    required this.lng,
-    required this.instruction,
-    this.segIdx = 0,
-  });
-  final _TurnType type;
-  /// 소속 구간(segment) 내에서의 포인트 인덱스. GPX 코스는 구간이 없으므로
-  /// 전체 트랙 기준 인덱스를 그대로 쓴다(segIdx는 항상 0).
-  final int gpxIdx;
-  final double lat;
-  final double lng;
-  final String instruction;
-  /// 생성 코스: _segmentPolylines의 구간 인덱스. GPX 코스는 항상 0.
-  final int segIdx;
-}
+// 방향 안내 타입(TurnType/TurnPoint)은 core/utils/turn_point_utils.dart의 공용 타입을
+// 그대로 쓴다 (Mode A와 동일한 턴 감지 엔진 공유).
 
 /// 맵 위에 그려지는 교차로 방향 마커 아이콘
 class _TurnDirectionMarker extends StatelessWidget {
   const _TurnDirectionMarker({required this.type});
-  final _TurnType type;
+  final TurnType type;
 
   IconData get _icon => switch (type) {
-    _TurnType.right   => Icons.turn_right_rounded,
-    _TurnType.left    => Icons.turn_left_rounded,
-    _TurnType.uTurn   => Icons.u_turn_right_rounded,
-    _TurnType.arrival => Icons.flag_rounded,
-    _TurnType.straight => Icons.straight_rounded,
+    TurnType.right   => Icons.turn_right_rounded,
+    TurnType.left    => Icons.turn_left_rounded,
+    TurnType.uTurn   => Icons.u_turn_right_rounded,
+    TurnType.arrival => Icons.flag_rounded,
+    TurnType.straight => Icons.straight_rounded,
   };
 
   @override
@@ -861,7 +838,7 @@ class _ModeBTurnBar extends StatelessWidget {
     required this.onOverview,
   });
 
-  final _TurnType turnType;
+  final TurnType turnType;
   final String distanceLabel;
   final String instruction;
   final ModeBNavState navState;
@@ -870,11 +847,11 @@ class _ModeBTurnBar extends StatelessWidget {
   Color _accentColor(BuildContext context) => context.colors.accent;
 
   IconData get _turnIcon => switch (turnType) {
-    _TurnType.right    => Icons.turn_right_rounded,
-    _TurnType.left     => Icons.turn_left_rounded,
-    _TurnType.uTurn    => Icons.u_turn_right_rounded,
-    _TurnType.arrival  => Icons.flag_rounded,
-    _TurnType.straight => Icons.straight_rounded,
+    TurnType.right    => Icons.turn_right_rounded,
+    TurnType.left     => Icons.turn_left_rounded,
+    TurnType.uTurn    => Icons.u_turn_right_rounded,
+    TurnType.arrival  => Icons.flag_rounded,
+    TurnType.straight => Icons.straight_rounded,
   };
 
   @override

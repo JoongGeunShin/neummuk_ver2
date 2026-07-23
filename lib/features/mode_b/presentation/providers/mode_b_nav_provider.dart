@@ -251,7 +251,7 @@ class ModeBNav extends _$ModeBNav {
     final target = wps[curIdx];
     final isBike = transport == 'bike';
     final speedMs = isBike ? 4.17 : 1.25;
-    final offRoute = distToRoadM > AppConstants.modeBOffRouteThresholdM;
+    final offRoute = distToRoadM > AppConstants.offRouteThresholdM;
     if (offRoute != state.isOffRoute) {
       debugPrint(offRoute
           ? '[ModeBNav] 이탈 감지: ${target.name} 구간에서 도로 기준 ${distToRoadM.round()}m 이탈'
@@ -335,7 +335,7 @@ class ModeBNav extends _$ModeBNav {
     final isBike = transport == 'bike';
     final speedMs = isBike ? 4.17 : 1.25;
     final isNearEnd = bestIdx >= pts.length - 10;
-    final offRoute = bestDist > AppConstants.modeBOffRouteThresholdM;
+    final offRoute = bestDist > AppConstants.offRouteThresholdM;
 
     state = state.copyWith(
       nearestGpxPtIdx: bestIdx,
