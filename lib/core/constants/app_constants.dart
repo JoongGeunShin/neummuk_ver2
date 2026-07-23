@@ -79,8 +79,8 @@ class AppConstants {
   static const int modeBWalkRadiusM = 3000;
   static const int modeBBikeRadiusM = 5000;
 
-  /// Mode B 내비게이션 이탈 판정 통합 임계값(m).
+  /// 내비게이션 이탈 판정 통합 임계값(m) — Mode A/B 공용.
   /// provider(off-route 플래그), 폴리라인 트리밍 색상, 자동 재경로 트리거가
   /// 모두 이 값을 공유해 화면과 판정 로직이 서로 다른 기준으로 어긋나지 않도록 한다.
-  static const double modeBOffRouteThresholdM = 80.0;
+  static const double offRouteThresholdM = 80.0;
 }
