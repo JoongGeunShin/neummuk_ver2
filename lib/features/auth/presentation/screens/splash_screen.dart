@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../domain/entities/user_entity.dart';
 import '../providers/auth_provider.dart';
 import '../../../map/presentation/providers/map_mode_provider.dart';
+import '../../../mode_a/presentation/providers/mode_a_nav_provider.dart';
+import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -51,14 +53,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       return;
     }
     if (user.isGuest) {
-      final restored = await _tryRestoreModeBNav();
-      if (!mounted) return;
-      if (restored) {
-        ref.read(mapModeProvider.notifier).set(MapMode.modeB);
-        context.go('/map');
-      } else {
-        context.go('/home');
-      }
+      if (await _restoreNavIfAny()) return;
+      context.go('/home');
       return;
     }
     final done = await resolveOnboardingDone(ref, user);
@@ -67,13 +63,45 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       context.go('/onboarding');
       return;
     }
-    final restored = await _tryRestoreModeBNav();
-    if (!mounted) return;
-    if (restored) {
+    if (await _restoreNavIfAny()) return;
+    context.go('/home');
+  }
+
+  /// Mode A → Mode B 순서로 안내 중이던 내비게이션 복원을 시도한다. 복원에 성공하면
+  /// 곧바로 /map으로 이동시키고 true를 반환(호출측은 그대로 return하면 됨).
+  Future<bool> _restoreNavIfAny() async {
+    if (await _tryRestoreModeANav()) {
+      if (!mounted) return true;
+      ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+      context.go('/map');
+      return true;
+    }
+    if (await _tryRestoreModeBNav()) {
+      if (!mounted) return true;
       ref.read(mapModeProvider.notifier).set(MapMode.modeB);
       context.go('/map');
-    } else {
-      context.go('/home');
+      return true;
+    }
+    return false;
+  }
+
+  /// Mode A는 route 지오메트리를 저장하지 않으므로(mode_a_nav_provider.dart 참고),
+  /// 저장된 출발/도착/경유지/이동수단으로 search()를 다시 호출해 경로를 재계산해야
+  /// 복원이 완성된다 — 네트워크 호출이 필요해 Mode B보다 한 단계 더 거친다.
+  Future<bool> _tryRestoreModeANav() async {
+    try {
+      final savedNav = await ModeANav.tryRestoreFromPrefs();
+      if (savedNav == null || !mounted) return false;
+      await ref.read(modeAProvider.notifier).restoreFromPrefs();
+      if (!mounted) return false;
+      final s = ref.read(modeAProvider);
+      if (s.originLat == null || s.destLat == null) return false;
+      await ref.read(modeAProvider.notifier).search();
+      if (!mounted || ref.read(modeAProvider).routeResult == null) return false;
+      ref.read(modeANavProvider.notifier).restore(savedNav);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
