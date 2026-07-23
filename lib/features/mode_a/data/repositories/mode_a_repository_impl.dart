@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/body_metrics.dart';
+import '../../../map/data/datasources/road_route_datasource.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../domain/entities/restaurant_entity.dart';
@@ -59,6 +60,8 @@ const _mockRestaurants = [
 const mockRestaurants = _mockRestaurants;
 
 class ModeARepositoryImpl implements ModeARepository {
+  final _roadRoute = const RoadRouteDatasource();
+
   String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
   String get _odsayKey => dotenv.env['ODSAY_API_KEY'] ?? '';
   String get _tourApiKey => dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
@@ -121,52 +124,35 @@ class ModeARepositoryImpl implements ModeARepository {
     required BodyMetrics metrics,
     required List<RouteWaypoint> waypoints,
   }) async {
-    final allCoords = [
-      (lat: originLat, lng: originLng),
+    final legs = [
       ...waypoints.map((w) => (lat: w.latitude, lng: w.longitude)),
       (lat: destLat, lng: destLng),
     ];
 
-    final futures = [
-      for (int i = 0; i < allCoords.length - 1; i++)
-        _fetchTmapWalkSegment(
-          allCoords[i].lat, allCoords[i].lng,
-          allCoords[i + 1].lat, allCoords[i + 1].lng,
-        ),
-    ];
-    final segments = await Future.wait(futures);
+    final result = await _roadRoute.fetchRouteWithFallback(
+      startLat: originLat, startLng: originLng, waypoints: legs,
+    );
+
+    if (result.source == null) {
+      debugPrint('[ModeA] TMAP/Kakao 도보·자전거 경로 모두 실패, mock 폴백');
+      return _mockRoute(from, to, transport, metrics, waypoints);
+    }
+
+    final segmentPolylines = result.segments
+        .map((seg) => seg.map((p) => LatLng(latitude: p.lat, longitude: p.lng)).toList())
+        .toList();
+    final segmentDistancesM = segmentPolylines.map(_polylineLengthM).toList();
 
     final routePoints = <LatLng>[];
-    for (var i = 0; i < segments.length; i++) {
-      final seg = segments[i];
-      if (seg.isEmpty) {
-        routePoints.add(LatLng(latitude: allCoords[i].lat, longitude: allCoords[i].lng));
-        routePoints.add(LatLng(latitude: allCoords[i + 1].lat, longitude: allCoords[i + 1].lng));
-      } else {
-        routePoints.addAll(i > 0 && routePoints.isNotEmpty ? seg.skip(1) : seg);
-      }
+    for (var i = 0; i < segmentPolylines.length; i++) {
+      final seg = segmentPolylines[i];
+      routePoints.addAll(i > 0 && routePoints.isNotEmpty ? seg.skip(1) : seg);
     }
 
-    if (routePoints.length < 2) {
-      debugPrint('[ModeA TMAP] all segments empty, falling back to Kakao');
-      return _getKakaoRoute(
-        from: from, to: to,
-        originLat: originLat, originLng: originLng,
-        destLat: destLat, destLng: destLng,
-        transport: transport, metrics: metrics,
-        waypoints: waypoints,
-      );
-    }
-
-    var distanceM = 0.0;
-    for (int i = 1; i < routePoints.length; i++) {
-      distanceM += _haversine(
-        routePoints[i - 1].latitude, routePoints[i - 1].longitude,
-        routePoints[i].latitude, routePoints[i].longitude,
-      );
-    }
+    final distanceM = segmentDistancesM.fold(0.0, (a, b) => a + b);
     final distanceKm = double.parse((distanceM / 1000.0).toStringAsFixed(1));
 
+    // 도보 4.5 km/h = 1.25 m/s, 자전거 15 km/h = 4.17 m/s
     final int durationSec = transport == 'walk'
         ? max(60, (distanceM / 1.25).round())
         : max(60, (distanceM / 4.17).round());
@@ -186,88 +172,60 @@ class ModeARepositoryImpl implements ModeARepository {
       kcalBurn: kcalBurn,
       waypoints: waypoints,
       routePoints: routePoints,
-      // guides는 빈 리스트 — 방향 전환 안내는 기하 기반으로 오버레이 레이어에서 처리
+      // guides는 TMAP 경로일 땐 빈 리스트 — 방향 전환 안내는 기하 기반(turn_point_utils)으로
+      // 오버레이 레이어에서 처리. Kakao 폴백일 때만 실제 guides가 채워진다.
+      guides: result.guides
+          .map((g) => RouteGuide(
+                latitude: g.lat,
+                longitude: g.lng,
+                guidance: g.guidance,
+                type: g.type,
+                distanceM: g.distanceM,
+              ))
+          .toList(),
+      segmentPolylines: segmentPolylines,
+      segmentDistancesM: segmentDistancesM,
+      routeSource: result.source,
     );
   }
 
-  // ── 도보 / 자전거: Kakao Mobility POST /v1/waypoints/directions ──────────────
+  double _polylineLengthM(List<LatLng> pts) {
+    double d = 0;
+    for (int i = 1; i < pts.length; i++) {
+      d += _haversine(pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude);
+    }
+    return d;
+  }
 
-  Future<RouteResultEntity> _getKakaoRoute({
+  // ── 대중교통: ODsay 전체 실패 시 Kakao Mobility로 최종 폴백 ──────────────────
+  // ODsay가 완전히 실패했을 때만 도달한다(경로 자체가 없거나 API 오류). 대중교통
+  // 시간표 데이터가 아니므로 자동차 기준 경로를 근사치로 보여준다 — mock보다는
+  // 실제 도로를 반영한 폴백이 낫다는 판단. 그래도 실패하면 mock으로 최종 폴백.
+  Future<RouteResultEntity> _getKakaoFallbackForTransit({
     required String from,
     required String to,
     required double originLat,
     required double originLng,
     required double destLat,
     required double destLng,
-    required String transport,
     required BodyMetrics metrics,
     required List<RouteWaypoint> waypoints,
   }) async {
-    final requestBody = <String, dynamic>{
-      'origin': {'x': originLng, 'y': originLat},
-      'destination': {'x': destLng, 'y': destLat},
-      'priority': 'RECOMMEND',
-      'car_fuel': 'GASOLINE',
-      'car_hipass': false,
-      'alternatives': false,
-      'road_details': false,
-    };
-    if (waypoints.isNotEmpty) {
-      requestBody['waypoints'] = waypoints
-          .map((w) => {'name': w.name, 'x': w.longitude, 'y': w.latitude})
-          .toList();
+    final kakao = await _roadRoute.fetchKakaoMobilityLeg(
+      fromLat: originLat, fromLng: originLng, toLat: destLat, toLng: destLng,
+    );
+    if (kakao.points.isEmpty) {
+      debugPrint('[ModeA] ODsay 실패 + Kakao 폴백도 실패, mock 폴백');
+      return _mockRoute(from, to, 'transit', metrics, waypoints);
     }
 
-    final response = await http
-        .post(
-          Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions'),
-          headers: {
-            'Authorization': 'KakaoAK $_kakaoKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(requestBody),
-        )
-        .timeout(const Duration(seconds: 12));
-
-    if (response.statusCode != 200) {
-      debugPrint('[ModeA] Kakao Mobility ${response.statusCode}: ${response.body}');
-      return _mockRoute(from, to, transport, metrics, waypoints);
-    }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final routes = json['routes'] as List? ?? [];
-    if (routes.isEmpty) return _mockRoute(from, to, transport, metrics, waypoints);
-
-    final route = routes[0] as Map<String, dynamic>;
-    final resultCode = (route['result_code'] as num?)?.toInt() ?? -1;
-    // 0 = 성공, 1 = 경로 없음, 101 = 도보 거리내
-    if (resultCode != 0) {
-      debugPrint('[ModeA] Kakao Mobility result_code=$resultCode');
-      return _mockRoute(from, to, transport, metrics, waypoints);
-    }
-
-    final summary = route['summary'] as Map<String, dynamic>;
-    final distanceM = (summary['distance'] as num? ?? 0).toInt();
-    final distanceKm = double.parse((distanceM / 1000.0).toStringAsFixed(1));
-
-    // 이동수단별 속도로 소요시간 역산 (Kakao 는 car 기준 duration 반환)
-    // 도보 4.5 km/h = 1.25 m/s, 자전거 15 km/h = 4.17 m/s
-    final int durationSec;
-    if (transport == 'walk') {
-      durationSec = max(60, (distanceM / 1.25).round());
-    } else {
-      // bike
-      durationSec = max(60, (distanceM / 4.17).round());
-    }
-
-    // sections.roads.vertexes → LatLng 폴리라인
-    final routePoints = _extractVertexes(route);
-
-    // sections.guides → RouteGuide 안내 포인트
-    final guides = _extractGuides(route);
+    final routePoints =
+        kakao.points.map((p) => LatLng(latitude: p.lat, longitude: p.lng)).toList();
+    final distanceKm = double.parse((kakao.distanceM / 1000.0).toStringAsFixed(1));
+    final durationSec = kakao.durationSec > 0 ? kakao.durationSec : max(60, kakao.distanceM ~/ 8);
 
     final kcalBurn = AppConstants.calculateKcal(
-      transport: transport,
+      transport: 'transit',
       metrics: metrics,
       durationSeconds: durationSec,
     ).round();
@@ -277,11 +235,11 @@ class ModeARepositoryImpl implements ModeARepository {
       toName: to,
       distanceKm: distanceKm,
       durationSeconds: durationSec,
-      transport: transport,
+      transport: 'transit',
       kcalBurn: kcalBurn,
       waypoints: waypoints,
       routePoints: routePoints,
-      guides: guides,
+      routeSource: 'kakao_fallback',
     );
   }
 
@@ -310,21 +268,21 @@ class ModeARepositoryImpl implements ModeARepository {
 
     if (response.statusCode != 200) {
       debugPrint('[ModeA] ODsay ${response.statusCode}: ${response.body}');
-      return _mockRoute(from, to, 'transit', metrics, waypoints);
+      return _getKakaoFallbackForTransit(from: from, to: to, originLat: originLat, originLng: originLng, destLat: destLat, destLng: destLng, metrics: metrics, waypoints: waypoints);
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (json.containsKey('error')) {
       debugPrint('[ModeA] ODsay error: ${json['error']}');
-      return _mockRoute(from, to, 'transit', metrics, waypoints);
+      return _getKakaoFallbackForTransit(from: from, to: to, originLat: originLat, originLng: originLng, destLat: destLat, destLng: destLng, metrics: metrics, waypoints: waypoints);
     }
 
     final result = json['result'] as Map<String, dynamic>?;
-    if (result == null) return _mockRoute(from, to, 'transit', metrics, waypoints);
+    if (result == null) return _getKakaoFallbackForTransit(from: from, to: to, originLat: originLat, originLng: originLng, destLat: destLat, destLng: destLng, metrics: metrics, waypoints: waypoints);
 
     final paths = result['path'] as List? ?? [];
-    if (paths.isEmpty) return _mockRoute(from, to, 'transit', metrics, waypoints);
+    if (paths.isEmpty) return _getKakaoFallbackForTransit(from: from, to: to, originLat: originLat, originLng: originLng, destLat: destLat, destLng: destLng, metrics: metrics, waypoints: waypoints);
 
     final path = paths[0] as Map<String, dynamic>;
     final info = path['info'] as Map<String, dynamic>? ?? {};
@@ -344,10 +302,16 @@ class ModeARepositoryImpl implements ModeARepository {
       final sub = subPaths[i] as Map<String, dynamic>;
       if ((sub['trafficType'] as num? ?? 3).toInt() != 3) continue;
 
-      final sLat = i == 0 ? originLat : (double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0);
-      final sLng = i == 0 ? originLng : (double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0);
+      double sLat = i == 0 ? originLat : (double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0);
+      double sLng = i == 0 ? originLng : (double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0);
       double eLat = i == subPaths.length - 1 ? destLat : (double.tryParse(sub['endY']?.toString() ?? '') ?? 0.0);
       double eLng = i == subPaths.length - 1 ? destLng : (double.tryParse(sub['endX']?.toString() ?? '') ?? 0.0);
+
+      // startX/Y 없으면 이전 구간 끝 좌표에서 유도 (대중교통 하차 직후 도보 구간에서 흔함)
+      if (i != 0 && (sLat == 0.0 || sLng == 0.0)) {
+        final r = _walkStartFromPrevSeg(subPaths, i);
+        if (r != null) { sLat = r.lat; sLng = r.lng; }
+      }
 
       // endX/Y 없으면 다음 구간 시작 좌표에서 유도
       if (eLat == 0.0 || eLng == 0.0) {
@@ -445,8 +409,12 @@ class ModeARepositoryImpl implements ModeARepository {
           if (i == 0) {
             segPts.add(LatLng(latitude: originLat, longitude: originLng));
           } else {
-            final sx = double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0;
-            final sy = double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0;
+            var sx = double.tryParse(sub['startX']?.toString() ?? '') ?? 0.0;
+            var sy = double.tryParse(sub['startY']?.toString() ?? '') ?? 0.0;
+            if (sx == 0 || sy == 0) {
+              final r = _walkStartFromPrevSeg(subPaths, i);
+              if (r != null) { sx = r.lng; sy = r.lat; }
+            }
             if (sx != 0 && sy != 0) segPts.add(LatLng(latitude: sy, longitude: sx));
           }
           // 끝점: 마지막 구간은 반드시 도착지 좌표 사용
@@ -569,6 +537,26 @@ class ModeARepositoryImpl implements ModeARepository {
     );
   }
 
+  // ── 도보 구간 시작점: 이전 구간 끝 좌표에서 유도 ─────────────────────────────
+  // (_walkEndFromNextSeg의 대칭 — 대중교통 하차 직후 도보 구간은 ODsay가 startX/Y를
+  // 비워서 응답하는 경우가 있어, 없으면 이전 subPath의 끝(하차 지점)에서 가져온다.)
+
+  static ({double lat, double lng})? _walkStartFromPrevSeg(List subPaths, int walkIdx) {
+    if (walkIdx == 0) return null;
+    final prev = subPaths[walkIdx - 1] as Map<String, dynamic>;
+    final px = double.tryParse(prev['endX']?.toString() ?? '') ?? 0.0;
+    final py = double.tryParse(prev['endY']?.toString() ?? '') ?? 0.0;
+    if (px != 0 && py != 0) return (lat: py, lng: px);
+    final stops = (prev['passStopList'] as Map<String, dynamic>?)?['stations'] as List?;
+    if (stops != null && stops.isNotEmpty) {
+      final st = stops.last as Map<String, dynamic>;
+      final sx = double.tryParse(st['x']?.toString() ?? '') ?? 0.0;
+      final sy = double.tryParse(st['y']?.toString() ?? '') ?? 0.0;
+      if (sx != 0 && sy != 0) return (lat: sy, lng: sx);
+    }
+    return null;
+  }
+
   // ── 도보 구간 끝점: 다음 구간 시작 좌표에서 유도 ─────────────────────────────
 
   static ({double lat, double lng})? _walkEndFromNextSeg(List subPaths, int walkIdx) {
@@ -645,59 +633,10 @@ class ModeARepositoryImpl implements ModeARepository {
   Future<List<LatLng>> _fetchTmapWalkSegment(
     double startLat, double startLng, double endLat, double endLng,
   ) async {
-    try {
-      final key = dotenv.env['TMAP_APP_KEY'] ?? '';
-      if (key.isEmpty) return [];
-
-      final body = [
-        'startX=$startLng',
-        'startY=$startLat',
-        'endX=$endLng',
-        'endY=$endLat',
-        'startName=${Uri.encodeComponent('출발')}',
-        'endName=${Uri.encodeComponent('도착')}',
-        'reqCoordType=WGS84GEO',
-        'resCoordType=WGS84GEO',
-        'searchOption=0',
-      ].join('&');
-
-      final res = await http.post(
-        Uri.parse('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1'),
-        headers: {
-          'appKey': key,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: body,
-      ).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode != 200) {
-        debugPrint('[ModeA TMAP] ${res.statusCode}');
-        return [];
-      }
-
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final features = data['features'] as List?;
-      if (features == null) return [];
-
-      final points = <LatLng>[];
-      for (final feature in features) {
-        final geometry = (feature as Map)['geometry'] as Map?;
-        if (geometry == null || geometry['type'] != 'LineString') continue;
-        final coords = geometry['coordinates'] as List?;
-        if (coords == null) continue;
-        for (final c in coords) {
-          points.add(LatLng(
-            latitude: (c[1] as num).toDouble(),
-            longitude: (c[0] as num).toDouble(),
-          ));
-        }
-      }
-      debugPrint('[ModeA TMAP] walk segment points=${points.length}');
-      return points;
-    } catch (e) {
-      debugPrint('[ModeA TMAP] error=$e');
-      return [];
-    }
+    final pts = await _roadRoute.fetchTmapLeg(
+      fromLat: startLat, fromLng: startLng, toLat: endLat, toLng: endLng,
+    );
+    return pts.map((p) => LatLng(latitude: p.lat, longitude: p.lng)).toList();
   }
 
   // ── ODsay subPath → TransitStep 파싱 ─────────────────────────────────────────
@@ -737,6 +676,12 @@ class ModeARepositoryImpl implements ModeARepository {
       if (i == 0) { startLat = originLat; startLng = originLng; }
       // 마지막 단계 끝 = 도착지 좌표
       if (i == subPaths.length - 1) { endLat = destLat; endLng = destLng; }
+      // 도보 단계인데 시작 좌표가 없으면(정류장 정보가 없는 하차 직후 도보 등) 이전
+      // 구간 끝 좌표에서 유도 — 없으면 시작 마커가 아예 안 찍힘(nav_mixin.dart 참고)
+      if (trafficType == 3 && i != 0 && startLat == null) {
+        final r = _walkStartFromPrevSeg(subPaths, i);
+        if (r != null) { startLat = r.lat; startLng = r.lng; }
+      }
 
       // 버스/지하철 노선 정보
       String? lineInfo;
@@ -782,57 +727,6 @@ class ModeARepositoryImpl implements ModeARepository {
       ));
     }
     return steps;
-  }
-
-  // ── vertexes 파싱 헬퍼 ────────────────────────────────────────────────────────
-
-  List<LatLng> _extractVertexes(Map<String, dynamic> route) {
-    final points = <LatLng>[];
-    final sections = route['sections'] as List? ?? [];
-    for (final section in sections) {
-      final roads =
-          (section as Map<String, dynamic>)['roads'] as List? ?? [];
-      for (final road in roads) {
-        final verts =
-            (road as Map<String, dynamic>)['vertexes'] as List? ?? [];
-        // vertexes: [x0, y0, x1, y1, ...] — x=lng, y=lat
-        for (var i = 0; i + 1 < verts.length; i += 2) {
-          final x = (verts[i] as num).toDouble();
-          final y = (verts[i + 1] as num).toDouble();
-          points.add(LatLng(latitude: y, longitude: x));
-        }
-      }
-    }
-    // 너무 많은 점은 다운샘플 (성능 최적화)
-    if (points.length > 600) {
-      final step = points.length ~/ 600;
-      return [for (var i = 0; i < points.length; i += step) points[i]];
-    }
-    return points;
-  }
-
-  // ── guides 파싱 헬퍼 ──────────────────────────────────────────────────────────
-
-  List<RouteGuide> _extractGuides(Map<String, dynamic> route) {
-    final guides = <RouteGuide>[];
-    final sections = route['sections'] as List? ?? [];
-    for (final section in sections) {
-      final sMap = section as Map<String, dynamic>;
-      for (final g in (sMap['guides'] as List? ?? [])) {
-        final gMap = g as Map<String, dynamic>;
-        final x = (gMap['x'] as num?)?.toDouble();
-        final y = (gMap['y'] as num?)?.toDouble();
-        if (x == null || y == null) continue;
-        guides.add(RouteGuide(
-          latitude: y,
-          longitude: x,
-          guidance: gMap['guidance'] as String? ?? '',
-          type: (gMap['type'] as num? ?? 11).toInt(),
-          distanceM: (gMap['distance'] as num? ?? 0).toInt(),
-        ));
-      }
-    }
-    return guides;
   }
 
   // ── Mock fallback ─────────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
 
   Color _accentColor(BuildContext context) {
     final c = context.colors;
-    return transport == 'bike' ? c.warn : c.primary;
+    return c.accent;
   }
 
   IconData _transportIcon() => transport == 'bike'
@@ -204,24 +204,24 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
 
   final ModeANavState navState;
   final String transport;
-  final _TurnPoint? turnPoint;
+  final TurnPoint? turnPoint;
   final String distanceLabel;
   final VoidCallback onOverview;
 
   Color _accentColor(BuildContext context) {
     final c = context.colors;
-    return transport == 'bike' ? c.warn : c.primary;
+    return c.accent;
   }
 
   IconData _transportIcon() => transport == 'bike'
       ? Icons.directions_bike_rounded
       : Icons.directions_walk_rounded;
 
-  IconData _turnIcon(_TurnType? type) => switch (type) {
-        _TurnType.right   => Icons.turn_right_rounded,
-        _TurnType.left    => Icons.turn_left_rounded,
-        _TurnType.uTurn   => Icons.u_turn_right_rounded,
-        _TurnType.arrival => Icons.flag_rounded,
+  IconData _turnIcon(TurnType? type) => switch (type) {
+        TurnType.right   => Icons.turn_right_rounded,
+        TurnType.left    => Icons.turn_left_rounded,
+        TurnType.uTurn   => Icons.u_turn_right_rounded,
+        TurnType.arrival => Icons.flag_rounded,
         _                 => _transportIcon(),
       };
 
@@ -391,11 +391,7 @@ class _ModeAWalkNavBottomStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    final accent = transport == 'bike'
-        ? c.warn
-        : transport == 'transit'
-            ? c.pinUser
-            : c.primary;
+    final accent = transport == 'transit' ? c.pinUser : c.accent;
     final label = transport == 'bike'
         ? '🚲 자전거 경로'
         : transport == 'transit'

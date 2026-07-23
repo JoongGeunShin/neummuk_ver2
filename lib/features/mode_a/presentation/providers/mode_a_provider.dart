@@ -142,6 +142,10 @@ class ModeA extends _$ModeA {
     return const ModeAState();
   }
 
+  /// 스플래시 화면의 앱 재시작 복원 흐름에서 호출 — _loadFromPrefs()가 끝날 때까지
+  /// await 가능하도록 감싼 public 진입점.
+  Future<void> restoreFromPrefs() => _loadFromPrefs();
+
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final from = prefs.getString('mode_a_from');

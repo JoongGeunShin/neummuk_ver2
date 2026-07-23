@@ -7,8 +7,9 @@ import '../entities/waypoint_candidate_entity.dart';
 
 abstract interface class ModeARepository {
   /// 출발지 → (경유지들) → 목적지 경로 계산
-  /// Kakao Mobility POST /v1/waypoints/directions (도보·자전거)
-  /// ODsay searchPubTransPathT (대중교통)
+  /// 도보·자전거: TMAP 보행자 API 우선, 구간 하나라도 실패 시 코스 전체를
+  /// Kakao Mobility POST /v1/waypoints/directions로 재시도.
+  /// 대중교통: ODsay searchPubTransPathT 우선, 완전 실패 시 Kakao Mobility로 대체.
   Future<RouteResultEntity> getRoute({
     required String from,
     required String to,

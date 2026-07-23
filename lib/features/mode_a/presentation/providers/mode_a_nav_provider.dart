@@ -1,30 +1,41 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../domain/entities/route_result_entity.dart';
 
 part 'mode_a_nav_provider.g.dart';
 
+// SharedPreferences keys — route 지오메트리는 저장하지 않는다: 앱 재시작 복원 시
+// ModeAState(mode_a_provider.dart)가 이미 갖고 있는 출발/도착/경유지/이동수단으로
+// search()를 다시 호출해 TMAP/Kakao/ODsay로부터 동일한 경로를 재계산한다. 여기서는
+// "안내 중이었다"는 사실과 진행 인덱스만 있으면 충분하다.
+const kModeANavActive = 'mode_a_nav_active';
+const kModeANavLegIdx = 'mode_a_nav_leg_idx';
+const kModeANavTransitStepIdx = 'mode_a_nav_transit_step_idx';
+
 class ModeANavState {
   const ModeANavState({
     this.isNavigating = false,
+    this.currentLegIdx = 0,
     this.nearestPtIdx = 0,
     this.remainingDistanceM = 0,
     this.remainingSec = 0,
-    this.nextGuide,
     this.isOffRoute = false,
-    this.showReroutePrompt = false,
     this.currentTransitStepIdx = 0,
   });
 
   final bool isNavigating;
+  /// 도보/자전거 구간(segmentPolylines) 인덱스. 대중교통은 currentTransitStepIdx를 쓴다.
+  final int currentLegIdx;
+  /// 현재 구간 폴리라인 내에서의 최근접점 인덱스.
   final int nearestPtIdx;
   final int remainingDistanceM;
   final int remainingSec;
-  final RouteGuide? nextGuide;
   final bool isOffRoute;
-  final bool showReroutePrompt;
   /// 대중교통 안내: 현재 진행 중인 subPath 단계 인덱스
   final int currentTransitStepIdx;
 
@@ -36,123 +47,143 @@ class ModeANavState {
 
   ModeANavState copyWith({
     bool? isNavigating,
+    int? currentLegIdx,
     int? nearestPtIdx,
     int? remainingDistanceM,
     int? remainingSec,
-    Object? nextGuide = _kKeep,
     bool? isOffRoute,
-    bool? showReroutePrompt,
     int? currentTransitStepIdx,
   }) {
     return ModeANavState(
       isNavigating: isNavigating ?? this.isNavigating,
+      currentLegIdx: currentLegIdx ?? this.currentLegIdx,
       nearestPtIdx: nearestPtIdx ?? this.nearestPtIdx,
       remainingDistanceM: remainingDistanceM ?? this.remainingDistanceM,
       remainingSec: remainingSec ?? this.remainingSec,
-      nextGuide: identical(nextGuide, _kKeep) ? this.nextGuide : nextGuide as RouteGuide?,
       isOffRoute: isOffRoute ?? this.isOffRoute,
-      showReroutePrompt: showReroutePrompt ?? this.showReroutePrompt,
       currentTransitStepIdx: currentTransitStepIdx ?? this.currentTransitStepIdx,
     );
   }
 }
 
-const _kKeep = Object();
-
 @Riverpod(keepAlive: true)
 class ModeANav extends _$ModeANav {
+  SharedPreferences? _prefs;
+
+  Future<SharedPreferences> _getPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
+
   @override
   ModeANavState build() => const ModeANavState();
 
   void start(RouteResultEntity route) {
-    final pts = route.routePoints;
-    if (pts.isEmpty) return;
-    double totalM = 0;
-    for (int i = 0; i < pts.length - 1; i++) {
-      totalM += _dist(
-          pts[i].latitude, pts[i].longitude,
-          pts[i + 1].latitude, pts[i + 1].longitude);
-    }
+    double totalM;
+    int initialSec;
 
-    // 대중교통은 ODsay가 준 실제 소요시간 사용 (거리/속도 추정 부정확)
-    // 도보/자전거는 거리 ÷ 속도로 추정
-    final int initialSec;
     if (route.transport == 'transit') {
+      totalM = route.distanceKm * 1000;
+      // 대중교통은 ODsay가 준 실제 소요시간 사용 (거리/속도 추정 부정확)
       initialSec = route.durationSeconds;
-    } else {
+    } else if (route.segmentDistancesM.isNotEmpty) {
+      totalM = route.segmentDistancesM.fold(0.0, (a, b) => a + b);
       final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
       initialSec = (totalM / speedMs).round();
+    } else {
+      totalM = 0;
+      initialSec = 0;
     }
 
     state = ModeANavState(
       isNavigating: true,
+      currentLegIdx: 0,
+      nearestPtIdx: 0,
       remainingDistanceM: totalM.round(),
       remainingSec: initialSec,
-      nextGuide: route.guides.isNotEmpty ? route.guides.first : null,
       currentTransitStepIdx: 0,
     );
+    unawaited(_persist());
   }
 
-  void stop() => state = const ModeANavState();
+  void stop() {
+    state = const ModeANavState();
+    unawaited(_clearPersist());
+  }
 
-  void dismissReroute() =>
-      state = state.copyWith(showReroutePrompt: false);
+  /// 앱 강제종료 후 재실행 복원 — restore()는 persist하지 않는다(이미 저장된 값을
+  /// 그대로 반영하는 것뿐이라 다시 쓸 필요가 없다).
+  void restore(ModeANavState savedState) {
+    state = savedState;
+  }
 
-  void onPositionUpdate(double lat, double lng, RouteResultEntity route) {
+  /// 도보/자전거 구간 진행 갱신 — Mode B `updateGeneratedFromRoad` 대응.
+  /// mixin이 현재 구간(segmentPolylines[currentLegIdx]) 기준으로 계산한 도로 스냅
+  /// 진행률을 그대로 반영해, 화면에 그려지는 경로와 도착/이탈 판정 기준을 통일한다.
+  void updateFromRoad({
+    required RouteResultEntity route,
+    required int nearestPtIdx,
+    required double distToRoadM,
+    required double distToLegEndM,
+    required double remainingSegM,
+  }) {
     if (!state.isNavigating) return;
-    final pts = route.routePoints;
-    if (pts.isEmpty) return;
+    final segs = route.segmentDistancesM;
+    if (segs.isEmpty) return;
 
-    final start = state.nearestPtIdx;
-    final end = min(pts.length, start + 150);
-    int bestIdx = start;
-    double bestDist = double.infinity;
-    for (int i = start; i < end; i++) {
-      final d = _dist(lat, lng, pts[i].latitude, pts[i].longitude);
-      if (d < bestDist) {
-        bestDist = d;
-        bestIdx = i;
-      }
+    var legIdx = state.currentLegIdx;
+    final isOffRoute = distToRoadM > AppConstants.offRouteThresholdM;
+
+    // 구간 끝(경유지/목적지) 50m 이내 도달 시 다음 구간으로 전진
+    if (distToLegEndM < 50 && legIdx < segs.length - 1) {
+      legIdx++;
     }
 
-    final offRoute = bestDist > 60;
-    double remM = 0;
-    for (int i = bestIdx; i < pts.length - 1; i++) {
-      remM += _dist(pts[i].latitude, pts[i].longitude,
-          pts[i + 1].latitude, pts[i + 1].longitude);
-    }
-    final nextGuide = _nextGuide(bestIdx, pts, route.guides);
-
-    // 대중교통: 현재 단계 끝 지점 도달 시 다음 단계로 전진
-    int transitIdx = state.currentTransitStepIdx;
-    if (route.transport == 'transit' && route.transitSteps.isNotEmpty) {
-      transitIdx = _advanceTransitStep(lat, lng, route.transitSteps, transitIdx);
+    double remM = remainingSegM;
+    for (int i = legIdx + 1; i < segs.length; i++) {
+      remM += segs[i];
     }
 
-    // 남은 시간 계산
-    // - 대중교통: 현재 구간 이후 남은 구간들의 sectionTimeMin 합산 (초 환산)
-    // - 도보/자전거: 남은 거리 ÷ 속도
-    int remSec;
-    if (route.transport == 'transit' && route.transitSteps.isNotEmpty) {
-      int remMin = 0;
-      for (int s = transitIdx; s < route.transitSteps.length; s++) {
-        remMin += route.transitSteps[s].sectionTimeMin;
-      }
-      remSec = remMin * 60;
-    } else {
-      final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
-      remSec = (remM / speedMs).round();
+    final speedMs = route.transport == 'bike' ? 4.17 : 1.25;
+
+    state = state.copyWith(
+      currentLegIdx: legIdx,
+      nearestPtIdx: nearestPtIdx,
+      remainingDistanceM: remM.round(),
+      remainingSec: (remM / speedMs).round(),
+      isOffRoute: isOffRoute,
+    );
+    _persistProgressAsync();
+  }
+
+  /// 대중교통: 현재 위치가 현재 subPath 도보 구간에서 이탈했는지 여부.
+  /// 탑승 구간(버스/지하철)에는 이탈 개념이 없으므로 항상 false로 둔다.
+  void updateTransitStep({
+    required RouteResultEntity route,
+    required double lat,
+    required double lng,
+    double? distToRoadM,
+  }) {
+    if (!state.isNavigating) return;
+    final steps = route.transitSteps;
+    if (steps.isEmpty) return;
+
+    final idx = _advanceTransitStep(lat, lng, steps, state.currentTransitStepIdx);
+    final step = steps[idx];
+    final isOffRoute = step.isWalk && distToRoadM != null &&
+        distToRoadM > AppConstants.offRouteThresholdM;
+
+    int remMin = 0;
+    for (int s = idx; s < steps.length; s++) {
+      remMin += steps[s].sectionTimeMin;
     }
 
     state = state.copyWith(
-      nearestPtIdx: bestIdx,
-      remainingDistanceM: remM.round(),
-      remainingSec: remSec,
-      nextGuide: nextGuide,
-      isOffRoute: offRoute,
-      showReroutePrompt: offRoute && !state.isOffRoute,
-      currentTransitStepIdx: transitIdx,
+      currentTransitStepIdx: idx,
+      remainingSec: remMin * 60,
+      isOffRoute: isOffRoute,
     );
+    _persistProgressAsync();
   }
 
   /// 현재 단계의 끝 지점 80m 이내 진입 시 다음 단계로 전진 (전진만, 후퇴 없음)
@@ -165,30 +196,64 @@ class ModeANav extends _$ModeANav {
     return d < 80 ? currentIdx + 1 : currentIdx;
   }
 
-  RouteGuide? _nextGuide(
-      int nearestIdx, List<LatLng> pts, List<RouteGuide> guides) {
-    if (guides.isEmpty) return null;
-    for (final g in guides) {
-      if (g.isArrival) continue;
-      int guideIdx = 0;
-      double minD = double.infinity;
-      for (int i = 0; i < pts.length; i++) {
-        final d = _dist(g.latitude, g.longitude, pts[i].latitude, pts[i].longitude);
-        if (d < minD) {
-          minD = d;
-          guideIdx = i;
-        }
-      }
-      if (guideIdx > nearestIdx) return g;
-    }
-    return guides.last; // arrival
-  }
-
   double _dist(double lat1, double lng1, double lat2, double lng2) {
     const r = 6371000.0, toRad = pi / 180;
     final dLat = (lat2 - lat1) * toRad;
     final dLng = (lng2 - lng1) * toRad;
     final cosLat = cos(lat1 * toRad);
     return r * sqrt(dLat * dLat + (cosLat * dLng) * (cosLat * dLng));
+  }
+
+  // ── Persistence ───────────────────────────────────────────────────
+  // route 자체는 저장하지 않는다 — ModeAState(mode_a_provider.dart)가 이미 출발/도착/경유지/
+  // 이동수단을 저장·복원하므로, 앱 재시작 시 그 값으로 search()를 다시 호출해 경로를
+  // 재계산한다(Mode B의 생성 코스가 도로 좌표를 다시 fetch하는 것과 동일한 패턴).
+
+  Future<void> _persist() async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setBool(kModeANavActive, true);
+      await prefs.setInt(kModeANavLegIdx, state.currentLegIdx);
+      await prefs.setInt(kModeANavTransitStepIdx, state.currentTransitStepIdx);
+    } catch (_) {}
+  }
+
+  void _persistProgressAsync() {
+    _getPrefs().then((prefs) {
+      prefs.setInt(kModeANavLegIdx, state.currentLegIdx);
+      prefs.setInt(kModeANavTransitStepIdx, state.currentTransitStepIdx);
+    }).ignore();
+  }
+
+  Future<void> _clearPersist() async {
+    try {
+      final prefs = await _getPrefs();
+      for (final key in [
+        kModeANavActive, kModeANavLegIdx, kModeANavTransitStepIdx,
+      ]) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
+  }
+
+  // ── Static restore ────────────────────────────────────────────────
+
+  static Future<ModeANavState?> tryRestoreFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final active = prefs.getBool(kModeANavActive) ?? false;
+      if (!active) return null;
+
+      final legIdx = prefs.getInt(kModeANavLegIdx) ?? 0;
+      final transitStepIdx = prefs.getInt(kModeANavTransitStepIdx) ?? 0;
+
+      return ModeANavState(
+        isNavigating: true,
+        currentLegIdx: legIdx,
+        currentTransitStepIdx: transitStepIdx,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

@@ -6,7 +6,7 @@ part of 'mode_a_nav_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$modeANavHash() => r'2e729d62d10d9e051449ca1d94fdd0b7cce07c5a';
+String _$modeANavHash() => r'fa2799249403f4e75021a20b287abfbfb0655df7';
 
 /// See also [ModeANav].
 @ProviderFor(ModeANav)

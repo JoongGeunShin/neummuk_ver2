@@ -37,12 +37,18 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   set _locating(bool value);
   Future<void> _drawTransitStepMarkers(RouteResultEntity result, int activeIdx);
   Future<void> _resetNavCamera();
-  _TurnPoint? _getModeACurrentTurn();
+  TurnPoint? _getModeACurrentTurn();
   String _getModeADistToNextTurnLabel(List<LatLng> pts);
   bool get _modeANavStepMode;
   set _modeANavStepMode(bool v);
   bool get _modeATransitNavStepMode;
   set _modeATransitNavStepMode(bool v);
+  void _initModeATurnPoints(RouteResultEntity route);
+  List<TurnPoint> get _allModeATurnMarkers;
+  Future<void> _drawModeATurnMarkers(List<TurnPoint> turns);
+  Future<void> _clearModeAWalkTurnMarkers();
+  Future<void> _drawModeASegmentsOnMap(RouteResultEntity route, int currentLegIdx);
+  Future<bool> _showModeAExitNavConfirmDialog();
 
   // ── Map focus toggle ───────────────────────────────────────────
 
@@ -160,14 +166,19 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     await ctrl.deleteOverlay(
       const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'mode_a_route'),
     ).catchError((_) {});
-    if (result == null || result.routePoints.isEmpty) return;
+    if (result == null || result.routePoints.isEmpty) {
+      unawaited(_clearModeAWalkTurnMarkers());
+      return;
+    }
 
     final coords = result.routePoints
         .map((p) => NLatLng(p.latitude, p.longitude))
         .toList();
 
     if (result.transport == 'transit') {
-      // 구간별 별색 폴리라인: 도보=c.success(초록), 버스·지하철=c.pinUser(파랑)
+      // 도보·버스·지하철 구분 없이 노란색 하나로 통일 — "코스생성"과 "안내시작"이 항상
+      // 같은 폴리라인 오버레이 객체를 이어받으므로(map_overlay.dart의 nav-start 리스너가
+      // 더 이상 _transitNavPolylines를 비우지 않음) 색도 자연히 통일된다.
       // step index를 polyline id로 사용해 실시간 트리밍 가능하게 함
       _clearTransitNavPolylines();
       bool anyDrawn = false;
@@ -180,7 +191,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         final poly = NPolylineOverlay(
           id: 'transit_seg_$stepIdx',
           coords: segCoords,
-          color: step.isWalk ? c.success : c.pinUser,
+          color: _kTransit,
           width: step.isWalk ? 4 : 6,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
@@ -188,7 +199,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         await ctrl.addOverlay(poly);
         _transitNavPolylines[stepIdx] = poly;
         if (step.isWalk) {
-          await _drawModeARouteArrows(segCoords, c.success);
+          await _drawModeARouteArrows(segCoords, _kTransit);
         }
         anyDrawn = true;
       }
@@ -199,22 +210,20 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         await ctrl.addOverlay(NPolylineOverlay(
           id: 'mode_a_route',
           coords: coords,
-          color: c.pinUser,
+          color: _kTransit,
           width: 5,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
         ));
-        await _drawModeARouteArrows(coords, c.pinUser);
+        await _drawModeARouteArrows(coords, _kTransit);
       }
       if (result.transitSteps.isNotEmpty) {
         await _drawTransitStepMarkers(result, 0);
       }
     } else {
-      final color = switch (result.transport) {
-        'walk' => c.primary,
-        'bike' => c.warn,
-        _      => c.primary,
-      };
+      // Mode B와 동일한 accent 색상 — 내비 시작 시 _drawModeASegmentsOnMap가
+      // 구간별(ma_seg_$i)로 다시 그리므로 이 프리뷰 폴리라인은 미리보기 전용이다.
+      final color = c.accent;
       await ctrl.addOverlay(NPolylineOverlay(
         id: 'mode_a_route',
         coords: coords,
@@ -233,6 +242,46 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         coords,
         padding: const EdgeInsets.fromLTRB(60, 180, 60, 320),
       );
+    }
+
+    // 코스 생성(미리보기) 시점에도 좌우회전 턴마커를 표시 — 이동수단(도보/자전거/대중교통)
+    // 구분은 _initModeATurnPoints가 route.transport로 알아서 분기한다.
+    _initModeATurnPoints(result);
+    if (_allModeATurnMarkers.any((t) => t.type != TurnType.arrival)) {
+      unawaited(_drawModeATurnMarkers(_allModeATurnMarkers));
+    } else {
+      unawaited(_clearModeAWalkTurnMarkers());
+    }
+  }
+
+  /// 앱 강제종료 후 재실행 복원 전용 — 안내 중이던 Mode A 경로를 지도에 다시 그린다
+  /// (네트워크 호출 없이 순수 드로잉만. Mode B의 _restoreGeneratedCourseNav와 동격).
+  Future<void> _restoreModeANavOnMap(
+      RouteResultEntity route, ModeANavState navState) async {
+    if (route.transport == 'transit') {
+      // _drawModeAPolyline이 턴마커·트랜짓 스텝 마커까지 함께 그려준다.
+      await _drawModeAPolyline(route);
+      await _drawTransitStepMarkers(route, navState.currentTransitStepIdx);
+    } else {
+      _initModeATurnPoints(route);
+      if (_allModeATurnMarkers.any((t) => t.type != TurnType.arrival)) {
+        unawaited(_drawModeATurnMarkers(_allModeATurnMarkers));
+      }
+      if (route.segmentPolylines.isNotEmpty) {
+        final legIdx =
+            navState.currentLegIdx.clamp(0, route.segmentPolylines.length - 1);
+        await _drawModeASegmentsOnMap(route, legIdx);
+      }
+    }
+  }
+
+  /// 뒤로가기 스택이 비어 있을 수 있음(스플래시 복원으로 진입한 경우) — Mode B의
+  /// _modeBSafeBack과 동일 패턴.
+  void _modeASafeBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
     }
   }
 
@@ -297,32 +346,13 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
-  // ── Mode A 지오 헬퍼 (mode_b_mixin과 독립) ─────────────────────────
-
-  static double _modeADistM(NLatLng a, NLatLng b) {
-    const r = 6371000.0;
-    const toRad = pi / 180;
-    final dLat = (b.latitude - a.latitude) * toRad;
-    final dLng = (b.longitude - a.longitude) * toRad;
-    final aa = sin(dLat / 2) * sin(dLat / 2) +
-        cos(a.latitude * toRad) * cos(b.latitude * toRad) *
-            sin(dLng / 2) * sin(dLng / 2);
-    return r * 2 * atan2(sqrt(aa), sqrt(1 - aa));
-  }
-
-  static double _modeABearing(NLatLng a, NLatLng b) {
-    const toRad = pi / 180;
-    final dLng = (b.longitude - a.longitude) * toRad;
-    final y = sin(dLng) * cos(b.latitude * toRad);
-    final x = cos(a.latitude * toRad) * sin(b.latitude * toRad) -
-        sin(a.latitude * toRad) * cos(b.latitude * toRad) * cos(dLng);
-    return (atan2(y, x) * 180 / pi + 360) % 360;
-  }
+  // ── Mode A 지오 헬퍼 (core/utils의 공용 함수를 NLatLng 시그니처로 감쌈) ──────
 
   static double _modeATotalLen(List<NLatLng> pts) {
     var total = 0.0;
     for (var i = 1; i < pts.length; i++) {
-      total += _modeADistM(pts[i - 1], pts[i]);
+      total += haversineDistanceM(
+          pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude);
     }
     return total;
   }
@@ -331,12 +361,17 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       List<NLatLng> pts, double dist) {
     var acc = 0.0;
     for (var i = 1; i < pts.length; i++) {
-      final seg = _modeADistM(pts[i - 1], pts[i]);
+      final seg = haversineDistanceM(
+          pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude);
       if (acc + seg >= dist) {
         final t = (dist - acc) / seg;
         final lat = pts[i - 1].latitude + t * (pts[i].latitude - pts[i - 1].latitude);
         final lng = pts[i - 1].longitude + t * (pts[i].longitude - pts[i - 1].longitude);
-        return (pos: NLatLng(lat, lng), bearing: _modeABearing(pts[i - 1], pts[i]));
+        return (
+          pos: NLatLng(lat, lng),
+          bearing: bearingDeg(
+              pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude),
+        );
       }
       acc += seg;
     }
@@ -504,43 +539,6 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     if (mounted && ref.read(modeAProvider).routeResult != null) {
       setState(() => _routePanelEditing = false);
     }
-  }
-
-  void _showRerouteDialog() {
-    if (!mounted) return;
-    showDialog<void>(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => AlertDialog(
-        backgroundColor: kMapPanel,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('경로를 벗어났어요',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-        content: const Text(
-          '현재 경로에서 60m 이상 벗어났습니다.\n계속 진행하시겠어요?',
-          style: TextStyle(color: Colors.white70, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ref.read(modeANavProvider.notifier).stop();
-            },
-            child: const Text('안내 종료',
-                style: TextStyle(color: Colors.white54, fontSize: 13)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ref.read(modeANavProvider.notifier).dismissReroute();
-            },
-            child: const Text('계속 진행',
-                style: TextStyle(
-                    color: kMapPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showArrivalMessage() {
@@ -950,6 +948,18 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 }
 
 // ── Mode A 방향 안내 핀 위젯 ────────────────────────────────────────────────
+
+IconData _guideIconForType(int type, String guidance) {
+  if (guidance.contains('횡단보도')) return Icons.transfer_within_a_station_rounded;
+  return switch (type) {
+    0 => Icons.trip_origin_rounded,
+    12 => Icons.turn_right_rounded,
+    13 => Icons.turn_left_rounded,
+    14 => Icons.u_turn_left_rounded,
+    100 => Icons.flag_rounded,
+    _ => Icons.straight_rounded,
+  };
+}
 
 class _ModeAGuidePin extends StatelessWidget {
   const _ModeAGuidePin({
