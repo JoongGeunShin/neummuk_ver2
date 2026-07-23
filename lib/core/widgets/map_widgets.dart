@@ -11,6 +11,9 @@ const kMapHandle   = Color(0xFF48484A);
 const kMapWhite87  = Color(0xDEFFFFFF);
 const kMapWhite45  = Color(0x73FFFFFF);
 const kMapPrimary  = Color(0xFFFF7A45);
+// 대중교통(Mode A) 폴리라인 전용 — 도보/버스/지하철 구간 구분 없이 항상 이 색 하나로
+// 통일해 "코스생성" 미리보기와 "안내시작" 후 색이 달라 보이지 않게 한다.
+const kMapTransit  = Color(0xFFFFD600);
 
 // ─── 맵 이벤트 싱크 ──────────────────────────────────────────────────────────────
 // AppMapScreen이 보유하고, 각 오버레이가 initState에서 핸들러를 등록.

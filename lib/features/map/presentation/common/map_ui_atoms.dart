@@ -1,7 +1,7 @@
 // ─── map/presentation/common/map_ui_atoms.dart ───────────────────────────────
 //
 // 지도 화면 전체에서 공유하는 소형 위젯 모음.
-// map_overlay, mode_a_overlay, explore_overlay, mode_b_overlay 모두에서 재사용.
+// map_overlay.dart와 그 part-file들(explore/mode_a/mode_b mixin) 모두에서 재사용.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 

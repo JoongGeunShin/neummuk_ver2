@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show pi, sin, cos, atan2, sqrt;
+import 'dart:math' show pi;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -16,10 +16,12 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/utils/geo_utils.dart';
+import '../../../../core/utils/turn_point_utils.dart';
 import '../../../../core/widgets/calorie_compare_donut.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/map_widgets.dart';
 import '../../../../core/widgets/tiny_ring.dart';
+import '../../data/datasources/road_route_datasource.dart';
 import '../../../mode_a/domain/entities/restaurant_entity.dart';
 import '../../../mode_a/domain/entities/route_result_entity.dart';
 import '../../../mode_a/domain/entities/waypoint_candidate_entity.dart';
@@ -47,7 +49,6 @@ part 'map_overlay/explore_sheets.dart';
 part 'map_overlay/mode_a_route_panel.dart';
 part 'map_overlay/mode_a_result_sheet.dart';
 part 'map_overlay/mode_a_calorie_widgets.dart';
-part 'map_overlay/nav_cards.dart';
 part 'map_overlay/nav_transit_widgets.dart';
 part 'map_overlay/mode_b_panels.dart';
 part 'map_overlay/mode_b_cards.dart';
@@ -65,6 +66,7 @@ const _kHandle   = kMapHandle;
 const _kWhite87  = kMapWhite87;
 const _kWhite45  = kMapWhite45;
 const _kGreen    = kMapPrimary;
+const _kTransit  = kMapTransit;
 
 class MapOverlay extends ConsumerStatefulWidget {
   const MapOverlay({
@@ -208,16 +210,15 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       if (navState.isNavigating) {
         final route = ref.read(modeAProvider).routeResult;
         if (route != null) {
-          ref.read(modeANavProvider.notifier).onPositionUpdate(
-                p.latitude, p.longitude, route);
-          // 도보/자전거: 로컬 도로 인덱스 갱신 (방향 전환 안내용)
-          if (route.transport != 'transit') {
-            _updateModeARoadNearestPtIdx(p.latitude, p.longitude, route);
+          if (route.transport == 'transit') {
+            _onModeATransitPositionUpdate(p, route);
+          } else {
+            _onModeAWalkBikePositionUpdate(p, route);
           }
         }
         final prev = _prevNavPosition;
         if (prev != null) {
-          final bearing = _bearingDeg(
+          final bearing = bearingDeg(
               prev.latitude, prev.longitude, p.latitude, p.longitude);
           final moved = Geolocator.distanceBetween(
               prev.latitude, prev.longitude, p.latitude, p.longitude);
@@ -263,11 +264,16 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     if (!mounted) return;
     ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
 
-    // 홈에서 진입 시 이미 모드 A 상태라면 마커·폴리라인 동기화
+    // 홈에서 진입 시 이미 모드 A 상태라면 마커·폴리라인 동기화 (안내 중 복원이면 순수 드로잉만)
     if (ref.read(mapModeProvider) == MapMode.modeA) {
       final modeAState = ref.read(modeAProvider);
+      final modeANavState = ref.read(modeANavProvider);
       unawaited(_syncModeAMarkers(modeAState));
-      unawaited(_drawModeAPolyline(modeAState.routeResult));
+      if (modeANavState.isNavigating && modeAState.routeResult != null) {
+        unawaited(_restoreModeANavOnMap(modeAState.routeResult!, modeANavState));
+      } else {
+        unawaited(_drawModeAPolyline(modeAState.routeResult));
+      }
     }
 
     // 앱 재시작 복원: Mode B nav 상태 복원
@@ -310,9 +316,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
       final curSeg = _segmentPolylines[currentIdx];
       _modeBTurnPoints = curSeg.isNotEmpty
-          ? _computeTurnPoints(
+          ? computeTurnPoints(
               curSeg.map((p) => (lat: p.latitude, lng: p.longitude)).toList(),
-              segIdx: currentIdx,
+              legIdx: currentIdx,
             )
           : [];
       _modeBRoadNearestPtIdx = 0;
@@ -647,9 +653,6 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     });
 
     ref.listen<ModeANavState>(modeANavProvider, (prev, next) {
-      if (next.showReroutePrompt && !(prev?.showReroutePrompt ?? false)) {
-        _showRerouteDialog();
-      }
       if ((prev?.isNavigating ?? false) &&
           next.isNavigating &&
           next.remainingDistanceM < 50) {
@@ -657,44 +660,51 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _resetNavCamera();
         _showArrivalMessage();
       }
-      // 네비게이션 시작 → overview 초기화 + 방향 전환 포인트 계산
+      // 네비게이션 시작 → overview 초기화 + 방향 전환 포인트 계산 + 구간 폴리라인 표시
       if (!(prev?.isNavigating ?? false) && next.isNavigating) {
-        _clearTransitNavPolylines(); // 이전 트리밍 상태 초기화
+        // 주의: 여기서 _clearTransitNavPolylines()를 호출하면 안 된다 — "코스생성" 때
+        // 그려둔 _transitNavPolylines 핸들 캐시를 지워버려서, 안내 중 실시간 트리밍
+        // (_trimModeATransitPolylines)이 대상 오버레이를 못 찾아 색이 고정돼버린다.
+        // 다음 세션을 위한 정리는 네비 종료 분기(아래)에서 이미 담당한다.
         final route = ref.read(modeAProvider).routeResult;
         if (route != null && route.transport == 'transit') {
           if (mounted) setState(() => _modeATransitNavStepMode = false);
+          _initModeATurnPoints(route);
+          if (_allModeATurnMarkers.any((t) => t.type != TurnType.arrival)) {
+            unawaited(_drawModeATurnMarkers(_allModeATurnMarkers));
+          }
         } else if (route != null) {
           if (mounted) setState(() {
             _modeANavStepMode = false;
             _movedSinceModeANavStart = 0.0;
           });
           _initModeATurnPoints(route);
-          if (_modeATurnPoints.any((t) => t.type != _TurnType.arrival)) {
-            unawaited(_drawModeAWalkTurnMarkers(_modeATurnPoints));
+          unawaited(_drawModeASegmentsOnMap(route, 0));
+          if (_allModeATurnMarkers.any((t) => t.type != TurnType.arrival)) {
+            unawaited(_drawModeATurnMarkers(_allModeATurnMarkers));
           }
         }
       }
       // 네비게이션 종료
       if ((prev?.isNavigating ?? false) && !next.isNavigating) {
-        unawaited(_clearNavGuideMarker());
         unawaited(_clearModeAWalkTurnMarkers());
         _clearTransitNavPolylines();
         if (mounted) setState(_resetModeAWalkTurnState);
         ref.read(modeAProvider.notifier).clearRouteResult();
       }
+      // 대중교통 도보 구간 이탈 — 도보/자전거는 다이얼로그+자동 재경로(nav_mixin.dart에서
+      // 직접 트리거)로 처리하므로, 여기서는 대중교통일 때만 스낵바로 안내한다
+      // (Mode B GPX 코스의 이탈 처리와 동일한 수준).
+      if (!(prev?.isOffRoute ?? false) && next.isOffRoute) {
+        final route = ref.read(modeAProvider).routeResult;
+        if (route?.transport == 'transit') {
+          _showModeAOffRouteSnackBar();
+        }
+      }
       if ((prev?.currentTransitStepIdx ?? 0) != next.currentTransitStepIdx) {
         final route = ref.read(modeAProvider).routeResult;
         if (route != null && route.transport == 'transit') {
           _drawTransitStepMarkers(route, next.currentTransitStepIdx);
-        }
-      }
-      // 대중교통 안내 스텝 진행 시 지도 마커 동기화
-      if (next.isNavigating && prev?.nextGuide != next.nextGuide) {
-        final route = ref.read(modeAProvider).routeResult;
-        final guide = next.nextGuide;
-        if (route != null && route.transport == 'transit' &&
-            route.guides.isNotEmpty && guide != null) {
-          unawaited(_updateNavGuideMarker(guide));
         }
       }
     });
@@ -735,9 +745,17 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     final categories = ['전체', ...?profileAsync.valueOrNull?.preferredCategories];
 
     return PopScope(
-      canPop: !modeBNavState.isNavigating,
+      canPop: !modeBNavState.isNavigating && !navState.isNavigating,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        if (navState.isNavigating) {
+          final confirmed = await _showModeAExitNavConfirmDialog();
+          if (!confirmed || !mounted) return;
+          ref.read(modeANavProvider.notifier).stop();
+          await _resetNavCamera();
+          if (mounted) _modeASafeBack();
+          return;
+        }
         final confirmed = await _showModeBExitNavConfirmDialog();
         if (!confirmed || !mounted) return;
         await _stopModeBNavigation();
