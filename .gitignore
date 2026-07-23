@@ -20,6 +20,7 @@ migrate_working_dir/
 
 # firebase
 /lib/firebase_options.dart
+.firebase/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -51,9 +52,14 @@ app.*.map.json
 .env
 google-services.json
 GoogleService-Info.plist
+android/key.properties
+android/*.jks
+android/*.keystore
+google-services.json.old_com_example_backup
 
-# Mode B GPX export test output (generated fixtures, not source)
+# Mode A/B GPX export test output (generated fixtures, not source)
 /test/mode_b_gpx_export/output/
+/test/mode_a_gpx_export/output/
 
 # AI
 .claude
