@@ -113,6 +113,9 @@ class RouteResultEntity {
     this.routePoints = const [],
     this.guides = const [],
     this.transitSteps = const [],
+    this.segmentPolylines = const [],
+    this.segmentDistancesM = const [],
+    this.routeSource,
   });
 
   final String fromName;
@@ -123,12 +126,21 @@ class RouteResultEntity {
   final int kcalBurn;
   /// 중간 경유 관광지 목록 (Kakao Mobility waypoints 파라미터로 전달)
   final List<RouteWaypoint> waypoints;
-  /// Kakao Mobility 응답에서 추출한 폴리라인 좌표 (지도 표시용)
+  /// 전체를 이어붙인 폴리라인 좌표 (프리뷰 표시용) — segmentPolylines를 이어붙인 것과 동일
   final List<LatLng> routePoints;
-  /// Kakao Mobility 응답에서 추출한 안내 포인트 (도보/자전거 내비게이션용)
+  /// Kakao Mobility 응답에서 추출한 안내 포인트 (Kakao 폴백 경로에서만 채워짐)
   final List<RouteGuide> guides;
-  /// ODsay 응답에서 추출한 대중교통 단계 목록 (대중교통 안내용)
+  /// ODsay 응답에서 추출한 대중교통 단계 목록 (대중교통 안내용 — 이 자체가 구간 배열 역할)
   final List<TransitStep> transitSteps;
+  /// 도보/자전거 구간별 폴리라인 (구간 i = 출발지/이전 경유지 → i번째 경유지 또는 목적지).
+  /// 내비게이션 중 턴마커·회색처리·이탈판정·재경로가 구간 단위로 이뤄진다. 대중교통은
+  /// transitSteps[i].stepPoints가 이 역할을 대신하므로 비워둔다.
+  final List<List<LatLng>> segmentPolylines;
+  /// 구간별 실제 도로 거리(m). segmentPolylines와 1:1 대응.
+  final List<double> segmentDistancesM;
+  /// 도보/자전거 경로 소스 — 'tmap' | 'kakao'. 재경로 시 소스를 고정해 코스 안에서
+  /// 도로 스냅 스타일이 섞이지 않도록 한다. 대중교통은 'odsay' | 'kakao_fallback'.
+  final String? routeSource;
 
   int get durationMinutes => (durationSeconds / 60).round();
 
@@ -143,6 +155,9 @@ class RouteResultEntity {
     List<LatLng>? routePoints,
     List<RouteGuide>? guides,
     List<TransitStep>? transitSteps,
+    List<List<LatLng>>? segmentPolylines,
+    List<double>? segmentDistancesM,
+    String? routeSource,
   }) {
     return RouteResultEntity(
       fromName: fromName ?? this.fromName,
@@ -155,6 +170,9 @@ class RouteResultEntity {
       routePoints: routePoints ?? this.routePoints,
       guides: guides ?? this.guides,
       transitSteps: transitSteps ?? this.transitSteps,
+      segmentPolylines: segmentPolylines ?? this.segmentPolylines,
+      segmentDistancesM: segmentDistancesM ?? this.segmentDistancesM,
+      routeSource: routeSource ?? this.routeSource,
     );
   }
 }
