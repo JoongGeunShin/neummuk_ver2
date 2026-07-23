@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBeyEQj0yadN7p9SIYpJimz4S9KxujlN6Q',
-    appId: '1:1083534585329:android:54f27860870a4eb6f4e850',
+    appId: '1:1083534585329:android:dec0de7c395ebf9af4e850',
     messagingSenderId: '1083534585329',
     projectId: 'neummuk-ver2',
     storageBucket: 'neummuk-ver2.firebasestorage.app',

@@ -3,12 +3,17 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "hosting": {
+    "site": "neummuk-official",
+    "public": "hosting",
+    "ignore": ["firebase.json", "**/.*"]
+  },
   "flutter": {
     "platforms": {
       "android": {
         "default": {
           "projectId": "neummuk-ver2",
-          "appId": "1:1083534585329:android:54f27860870a4eb6f4e850",
+          "appId": "1:1083534585329:android:dec0de7c395ebf9af4e850",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -16,7 +21,7 @@
         "lib/firebase_options.dart": {
           "projectId": "neummuk-ver2",
           "configurations": {
-            "android": "1:1083534585329:android:54f27860870a4eb6f4e850",
+            "android": "1:1083534585329:android:dec0de7c395ebf9af4e850",
             "ios": "1:1083534585329:ios:1a2820806c0fbfb2f4e850",
             "macos": "1:1083534585329:ios:1a2820806c0fbfb2f4e850",
             "web": "1:1083534585329:web:d4bc6fcd739c70c3f4e850",

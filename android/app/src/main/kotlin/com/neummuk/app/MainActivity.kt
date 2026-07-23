@@ -1,4 +1,4 @@
-package com.example.neummuk_ver2
+package com.neummuk.app
 
 import io.flutter.embedding.android.FlutterActivity
 
