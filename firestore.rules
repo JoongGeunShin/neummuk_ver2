@@ -57,9 +57,13 @@ service cloud.firestore {
     match /users/{uid}/daily_records/{date} {
       allow read: if request.auth != null && request.auth.uid == uid;
 
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
         && request.auth.uid == uid
         && isValidDailyRecord(request.resource.data);
+
+      // 회원 탈퇴 시 deleteUser()의 배치 삭제 허용 (request.resource가 없는 delete는
+      // isValidDailyRecord 검증 대상이 아님).
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     function isValidDailyRecord(data) {
