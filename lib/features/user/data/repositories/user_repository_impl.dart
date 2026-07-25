@@ -41,9 +41,19 @@ class UserRepositoryImpl implements UserRepository {
   Future<void> deleteUser(String uid, String email) async {
     final colId = email.isNotEmpty ? email : uid;
     final col = _db.collection(colId);
-    await Future.wait([
-      col.doc('user_entity').delete(),
-      col.doc('user_profile_entity').delete(),
-    ]);
+
+    // daily_records 서브컬렉션은 상위 문서를 지워도 자동 삭제되지 않으므로
+    // 개별 조회 후 배치 삭제 (개인정보처리방침의 "활동 기록 지체 없이 삭제" 준수).
+    final dailyRecordsCol =
+        _db.collection('users').doc(uid).collection('daily_records');
+    final dailyRecords = await dailyRecordsCol.get();
+
+    final batch = _db.batch();
+    for (final doc in dailyRecords.docs) {
+      batch.delete(doc.reference);
+    }
+    batch.delete(col.doc('user_entity'));
+    batch.delete(col.doc('user_profile_entity'));
+    await batch.commit();
   }
 }

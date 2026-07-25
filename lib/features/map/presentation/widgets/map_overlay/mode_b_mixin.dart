@@ -1577,7 +1577,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         navState.isNavigating &&
         navState.foodName.isNotEmpty;
 
-    final walkKcal = ref.watch(walkSessionProvider).caloriesKcal;
+    final walkKcal = ref.watch(walkSessionProvider.select((s) => s.caloriesKcal));
     final cartItems = ref.watch(cartProvider);
     final cartCount = cartItems.length;
 

@@ -728,17 +728,27 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
 
   int _transitStepMarkerCount = 0;
 
-  Future<void> _drawTransitStepMarkers(
-      RouteResultEntity result, int activeIdx) async {
+  /// 대중교통 → 도보/자전거 전환 시에도 호출되는 무조건 정리용 — 새 경로가
+  /// transit이 아니면 _drawTransitStepMarkers 자체가 호출되지 않으므로, 그 안의
+  /// 삭제 루프에만 의존하면 이전 대중교통 스텝 마커가 지도에 남는다.
+  void _clearModeATransitStepMarkers() {
     final ctrl = _ctrl;
-    if (ctrl == null || !mounted) return;
-
+    if (ctrl == null) return;
     for (int i = 0; i < _transitStepMarkerCount; i++) {
       ctrl
           .deleteOverlay(
               NOverlayInfo(type: NOverlayType.marker, id: 'transit_step_$i'))
           .catchError((_) {});
     }
+    _transitStepMarkerCount = 0;
+  }
+
+  Future<void> _drawTransitStepMarkers(
+      RouteResultEntity result, int activeIdx) async {
+    final ctrl = _ctrl;
+    if (ctrl == null || !mounted) return;
+
+    _clearModeATransitStepMarkers();
 
     final steps = result.transitSteps;
     if (steps.isEmpty) {

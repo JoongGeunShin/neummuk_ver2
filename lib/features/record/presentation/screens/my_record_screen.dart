@@ -7,7 +7,6 @@ import '../../../../core/widgets/double_back_to_exit.dart';
 import '../../../../core/widgets/weekly_chart.dart';
 import '../../../record/domain/entities/badge_entity.dart';
 import '../../../record/domain/entities/daily_record_entity.dart';
-import '../../../walk/domain/entities/walk_session_entity.dart';
 import '../../../walk/presentation/providers/walk_provider.dart';
 import '../providers/record_provider.dart';
 
@@ -46,7 +45,10 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final walk = ref.watch(walkSessionProvider);
+    // steps/kcal/distance만 select — 다른 필드 변경으로 인한 불필요한 재빌드 방지
+    final walk = ref.watch(walkSessionProvider.select(
+      (s) => (steps: s.steps, caloriesKcal: s.caloriesKcal, distanceM: s.distanceM),
+    ));
     final summaryAsync = ref.watch(weeklySummaryProvider);
     final weeklyAsync = ref.watch(weeklyDataProvider);
     final badgesAsync = ref.watch(badgesProvider);
@@ -309,7 +311,7 @@ class _WeekActivitySection extends StatelessWidget {
     required this.liveWalk,
   });
   final List<DailyRecordEntity> records;
-  final WalkSessionEntity liveWalk;
+  final ({int steps, double caloriesKcal, double distanceM}) liveWalk;
 
   @override
   Widget build(BuildContext context) {

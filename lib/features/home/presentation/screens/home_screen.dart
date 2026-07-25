@@ -127,7 +127,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final walk = ref.watch(walkSessionProvider);
+    // steps/kcal/distance만 select — elapsed·speedKmh 등 다른 필드가 200ms~1s마다
+    // 바뀌어도 이 값들이 그대로면 홈 화면 전체가 재빌드되지 않는다 (표시값은 동일).
+    final walk = ref.watch(walkSessionProvider.select(
+      (s) => (steps: s.steps, caloriesKcal: s.caloriesKcal, distanceM: s.distanceM),
+    ));
 
     // FAB 초기 위치: 우하단 (바텀 탭 위)
     final screenSize = MediaQuery.sizeOf(context);

@@ -44,6 +44,11 @@ class WalkTaskHandler extends TaskHandler {
 
   final _window = <(DateTime, double)>[];
 
+  // 직전에 표시한 알림 텍스트 — 내용이 안 바뀌었으면 updateService()를 생략해
+  // 매초 불필요한 시스템 알림 갱신 호출을 줄인다. 화면에 보이는 텍스트는 동일하므로
+  // 체감 차이는 없다.
+  String? _lastNotifText;
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     _prefs = await SharedPreferences.getInstance();
@@ -80,7 +85,10 @@ class WalkTaskHandler extends TaskHandler {
         ? '🗺️ $navInstruction'
         : '$_trueSteps걸음 · ${_caloriesKcal.round()} kcal';
 
-    FlutterForegroundTask.updateService(notificationText: notifText);
+    if (notifText != _lastNotifText) {
+      _lastNotifText = notifText;
+      FlutterForegroundTask.updateService(notificationText: notifText);
+    }
   }
 
   @override

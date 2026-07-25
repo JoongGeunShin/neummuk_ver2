@@ -11,6 +11,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   int _modeAGuideMarkerCount = 0;
   bool _modeAMapFocus = false;
   bool _routePanelEditing = false;
+  /// 도착 다이얼로그 응답 대기 중 — true인 동안은 네비 종료 리스너가
+  /// routeResult를 지우지 않는다(다이얼로그가 식당 목록을 참조해야 하므로).
+  bool _modeAArrivalDialogPending = false;
 
   // 대중교통 폴리라인 실시간 트리밍 캐시
   final Map<int, NPolylineOverlay> _transitNavPolylines = {};
@@ -36,6 +39,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   bool get _locating;
   set _locating(bool value);
   Future<void> _drawTransitStepMarkers(RouteResultEntity result, int activeIdx);
+  void _clearModeATransitStepMarkers();
   Future<void> _resetNavCamera();
   TurnPoint? _getModeACurrentTurn();
   String _getModeADistToNextTurnLabel(List<LatLng> pts);
@@ -147,7 +151,32 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
-  Future<void> _drawModeAPolyline(RouteResultEntity? result) async {
+  // ── 코스 재생성 시 이전 코스가 지도에 남는 버그 방지 ─────────────────────
+  // _drawModeAPolyline은 겹쳐서(concurrent) 호출되면 안 된다: addOverlay/deleteOverlay
+  // 호출 사이사이 await로 제어권이 넘어가는데, 그 틈에 새 호출이 같은 카운터 필드
+  // (_modeAArrowCount 등)를 건드리면 두 호출의 삭제/추가 범위가 어긋나 이전 코스의
+  // 폴리라인·화살표·마커가 지워지지 않고 남는다("코스 중복" 버그의 원인).
+  // 아래 큐가 모든 호출을 순서대로 직렬 실행하고, 대기 중 더 최신 요청으로 대체된
+  // 호출은 건너뛰어 낭비 없이 항상 최신 결과만 그려지게 한다.
+  int _modeADrawToken = 0;
+  Future<void> _modeADrawChain = Future.value();
+
+  Future<void> _drawModeAPolyline(RouteResultEntity? result) {
+    final myToken = ++_modeADrawToken;
+    final prevChain = _modeADrawChain;
+    final completer = Completer<void>();
+    _modeADrawChain = completer.future;
+    return prevChain.then((_) async {
+      try {
+        if (myToken != _modeADrawToken || !mounted) return;
+        await _drawModeAPolylineImpl(result);
+      } finally {
+        completer.complete();
+      }
+    });
+  }
+
+  Future<void> _drawModeAPolylineImpl(RouteResultEntity? result) async {
     final ctrl = _ctrl;
     if (ctrl == null) return;
     final c = context.colors;
@@ -162,6 +191,11 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
     // 이전 화살표·방향 마커 제거
     await _clearModeADecorations();
+
+    // 이전 대중교통 스텝 마커(출발/환승/도착 아이콘) 제거 — 새 경로가 transit이
+    // 아니면 아래에서 _drawTransitStepMarkers가 호출되지 않아 그 안의 정리 로직도
+    // 실행되지 않으므로, 전송수단과 무관하게 여기서 항상 지운다.
+    _clearModeATransitStepMarkers();
 
     await ctrl.deleteOverlay(
       const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'mode_a_route'),
@@ -541,25 +575,61 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
-  void _showArrivalMessage() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: kMapPrimary,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: const Row(
-          children: [
-            Icon(Icons.flag_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 10),
-            Text('목적지에 도착했어요!',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-          ],
+  /// 도착 시 "주변 맛집을 보실까요?" 확인 후 응답에 따라 처리.
+  /// 예 → 검색 시점에 이미 로드해둔 state.restaurants를 지도에 표시하고 결과
+  ///      시트를 다시 올림(routeResult 유지). 아니오 → 기존처럼 바로 정리.
+  void _showArrivalRestaurantDialog() {
+    if (!mounted) {
+      _modeAArrivalDialogPending = false;
+      return;
+    }
+    showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kMapPanel,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.flag_rounded, color: kMapPrimary, size: 22),
+          SizedBox(width: 8),
+          Text('목적지에 도착했어요!',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: const Text(
+          '수고하셨어요. 주변 맛집을 보실까요?',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('괜찮아요',
+                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('볼래요',
+                style: TextStyle(color: kMapPrimary, fontWeight: FontWeight.w800)),
+          ),
+        ],
       ),
-    );
+    ).then((showRestaurants) {
+      _modeAArrivalDialogPending = false;
+      if (!mounted) return;
+      if (showRestaurants == true) {
+        final s = ref.read(modeAProvider);
+        if (s.nearbyTab != ModeANearbyTab.restaurant) {
+          unawaited(ref.read(modeAProvider.notifier).switchNearbyTab(ModeANearbyTab.restaurant));
+        }
+        unawaited(_updateNearbyMarkers(s));
+        if (_sheetACtrl.isAttached) {
+          _sheetACtrl.animateTo(0.52,
+              duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+        }
+      } else {
+        ref.read(modeAProvider.notifier).clearRouteResult();
+        unawaited(_clearNearbyMarkers());
+      }
+    });
   }
 
   void _showWaypointCandidateSheet(BuildContext ctx) {

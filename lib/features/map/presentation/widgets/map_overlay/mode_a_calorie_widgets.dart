@@ -10,7 +10,7 @@ class _KcalWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final walk = ref.watch(walkSessionProvider);
+    final walkKcal = ref.watch(walkSessionProvider.select((s) => s.caloriesKcal));
     return GestureDetector(
       onTap: () => context.push('/record'),
       child: Container(
@@ -26,7 +26,7 @@ class _KcalWidget extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🔥 ${walk.caloriesKcal.round()} kcal',
+            Text('🔥 ${walkKcal.round()} kcal',
                 style: TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w800, color: context.colors.primary)),
             if (routeKcal != null)

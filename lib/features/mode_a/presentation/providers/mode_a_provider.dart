@@ -95,7 +95,7 @@ class ModeAState {
     bool? originIsCurrentLocation,
     String? transport,
     List<RouteWaypoint>? waypoints,
-    RouteResultEntity? routeResult,
+    Object? routeResult = _kRemove,
     List<RestaurantEntity>? restaurants,
     bool? isLoading,
     String? error,
@@ -118,7 +118,9 @@ class ModeAState {
       originIsCurrentLocation: originIsCurrentLocation ?? this.originIsCurrentLocation,
       transport: transport ?? this.transport,
       waypoints: waypoints ?? this.waypoints,
-      routeResult: routeResult ?? this.routeResult,
+      routeResult: identical(routeResult, _kRemove)
+          ? this.routeResult
+          : routeResult as RouteResultEntity?,
       restaurants: restaurants ?? this.restaurants,
       isLoading: isLoading ?? this.isLoading,
       error: error,
@@ -207,12 +209,14 @@ class ModeA extends _$ModeA {
   }
 
   /// 도착지 좌표 설정. lat/lng이 null이면 도착지 초기화.
+  /// 목적지가 바뀌면 기존 routeResult는 옛 목적지 기준 경로라 항상 무효 — 지도에
+  /// 옛 폴리라인이 남는 버그(코스 재생성 전까지 안 지워짐) 방지를 위해 무조건 초기화.
   void setDestCoords(double? lat, double? lng, String label) {
     state = state.copyWith(
       to: label,
       destLat: lat,
       destLng: lng,
-      routeResult: label.isEmpty ? null : state.routeResult,
+      routeResult: null,
       destIsRestaurant: false,
       destKcal: 0,
       waypointCandidates: const [],
@@ -274,6 +278,9 @@ class ModeA extends _$ModeA {
 
   Future<void> search() async {
     if (state.from.isEmpty || state.to.isEmpty) return;
+    // 이전 검색이 아직 진행 중이면 무시 — 중복 호출 시 두 응답이 순서 없이 도착해
+    // _drawModeAPolyline이 겹쳐 실행되며 지도에 이전 코스가 남는 문제를 방지한다.
+    if (state.isLoading) return;
     state = state.copyWith(isLoading: true);
     try {
       final metrics = ref.read(userProfileProvider).toBodyMetrics();

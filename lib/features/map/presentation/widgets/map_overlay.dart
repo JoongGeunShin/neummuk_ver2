@@ -96,6 +96,15 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<CompassEvent>? _compassSub;
 
+  // 실제 내비게이션 중일 때만 고정밀 GPS(3m/high)를 쓰고, 단순 지도 탐색 중에는
+  // medium/8m로 낮춰 배터리를 아낀다. 안내 시작·종료 시 _syncPositionStreamAccuracy()가
+  // 전환한다 — 안내 중 정확도·실시간성은 기존과 동일하게 유지된다.
+  static const _navLocationSettings =
+      LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 3);
+  static const _idleLocationSettings =
+      LocationSettings(accuracy: LocationAccuracy.medium, distanceFilter: 8);
+  bool _positionStreamHighAccuracy = false;
+
   // 기기 나침반 방위각 — _ModeBNavOverlayMixin abstract getter 충족
   double _compassHeading = 0.0;
   DateTime _lastCameraCompassUpdate = DateTime.fromMillisecondsSinceEpoch(0);
@@ -195,66 +204,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       );
     }
 
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
-      ),
-    ).listen((p) {
-      if (!mounted) return;
-      setState(() => __position = p);
-      _locationOverlay?.setPosition(NLatLng(p.latitude, p.longitude));
-
-      // Mode A 네비게이션
-      final navState = ref.read(modeANavProvider);
-      if (navState.isNavigating) {
-        final route = ref.read(modeAProvider).routeResult;
-        if (route != null) {
-          if (route.transport == 'transit') {
-            _onModeATransitPositionUpdate(p, route);
-          } else {
-            _onModeAWalkBikePositionUpdate(p, route);
-          }
-        }
-        final prev = _prevNavPosition;
-        if (prev != null) {
-          final bearing = bearingDeg(
-              prev.latitude, prev.longitude, p.latitude, p.longitude);
-          final moved = Geolocator.distanceBetween(
-              prev.latitude, prev.longitude, p.latitude, p.longitude);
-          if (moved >= 2.0) {
-            _lastNavBearing = bearing;
-            // 8m 이상 이동 시 자동으로 단계별 안내로 전환
-            if (route != null && route.transport != 'transit' && !_modeANavStepMode) {
-              _movedSinceModeANavStart += moved;
-              if (_movedSinceModeANavStart > 8.0) {
-                setState(() => _modeANavStepMode = true);
-              }
-            }
-          }
-        }
-        _prevNavPosition = p;
-        // Mode B와 동일: 카메라 베어링에 기기 나침반 사용 (north-up 아닐 때)
-        _followNavCamera(
-          p.latitude, p.longitude,
-          _modeANorthUpMode ? 0.0 : _compassHeading,
-        );
-        // 잔여 폴리라인 실시간 트리밍 (스로틀 없이 완전 실시간)
-        final currentNavState = ref.read(modeANavProvider);
-        if (route?.transport == 'transit') {
-          unawaited(_trimModeATransitPolylines(p, currentNavState));
-        } else {
-          unawaited(_trimModeAPolylineToRemaining(p, currentNavState));
-        }
-      }
-
-      // Mode B 네비게이션
-      final modeBNavState = ref.read(modeBNavProvider);
-      if (modeBNavState.isNavigating) {
-        _onModeBNavPositionUpdate(p, modeBNavState);
-        unawaited(_trimNavPolylineToRemaining(p, ref.read(modeBNavProvider)));
-      }
-    });
+    _subscribeToPositionStream(highAccuracy: false);
 
     final lat = pos?.latitude ?? 37.5665;
     final lng = pos?.longitude ?? 126.9780;
@@ -274,6 +224,12 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       } else {
         unawaited(_drawModeAPolyline(modeAState.routeResult));
       }
+      // Home에서 이미 Mode A로 진입한 채 화면이 열린 경우(ref.listen이 초기값에는
+      // 반응하지 않으므로 _onModeChanged의 자동 GPS 설정이 실행되지 않음) — 여기서
+      // 한 번 더 보장해 사용자가 GPS 버튼을 직접 누르지 않아도 출발지가 잡히게 한다.
+      if (!modeANavState.isNavigating && modeAState.originLat == null) {
+        unawaited(_fetchGpsOriginForModeA());
+      }
     }
 
     // 앱 재시작 복원: Mode B nav 상태 복원
@@ -288,6 +244,83 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           unawaited(_restoreGeneratedCourseNav(navState));
         }
       }
+    }
+
+    // 앱 재시작 시 이미 안내 중이던 상태로 복원됐다면 GPS 정밀도도 즉시 high로 맞춘다.
+    _syncPositionStreamAccuracy();
+  }
+
+  // 실제 내비게이션 중일 때만 고정밀 GPS를 켠다 — 단순 지도 탐색 중에는 medium으로
+  // 낮춰 배터리 소모를 줄인다. Mode A/B 안내가 시작되면 다시 high로 전환되므로
+  // 안내 중 정확도·실시간성은 변하지 않는다.
+  void _syncPositionStreamAccuracy() {
+    final needsHighAccuracy = ref.read(modeANavProvider).isNavigating ||
+        ref.read(modeBNavProvider).isNavigating;
+    if (needsHighAccuracy == _positionStreamHighAccuracy) return;
+    _subscribeToPositionStream(highAccuracy: needsHighAccuracy);
+  }
+
+  void _subscribeToPositionStream({required bool highAccuracy}) {
+    _positionStreamHighAccuracy = highAccuracy;
+    _positionSub?.cancel();
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: highAccuracy ? _navLocationSettings : _idleLocationSettings,
+    ).listen(_onPositionUpdate);
+  }
+
+  void _onPositionUpdate(Position p) {
+    if (!mounted) return;
+    setState(() => __position = p);
+    _locationOverlay?.setPosition(NLatLng(p.latitude, p.longitude));
+
+    // Mode A 네비게이션
+    final navState = ref.read(modeANavProvider);
+    if (navState.isNavigating) {
+      final route = ref.read(modeAProvider).routeResult;
+      if (route != null) {
+        if (route.transport == 'transit') {
+          _onModeATransitPositionUpdate(p, route);
+        } else {
+          _onModeAWalkBikePositionUpdate(p, route);
+        }
+      }
+      final prev = _prevNavPosition;
+      if (prev != null) {
+        final bearing = bearingDeg(
+            prev.latitude, prev.longitude, p.latitude, p.longitude);
+        final moved = Geolocator.distanceBetween(
+            prev.latitude, prev.longitude, p.latitude, p.longitude);
+        if (moved >= 2.0) {
+          _lastNavBearing = bearing;
+          // 8m 이상 이동 시 자동으로 단계별 안내로 전환
+          if (route != null && route.transport != 'transit' && !_modeANavStepMode) {
+            _movedSinceModeANavStart += moved;
+            if (_movedSinceModeANavStart > 8.0) {
+              setState(() => _modeANavStepMode = true);
+            }
+          }
+        }
+      }
+      _prevNavPosition = p;
+      // Mode B와 동일: 카메라 베어링에 기기 나침반 사용 (north-up 아닐 때)
+      _followNavCamera(
+        p.latitude, p.longitude,
+        _modeANorthUpMode ? 0.0 : _compassHeading,
+      );
+      // 잔여 폴리라인 실시간 트리밍 (스로틀 없이 완전 실시간)
+      final currentNavState = ref.read(modeANavProvider);
+      if (route?.transport == 'transit') {
+        unawaited(_trimModeATransitPolylines(p, currentNavState));
+      } else {
+        unawaited(_trimModeAPolylineToRemaining(p, currentNavState));
+      }
+    }
+
+    // Mode B 네비게이션
+    final modeBNavState = ref.read(modeBNavProvider);
+    if (modeBNavState.isNavigating) {
+      _onModeBNavPositionUpdate(p, modeBNavState);
+      unawaited(_trimNavPolylineToRemaining(p, ref.read(modeBNavProvider)));
     }
   }
 
@@ -653,15 +686,23 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     });
 
     ref.listen<ModeANavState>(modeANavProvider, (prev, next) {
+      if ((prev?.isNavigating ?? false) != next.isNavigating) {
+        _syncPositionStreamAccuracy();
+      }
       if ((prev?.isNavigating ?? false) &&
           next.isNavigating &&
           next.remainingDistanceM < 50) {
+        _modeAArrivalDialogPending = true;
         ref.read(modeANavProvider.notifier).stop();
         _resetNavCamera();
-        _showArrivalMessage();
+        _showArrivalRestaurantDialog();
       }
       // 네비게이션 시작 → overview 초기화 + 방향 전환 포인트 계산 + 구간 폴리라인 표시
       if (!(prev?.isNavigating ?? false) && next.isNavigating) {
+        // 안내 중에는 출발/경유/목적지 마커만 남기고 나머지(주변 맛집·관광지 등 탐색용
+        // 마커, 프리뷰 단계의 화살표·안내 핀)는 지운다.
+        unawaited(_clearNearbyMarkers());
+        unawaited(_clearModeADecorations());
         // 주의: 여기서 _clearTransitNavPolylines()를 호출하면 안 된다 — "코스생성" 때
         // 그려둔 _transitNavPolylines 핸들 캐시를 지워버려서, 안내 중 실시간 트리밍
         // (_trimModeATransitPolylines)이 대상 오버레이를 못 찾아 색이 고정돼버린다.
@@ -690,7 +731,12 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         unawaited(_clearModeAWalkTurnMarkers());
         _clearTransitNavPolylines();
         if (mounted) setState(_resetModeAWalkTurnState);
-        ref.read(modeAProvider.notifier).clearRouteResult();
+        // 도착으로 인한 종료면 "주변 맛집을 보실까요?" 다이얼로그의 응답에 따라
+        // _showArrivalRestaurantDialog()가 직접 routeResult를 정리한다 — 여기서
+        // 먼저 지워버리면 다이얼로그가 참조할 식당 목록이 사라진다.
+        if (!_modeAArrivalDialogPending) {
+          ref.read(modeAProvider.notifier).clearRouteResult();
+        }
       }
       // 대중교통 도보 구간 이탈 — 도보/자전거는 다이얼로그+자동 재경로(nav_mixin.dart에서
       // 직접 트리거)로 처리하므로, 여기서는 대중교통일 때만 스낵바로 안내한다
@@ -711,6 +757,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
 
     // Mode B 네비게이션 이벤트
     ref.listen<ModeBNavState>(modeBNavProvider, (prev, next) {
+      if ((prev?.isNavigating ?? false) != next.isNavigating) {
+        _syncPositionStreamAccuracy();
+      }
       if (!next.isNavigating) return;
 
       // 도착 감지
