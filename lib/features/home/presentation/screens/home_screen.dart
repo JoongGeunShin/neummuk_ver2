@@ -57,71 +57,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context.go('/record');
       case NavTab.me:
         final user = ref.read(authStateProvider).valueOrNull;
-        if (user == null || user.isGuest) {
+        if (user == null) {
           setState(() => _activeTab = NavTab.home);
-          _showSignupDialog();
+          context.go('/login');
         } else {
           context.go('/user');
         }
       case NavTab.home:
         break;
     }
-  }
-
-  void _showSignupDialog() {
-    final c = context.colors;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: c.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          '회원가입하시겠습니까?',
-          style: TextStyle(
-            color: c.text,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.3,
-          ),
-        ),
-        content: Text(
-          '회원가입하면 활동 기록을 저장하고\n더 정확한 칼로리 계산이 가능해요.',
-          style: TextStyle(
-            color: c.textMuted,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            height: 1.6,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              '나중에',
-              style: TextStyle(
-                color: c.textMuted,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.go('/login');
-            },
-            child: Text(
-              '회원가입하기',
-              style: TextStyle(
-                color: c.primary,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override

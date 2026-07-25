@@ -96,6 +96,7 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final user = ref.watch(authStateProvider).valueOrNull;
+    final isGuest = user?.isGuest ?? false;
     final profileAsync = ref.watch(userProfileProvider);
 
     return DoubleBackToExit(
@@ -192,6 +193,11 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                           ),
                         ],
                       ),
+
+                      if (isGuest) ...[
+                        SizedBox(height: context.hp(2)),
+                        _GuestSignupBanner(c: c),
+                      ],
 
                       SizedBox(height: context.hp(3)),
 
@@ -298,7 +304,7 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                   context.wp(5), 0, context.wp(5), context.hp(3)),
               child: Column(
                 children: [
-                  // 로그아웃
+                  // 로그아웃 (게스트는 세션 종료)
                   GestureDetector(
                     onTap: _signOut,
                     child: Container(
@@ -311,7 +317,7 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                       ),
                       child: Center(
                         child: Text(
-                          '로그아웃',
+                          isGuest ? '게스트 모드 종료' : '로그아웃',
                           style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -320,26 +326,28 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  // 회원탈퇴
-                  GestureDetector(
-                    onTap: _deleting ? null : _showDeleteDialog,
-                    child: _deleting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            '회원탈퇴',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: c.textFaint,
-                                decoration: TextDecoration.underline,
-                                decorationColor: c.textFaint),
-                          ),
-                  ),
+                  // 회원탈퇴 — 가입한 계정에만 의미가 있어 게스트에는 숨긴다.
+                  if (!isGuest) ...[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _deleting ? null : _showDeleteDialog,
+                      child: _deleting
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              '회원탈퇴',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: c.textFaint,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: c.textFaint),
+                            ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -351,6 +359,63 @@ class _UserInfoScreenState extends ConsumerState<UserInfoScreen> {
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
+
+class _GuestSignupBanner extends StatelessWidget {
+  const _GuestSignupBanner({required this.c});
+  final dynamic c;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: c.primarySoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: c.primary.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '게스트로 둘러보는 중이에요',
+                  style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800, color: c.text),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '회원가입하면 활동 기록을 저장하고\n더 정확한 칼로리 계산이 가능해요.',
+                  style: TextStyle(fontSize: 12, color: c.textMuted, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => context.push('/signup'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: c.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                '가입하기',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.label, required this.colors});
