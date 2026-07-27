@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/repositories/mode_a_repository_impl.dart';
@@ -284,6 +285,13 @@ class ModeA extends _$ModeA {
     state = state.copyWith(isLoading: true);
     try {
       final metrics = ref.read(userProfileProvider).toBodyMetrics();
+      // gpx export 테스트(test/mode_a_gpx_export/export_route_gpx_test.dart)용 좌표 로그 —
+      // 실제 앱에서 코스를 생성하면 여기 찍힌 origin/waypoints/dest/transport를 그대로
+      // 테스트 상수에 복사해 동일한 경로를 재현할 수 있다.
+      debugPrint('[ModeA][gpx-test-input] transport=${state.transport} '
+          'origin=(${state.originLat}, ${state.originLng}) '
+          'waypoints=${state.waypoints.map((w) => '(${w.latitude}, ${w.longitude})').toList()} '
+          'dest=(${state.destLat}, ${state.destLng})');
       final result = await ref.read(modeARepositoryProvider).getRoute(
             from: state.from,
             to: state.to,
@@ -295,6 +303,9 @@ class ModeA extends _$ModeA {
             metrics: metrics,
             waypoints: state.waypoints,
           );
+      debugPrint('[ModeA][gpx-test-input] result: source=${result.routeSource} '
+          'distanceKm=${result.distanceKm} durationSec=${result.durationSeconds} '
+          'kcalBurn=${result.kcalBurn} points=${result.routePoints.length}');
       state = state.copyWith(routeResult: result, isLoading: false);
       // 도착지가 음식점/카페가 아닌 경우에만 주변 식당 로드
       if (!state.destIsRestaurant) {

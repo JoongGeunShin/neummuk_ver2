@@ -153,7 +153,7 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
     final externalUrl =
         spot.source == 'kakao' ? spot.placeUrl : _homepageUrl;
     final externalLabel =
-        spot.source == 'kakao' ? '카카오맵에서 보기' : '공식 홈페이지';
+        spot.source == 'kakao' ? '지도에서 보기' : '공식 홈페이지';
 
     return Scaffold(
       backgroundColor: c.bg,

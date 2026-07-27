@@ -116,9 +116,9 @@ class _Detail {
       return (category ?? '음식점', const Color(0xFF03C75A));
     }
     return switch (source ?? PlaceSource.kakaoLocal) {
-      PlaceSource.tourApi  => ('TourAPI', const Color(0xFFFF5722)),
-      PlaceSource.kakaoLocal => ('카카오', const Color(0xFF1E88E5)),
-      PlaceSource.both => ('두루누비', const Color(0xFF03C75A)),
+      PlaceSource.tourApi  => ('장소', const Color(0xFFFF5722)),
+      PlaceSource.kakaoLocal => ('장소', const Color(0xFF1E88E5)),
+      PlaceSource.both => ('⭐ 추천', const Color(0xFF03C75A)),
     };
   }
 

@@ -534,6 +534,7 @@ class ModeARepositoryImpl implements ModeARepository {
       waypoints: waypoints,
       routePoints: routePoints,
       transitSteps: transitSteps,
+      routeSource: 'odsay',
     );
   }
 

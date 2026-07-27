@@ -119,7 +119,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           color: c.success, haloColor: Colors.black87,
         ),
         captionOffset: 4,
-        isHideCollidedCaptions: false,
+        isHideCollidedCaptions: true,
       ));
     }
     if (s.destLat != null && s.destLng != null) {
@@ -132,7 +132,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           color: c.danger, haloColor: Colors.black87,
         ),
         captionOffset: 4,
-        isHideCollidedCaptions: false,
+        isHideCollidedCaptions: true,
       ));
     }
     for (var i = 0; i < s.waypoints.length; i++) {
@@ -146,7 +146,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           color: c.accent, haloColor: Colors.black87,
         ),
         captionOffset: 4,
-        isHideCollidedCaptions: false,
+        isHideCollidedCaptions: true,
       ));
     }
   }
@@ -838,7 +838,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               ref.read(modeAProvider.notifier).clearAll();
               _fetchGpsOriginForModeA();
             },
-            onBack: () => context.pop(),
+            onBack: _modeASafeBack,
           ),
         ),
 
@@ -885,8 +885,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           child: _KcalWidget(routeKcal: modeAState.routeResult?.kcalBurn),
         ),
 
-      // ── 결과 시트 (안내 중 아닐 때) ──────────────────────────
-      if (modeAState.routeResult != null && !navState.isNavigating)
+      // ── 결과 시트 (안내 중 아닐 때, 경로 수정 중이 아닐 때) ──────
+      if (modeAState.routeResult != null &&
+          !navState.isNavigating &&
+          !_routePanelEditing)
         DraggableScrollableSheet(
           controller: _sheetACtrl,
           initialChildSize: 0.52,

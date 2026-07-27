@@ -217,7 +217,8 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
           searchController: _searchCtrl,
           categories: categories,
           selectedCategory: exploreState.selectedCategory,
-          onClose: () => context.pop(),
+          onClose: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
           onSearch: (v) {
             _resetExploreMapFocus();
             _onSearchSubmit(v);
