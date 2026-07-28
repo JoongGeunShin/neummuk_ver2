@@ -33,12 +33,24 @@ service cloud.firestore {
 
       allow update: if request.auth != null
         && (
-          // 일반 필드 업데이트 (시드, API 캐싱)
-          !request.resource.data.keys().hasAny(['search_count'])
+          // 일반 필드 업데이트 (시드, API 캐싱) — 이 요청이 search_count 자체를
+          // 바꾸지 않으면 허용. (기존엔 결과 문서에 search_count 키가 "있기만 해도"
+          // 막혀서, 이미 한 번이라도 검색된 적 있는 문서는 다른 필드조차 못 고치는
+          // 버그가 있었다 — 시드 스크립트 재실행 시 기존 검색 카운트가 있는 문서를
+          // 건드리기만 해도 전부 막혀 발견됨.)
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['search_count'])
+          // 또는 search_count가 아직 없던 문서에 0으로 최초 초기화하는 경우
+          // (시드 스크립트가 예전 버그로 필드 자체가 안 생겼던 문서를 백필할 때 필요)
+          || (!resource.data.keys().hasAny(['search_count'])
+                && request.resource.data.search_count == 0)
           // 또는 search_count를 정확히 1 증가시키는 경우만 허용
           || (request.resource.data.search_count ==
                 resource.data.get('search_count', 0) + 1)
         );
+
+      // FoodFirestoreDatasource.pruneStale()이 검색 안 되는 오래된 항목을
+      // batch.delete()로 정리한다 — 이 규칙이 없으면 그 삭제가 조용히 실패한다.
+      allow delete: if request.auth != null;
     }
 
     // ── 음식 카테고리 (동적 카테고리 목록) ───────────────────────
@@ -48,6 +60,7 @@ service cloud.firestore {
     match /food_categories/{catName} {
       allow read: if true;
       allow create, update: if request.auth != null;
+      allow delete: if request.auth != null;
     }
 
     // ── 일별 활동 기록 ───────────────────────────────────────
