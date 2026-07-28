@@ -20,13 +20,35 @@ class AppConstants {
     return m.sex == 'female' ? base - 161 : base + 5;
   }
 
+  /// MET 값을 직접 받아 시간당 소모 칼로리(kcal/h)를 계산하는 단일 원천 공식.
+  /// [kcalPerHour](고정 transport→MET 조회)와 foreground 걸음 추적의 실측 속도
+  /// 기반 MET(WalkCalculator.met())이 모두 이 함수로 수렴해, "어디서 재느냐"에
+  /// 따라 칼로리 공식 자체가 달라지지 않도록 한다.
+  static double kcalPerHourFromMet({
+    required double met,
+    required BodyMetrics metrics,
+  }) {
+    return met * (calculateBmr(metrics) / 24.0);
+  }
+
   /// 이동수단별 시간당 소모 칼로리(kcal/h) = MET × (BMR/24)
   static double kcalPerHour({
     required String transport,
     required BodyMetrics metrics,
   }) {
     final met = metValues[transport] ?? metValues['walk']!;
-    return met * (calculateBmr(metrics) / 24.0);
+    return kcalPerHourFromMet(met: met, metrics: metrics);
+  }
+
+  /// MET 값을 직접 받아 소비 칼로리 = MET × (BMR/24) × 시간(hour)을 계산한다.
+  static double calculateKcalFromMet({
+    required double met,
+    required BodyMetrics metrics,
+    required int durationSeconds,
+  }) {
+    return kcalPerHourFromMet(met: met, metrics: metrics) *
+        durationSeconds /
+        3600.0;
   }
 
   /// 소비 칼로리 = MET × (BMR/24) × 시간(hour)
@@ -35,9 +57,9 @@ class AppConstants {
     required BodyMetrics metrics,
     required int durationSeconds,
   }) {
-    return kcalPerHour(transport: transport, metrics: metrics) *
-        durationSeconds /
-        3600.0;
+    final met = metValues[transport] ?? metValues['walk']!;
+    return calculateKcalFromMet(
+        met: met, metrics: metrics, durationSeconds: durationSeconds);
   }
 
   /// targetKcal 소모에 필요한 이동 시간(hour) 역산
