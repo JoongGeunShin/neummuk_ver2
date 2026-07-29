@@ -11,8 +11,8 @@ import '../../../../features/onboarding/presentation/providers/onboarding_provid
 import '../../../../features/record/data/repositories/record_repository_impl.dart';
 import '../../../../features/record/domain/entities/daily_record_entity.dart';
 import '../../../../features/record/presentation/providers/record_provider.dart';
+import '../../../../core/services/walk_calculator.dart';
 import '../../domain/entities/walk_session_entity.dart';
-import '../../domain/services/walk_calculator.dart';
 import '../../domain/services/walk_task_handler.dart';
 
 part 'walk_provider.g.dart';
