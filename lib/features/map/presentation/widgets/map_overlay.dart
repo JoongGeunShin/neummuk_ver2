@@ -20,7 +20,6 @@ import '../../../../core/utils/turn_point_utils.dart';
 import '../../../../core/widgets/calorie_compare_donut.dart';
 import '../../../../core/widgets/food_image.dart';
 import '../../../../core/widgets/map_widgets.dart';
-import '../../../../core/widgets/tiny_ring.dart';
 import '../../data/datasources/road_route_datasource.dart';
 import '../../../mode_a/domain/entities/restaurant_entity.dart';
 import '../../../mode_a/domain/entities/route_result_entity.dart';

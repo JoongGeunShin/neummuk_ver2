@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/body_metrics.dart';
+import '../../../../core/services/live_kcal_tracker.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 
@@ -104,12 +105,18 @@ class ModeBNavState {
 @Riverpod(keepAlive: true)
 class ModeBNav extends _$ModeBNav {
   SharedPreferences? _prefs;
-  DateTime? _lastUpdateTime;
+  LiveKcalTracker? _kcalTracker;
 
   Future<SharedPreferences> _getPrefs() async {
     _prefs ??= await SharedPreferences.getInstance();
     return _prefs!;
   }
+
+  /// 실측 GPS 속도 기반 실시간 칼로리 트래커 — foreground 걸음 추적과 동일한 공식
+  /// (WalkCalculator.met() + kcalPerHourFromMet)을 쓴다. 세션당 하나만 유지하고,
+  /// 복원 시에는 저장된 elapsedKcal을 초기값으로 이어받는다.
+  LiveKcalTracker _kcalTrackerFor(BodyMetrics metrics) =>
+      _kcalTracker ??= LiveKcalTracker(metrics: metrics, initialKcal: state.elapsedKcal);
 
   @override
   ModeBNavState build() => const ModeBNavState();
@@ -125,7 +132,7 @@ class ModeBNav extends _$ModeBNav {
     final speedMs = isBike ? 4.17 : 1.25;
     final totalM = _calcTotalDistanceM(route, gpxPoints, segmentDistancesM);
     final firstInstruction = _buildFirstInstruction(route);
-    _lastUpdateTime = null;
+    _kcalTracker = null;
 
     state = ModeBNavState(
       isNavigating: true,
@@ -147,13 +154,13 @@ class ModeBNav extends _$ModeBNav {
   }
 
   Future<void> stop() async {
-    _lastUpdateTime = null;
+    _kcalTracker = null;
     state = const ModeBNavState();
     await _clearPersist();
   }
 
   void restore(ModeBNavState savedState) {
-    _lastUpdateTime = null;
+    _kcalTracker = null;
     state = savedState;
   }
 
@@ -172,21 +179,12 @@ class ModeBNav extends _$ModeBNav {
     final route = state.route;
     if (route == null) return;
 
-    // 실제 경과 시간(시간 단위)으로 칼로리 계산 → 이동 빈도 무관하게 정확
-    final now = DateTime.now();
-    final dtHours = _lastUpdateTime != null
-        ? now.difference(_lastUpdateTime!).inMilliseconds / 3600000.0
-        : 1.0 / 3600.0; // 첫 호출은 1초 가정
-    _lastUpdateTime = now;
-
-    // 이동 중일 때만 칼로리 누적 (1분 이상 경과는 GPS 끊김으로 보고 무시)
-    final rate = AppConstants.kcalPerHour(
-      transport: transport == 'bike' ? 'bike' : 'walk',
-      metrics: metrics,
-    );
-    final newKcal = dtHours < (1.0 / 60.0)
-        ? state.elapsedKcal + rate * dtHours
-        : state.elapsedKcal;
+    // 실측 GPS 속도로 MET을 실시간 보간해 칼로리 누적 — foreground 걸음 추적과
+    // 동일한 공식(LiveKcalTracker). transport(도보/자전거)는 매칭·재경로 등 경로
+    // 로직에는 계속 쓰이지만, 칼로리 자체는 이제 실제 페이스를 반영한다.
+    final tracker = _kcalTrackerFor(metrics);
+    tracker.onTick(DateTime.now(), lat, lng);
+    final newKcal = tracker.kcal;
 
     if (route.isGenerated && route.waypoints.isNotEmpty) {
       // 정상 흐름에서는 mixin이 도로 스냅 폴리라인 기준으로 계산해
@@ -207,6 +205,8 @@ class ModeBNav extends _$ModeBNav {
   /// 화면에 그려지는 폴리라인(_segmentPolylines)과 동일한 데이터를 기준으로
   /// 도착/이탈/잔여거리를 판정해, 직선거리 기반 판정과의 불일치(오차)를 없앤다.
   void updateGeneratedFromRoad({
+    required double lat,
+    required double lng,
     required double distToTargetM,
     required double distToRoadM,
     required double remainingSegM,
@@ -217,19 +217,11 @@ class ModeBNav extends _$ModeBNav {
     final route = state.route;
     if (route == null || !route.isGenerated) return;
 
-    final now = DateTime.now();
-    final dtHours = _lastUpdateTime != null
-        ? now.difference(_lastUpdateTime!).inMilliseconds / 3600000.0
-        : 1.0 / 3600.0;
-    _lastUpdateTime = now;
-
-    final rate = AppConstants.kcalPerHour(
-      transport: transport == 'bike' ? 'bike' : 'walk',
-      metrics: metrics,
-    );
-    final newKcal = dtHours < (1.0 / 60.0)
-        ? state.elapsedKcal + rate * dtHours
-        : state.elapsedKcal;
+    // 실측 GPS 속도로 MET을 실시간 보간해 칼로리 누적 — onPositionUpdate와 동일한
+    // LiveKcalTracker를 공유한다(세션당 하나).
+    final tracker = _kcalTrackerFor(metrics);
+    tracker.onTick(DateTime.now(), lat, lng);
+    final newKcal = tracker.kcal;
 
     final wps = route.waypoints;
     var curIdx = state.currentWaypointIdx;

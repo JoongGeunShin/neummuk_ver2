@@ -5,6 +5,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/models/body_metrics.dart';
+import '../../../../core/services/live_kcal_tracker.dart';
 import '../../domain/entities/route_result_entity.dart';
 
 part 'mode_a_nav_provider.g.dart';
@@ -16,6 +18,7 @@ part 'mode_a_nav_provider.g.dart';
 const kModeANavActive = 'mode_a_nav_active';
 const kModeANavLegIdx = 'mode_a_nav_leg_idx';
 const kModeANavTransitStepIdx = 'mode_a_nav_transit_step_idx';
+const kModeANavElapsedKcal = 'mode_a_nav_elapsed_kcal';
 
 class ModeANavState {
   const ModeANavState({
@@ -26,6 +29,7 @@ class ModeANavState {
     this.remainingSec = 0,
     this.isOffRoute = false,
     this.currentTransitStepIdx = 0,
+    this.elapsedKcal = 0.0,
   });
 
   final bool isNavigating;
@@ -38,6 +42,10 @@ class ModeANavState {
   final bool isOffRoute;
   /// 대중교통 안내: 현재 진행 중인 subPath 단계 인덱스
   final int currentTransitStepIdx;
+  /// 실측 GPS 속도 기반 실시간 누적 칼로리(도보/자전거 전용 — LiveKcalTracker).
+  /// 대중교통 안내 중에는 갱신되지 않는다(구간 자체가 도보/차량이 섞여 있어 실측
+  /// 페이스 트래킹이 무의미).
+  final double elapsedKcal;
 
   String get remainingLabel => remainingDistanceM < 1000
       ? '${remainingDistanceM}m'
@@ -53,6 +61,7 @@ class ModeANavState {
     int? remainingSec,
     bool? isOffRoute,
     int? currentTransitStepIdx,
+    double? elapsedKcal,
   }) {
     return ModeANavState(
       isNavigating: isNavigating ?? this.isNavigating,
@@ -62,6 +71,7 @@ class ModeANavState {
       remainingSec: remainingSec ?? this.remainingSec,
       isOffRoute: isOffRoute ?? this.isOffRoute,
       currentTransitStepIdx: currentTransitStepIdx ?? this.currentTransitStepIdx,
+      elapsedKcal: elapsedKcal ?? this.elapsedKcal,
     );
   }
 }
@@ -69,11 +79,17 @@ class ModeANavState {
 @Riverpod(keepAlive: true)
 class ModeANav extends _$ModeANav {
   SharedPreferences? _prefs;
+  LiveKcalTracker? _kcalTracker;
 
   Future<SharedPreferences> _getPrefs() async {
     _prefs ??= await SharedPreferences.getInstance();
     return _prefs!;
   }
+
+  /// 실측 GPS 속도 기반 실시간 칼로리 트래커 — foreground 걸음 추적·Mode B 내비게이션과
+  /// 동일한 공식(WalkCalculator.met() + kcalPerHourFromMet)을 쓴다.
+  LiveKcalTracker _kcalTrackerFor(BodyMetrics metrics) =>
+      _kcalTracker ??= LiveKcalTracker(metrics: metrics, initialKcal: state.elapsedKcal);
 
   @override
   ModeANavState build() => const ModeANavState();
@@ -95,6 +111,7 @@ class ModeANav extends _$ModeANav {
       initialSec = 0;
     }
 
+    _kcalTracker = null;
     state = ModeANavState(
       isNavigating: true,
       currentLegIdx: 0,
@@ -102,18 +119,37 @@ class ModeANav extends _$ModeANav {
       remainingDistanceM: totalM.round(),
       remainingSec: initialSec,
       currentTransitStepIdx: 0,
+      elapsedKcal: 0.0,
     );
     unawaited(_persist());
   }
 
   void stop() {
+    _kcalTracker = null;
     state = const ModeANavState();
     unawaited(_clearPersist());
+  }
+
+  /// 도보/자전거 내비게이션 중 GPS 위치 업데이트마다 호출 — 실측 속도로 MET을
+  /// 보간해 칼로리를 누적한다. updateFromRoad와 별도 메서드인 이유: 이동수단
+  /// 진행률(거리·구간) 로직과 칼로리 로직을 분리해, 향후 대중교통에도 부분적으로
+  /// 적용하는 등의 변경이 서로에게 영향을 주지 않게 한다.
+  void updateKcal({
+    required double lat,
+    required double lng,
+    required BodyMetrics metrics,
+  }) {
+    if (!state.isNavigating) return;
+    final tracker = _kcalTrackerFor(metrics);
+    tracker.onTick(DateTime.now(), lat, lng);
+    state = state.copyWith(elapsedKcal: tracker.kcal);
+    _persistProgressAsync();
   }
 
   /// 앱 강제종료 후 재실행 복원 — restore()는 persist하지 않는다(이미 저장된 값을
   /// 그대로 반영하는 것뿐이라 다시 쓸 필요가 없다).
   void restore(ModeANavState savedState) {
+    _kcalTracker = null;
     state = savedState;
   }
 
@@ -215,6 +251,7 @@ class ModeANav extends _$ModeANav {
       await prefs.setBool(kModeANavActive, true);
       await prefs.setInt(kModeANavLegIdx, state.currentLegIdx);
       await prefs.setInt(kModeANavTransitStepIdx, state.currentTransitStepIdx);
+      await prefs.setDouble(kModeANavElapsedKcal, state.elapsedKcal);
     } catch (_) {}
   }
 
@@ -222,6 +259,7 @@ class ModeANav extends _$ModeANav {
     _getPrefs().then((prefs) {
       prefs.setInt(kModeANavLegIdx, state.currentLegIdx);
       prefs.setInt(kModeANavTransitStepIdx, state.currentTransitStepIdx);
+      prefs.setDouble(kModeANavElapsedKcal, state.elapsedKcal);
     }).ignore();
   }
 
@@ -230,6 +268,7 @@ class ModeANav extends _$ModeANav {
       final prefs = await _getPrefs();
       for (final key in [
         kModeANavActive, kModeANavLegIdx, kModeANavTransitStepIdx,
+        kModeANavElapsedKcal,
       ]) {
         await prefs.remove(key);
       }
@@ -246,11 +285,13 @@ class ModeANav extends _$ModeANav {
 
       final legIdx = prefs.getInt(kModeANavLegIdx) ?? 0;
       final transitStepIdx = prefs.getInt(kModeANavTransitStepIdx) ?? 0;
+      final elapsedKcal = prefs.getDouble(kModeANavElapsedKcal) ?? 0.0;
 
       return ModeANavState(
         isNavigating: true,
         currentLegIdx: legIdx,
         currentTransitStepIdx: transitStepIdx,
+        elapsedKcal: elapsedKcal,
       );
     } catch (_) {
       return null;

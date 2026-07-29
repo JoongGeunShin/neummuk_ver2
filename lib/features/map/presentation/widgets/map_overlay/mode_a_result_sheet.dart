@@ -198,7 +198,6 @@ class _ModeAResultSheet extends StatelessWidget {
                         onRestaurantTap: onRestaurantTap,
                         onPlaceTap: onPlaceTap,
                         onDurunubiTap: onDurunubiTap,
-                        routeKcal: result.kcalBurn,
                       ),
                     ),
                   ],
@@ -258,14 +257,12 @@ class _NearbyTabContent extends StatelessWidget {
     required this.onRestaurantTap,
     required this.onPlaceTap,
     required this.onDurunubiTap,
-    required this.routeKcal,
   });
 
   final ModeAState state;
   final ValueChanged<RestaurantEntity> onRestaurantTap;
   final ValueChanged<PlaceEntity> onPlaceTap;
   final ValueChanged<TouristRouteEntity> onDurunubiTap;
-  final int routeKcal;
 
   @override
   Widget build(BuildContext context) {
@@ -294,7 +291,6 @@ class _NearbyTabContent extends StatelessWidget {
                 width: MediaQuery.sizeOf(context).width * 0.58,
                 child: _RestaurantCard(
                   restaurant: r,
-                  routeKcal: routeKcal,
                   onTap: () => onRestaurantTap(r),
                 ),
               ),
@@ -560,38 +556,19 @@ class _DurunubiCourseCard extends StatelessWidget {
 // ── Restaurant card ───────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-enum _CalMatch { good, tooMuch, tooLittle }
-
-_CalMatch _calMatch(int rKcal, int routeKcal) {
-  if (routeKcal <= 0) return _CalMatch.good;
-  final ratio = rKcal / routeKcal;
-  if (ratio >= 0.80 && ratio <= 1.20) return _CalMatch.good;
-  return ratio > 1.20 ? _CalMatch.tooMuch : _CalMatch.tooLittle;
-}
-
 class _RestaurantCard extends StatelessWidget {
   const _RestaurantCard({
     required this.restaurant,
-    required this.routeKcal,
     required this.onTap,
   });
 
   final RestaurantEntity restaurant;
-  final int routeKcal;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final r = restaurant;
-    final match = _calMatch(r.kcal, routeKcal);
-    final ratio = routeKcal > 0 ? r.kcal / routeKcal : 1.0;
-    final matchPct = (100 - (1 - ratio).abs() * 100).clamp(0.0, 100.0);
     final c = context.colors;
-    final matchColor = match == _CalMatch.good
-        ? c.success
-        : match == _CalMatch.tooMuch
-            ? c.warn
-            : c.pinUser;
 
     return GestureDetector(
       onTap: onTap,
@@ -614,49 +591,21 @@ class _RestaurantCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(r.name,
-                          style: const TextStyle(
-                              color: kMapWhite87,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              letterSpacing: -0.1),
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    const SizedBox(width: 6),
-                    TinyRing(
-                        pct: matchPct,
-                        size: 26,
-                        color: matchColor,
-                        label: '${matchPct.round()}'),
-                  ]),
+                  Text(r.name,
+                      style: const TextStyle(
+                          color: kMapWhite87,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          letterSpacing: -0.1),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
-                  Text('${r.menu} · 약 ${r.kcal} kcal',
+                  Text(r.menu,
                       style: const TextStyle(
                           color: kMapWhite45,
                           fontSize: 11,
                           fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 3),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: matchColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      match == _CalMatch.good
-                          ? '딱 맞아요 ✓'
-                          : match == _CalMatch.tooMuch
-                              ? '더 움직여야 해요'
-                              : '여유 있어요',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: matchColor),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   if (r.rating > 0)
                     Row(children: [
                       Icon(Icons.star_rounded,

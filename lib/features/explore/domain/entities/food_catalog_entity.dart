@@ -11,6 +11,7 @@ class FoodCatalogEntity {
     this.tags = const [],
     this.searchCount = 0,
     this.apiFoodCd,
+    this.isSeeded = false,
   });
 
   final String canonicalName;
@@ -22,6 +23,10 @@ class FoodCatalogEntity {
   final List<String> tags;
   final int searchCount;
   final String? apiFoodCd;
+  /// 큐레이션 시드 데이터 여부 — true면 FoodFirestoreDatasource.pruneStale()의
+  /// "검색 안 되는 항목 자동 삭제" 대상에서 제외된다. 라이브 API로 사용자가 직접
+  /// 추가한 항목만 이 값이 false로 남아 정리 대상이 된다.
+  final bool isSeeded;
 
   Map<String, dynamic> toFirestoreMap() => {
         'canonical_name': canonicalName,
@@ -32,6 +37,7 @@ class FoodCatalogEntity {
         'tags': tags,
         'search_count': searchCount,
         if (apiFoodCd != null) 'api_food_cd': apiFoodCd,
+        if (isSeeded) 'is_seeded': isSeeded,
         'updated_at': FieldValue.serverTimestamp(),
       };
 
@@ -57,6 +63,7 @@ class FoodCatalogEntity {
       tags: List<String>.from(m['tags'] as List? ?? []),
       searchCount: (m['search_count'] as num?)?.toInt() ?? 0,
       apiFoodCd: m['api_food_cd'] as String?,
+      isSeeded: m['is_seeded'] as bool? ?? false,
     );
   }
 }

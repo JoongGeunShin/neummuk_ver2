@@ -168,6 +168,14 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    Text(
+                      '${navState.elapsedKcal.round()} kcal',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: accent,
+                      ),
+                    ),
                   ]),
                   const SizedBox(height: 6),
                   ClipRRect(
@@ -353,6 +361,12 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
                     label: '남은 시간',
                     value: '약 ${navState.remainingMinutes}분',
                     color: kMapWhite87,
+                  ),
+                  Container(width: 1, height: 28, color: Colors.white12),
+                  _ModeAWalkStatChip(
+                    label: '소모 칼로리',
+                    value: '${navState.elapsedKcal.round()}kcal',
+                    color: accent,
                   ),
                 ],
               ),

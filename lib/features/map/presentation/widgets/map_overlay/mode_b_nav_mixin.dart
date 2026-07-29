@@ -274,6 +274,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           p.latitude, p.longitude, target.lat, target.lng);
 
       ref.read(modeBNavProvider.notifier).updateGeneratedFromRoad(
+            lat: p.latitude,
+            lng: p.longitude,
             distToTargetM: distToTargetM,
             distToRoadM: progress.distToRoadM,
             remainingSegM: progress.remainingSegM,

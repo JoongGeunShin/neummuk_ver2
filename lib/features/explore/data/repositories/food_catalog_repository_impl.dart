@@ -185,12 +185,15 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
       cat2: item.foodCat2Name,
     );
 
-    // API 원본 카테고리를 그대로 사용: FOOD_CAT2_NM → FOOD_CAT1_NM → '기타'
-    // "해당없음"은 API의 null 플레이스홀더이므로 무효 처리
-    bool validCat(String s) => s.isNotEmpty && s != '해당없음';
-    final category = validCat(item.foodCat2Name)
-        ? item.foodCat2Name
-        : (validCat(item.foodCat1Name) ? item.foodCat1Name : '기타');
+    // 고정 14 카테고리(배민 스타일)로 정규화 — 예전엔 API 원본 FOOD_CAT2_NM/FOOD_CAT1_NM
+    // 텍스트를 그대로 category에 썼기 때문에, 정부 DB의 세분화된 하위분류를 새로 만날
+    // 때마다 ensureCategory()가 food_categories에 문서를 계속 새로 만들어 카테고리가
+    // 끝없이 늘어났다. emoji 판별에 이미 쓰던 것과 동일한 고정 taxonomy로 수렴시킨다.
+    final category = FoodEmojiService.resolveCategory(
+      foodName: displayName,
+      cat1: item.foodCat1Name,
+      cat2: item.foodCat2Name,
+    );
 
     return FoodCatalogEntity(
       canonicalName: canonicalName,

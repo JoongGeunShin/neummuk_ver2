@@ -165,6 +165,16 @@ mixin _NavOverlayMixin on ConsumerState<MapOverlay> {
           remainingSegM: progress.remainingSegM,
         );
 
+    // 실측 GPS 속도 기반 실시간 칼로리 — foreground 걸음 추적·Mode B 내비게이션과
+    // 동일한 공식(LiveKcalTracker)을 쓴다.
+    final profile = ref.read(userProfileProvider).valueOrNull;
+    final metrics = profile?.toBodyMetrics() ?? BodyMetrics.defaultMetrics;
+    ref.read(modeANavProvider.notifier).updateKcal(
+          lat: p.latitude,
+          lng: p.longitude,
+          metrics: metrics,
+        );
+
     final updatedState = ref.read(modeANavProvider);
     final newLegIdx = updatedState.currentLegIdx;
     final legAdvanced = newLegIdx != prevLegIdx;

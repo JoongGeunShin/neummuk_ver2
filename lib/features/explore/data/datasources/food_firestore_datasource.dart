@@ -82,6 +82,8 @@ class FoodFirestoreDatasource {
   }
 
   /// search_count <= [maxCount] 이고 [before] 이전에 갱신된 비시드 항목 삭제.
+  /// is_seeded: true인 큐레이션 데이터는 검색이 안 돼도 절대 지우지 않는다 —
+  /// 아니면 사람이 직접 채운 기준 카탈로그가 한 달 뒤 조용히 사라지는 사고가 난다.
   /// 복합 인덱스 불필요: search_count 단독 쿼리 후 클라이언트에서 is_seeded 필터링
   Future<int> pruneStale({
     required int maxCount,
@@ -95,7 +97,9 @@ class FoodFirestoreDatasource {
 
       final cutoff = Timestamp.fromDate(before);
       final stale = snap.docs.where((d) {
-        final ts = d.data()['updated_at'];
+        final data = d.data();
+        if (data['is_seeded'] == true) return false;
+        final ts = data['updated_at'];
         return ts is Timestamp && ts.compareTo(cutoff) < 0;
       }).toList();
 

@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/body_metrics.dart';
-import 'walk_calculator.dart';
+import '../../../../core/services/walk_calculator.dart';
 
 // SharedPreferences 키 — walk_provider.dart에서도 임포트해서 사용
 const kWalkDate = 'walk_today_date';
@@ -74,8 +74,11 @@ class WalkTaskHandler extends TaskHandler {
     _prefs?.setDouble(kWalkSpeedKmh, _speedKmh);
 
     if (_speedKmh >= 1.0) {
-      _caloriesKcal +=
-          WalkCalculator.met(_speedKmh) * (AppConstants.calculateBmr(_metrics) / 24.0) / 3600.0;
+      _caloriesKcal += AppConstants.calculateKcalFromMet(
+        met: WalkCalculator.met(_speedKmh),
+        metrics: _metrics,
+        durationSeconds: 1,
+      );
       _prefs?.setDouble(kWalkCalories, _caloriesKcal);
     }
 

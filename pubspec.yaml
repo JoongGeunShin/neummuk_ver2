@@ -1,7 +1,7 @@
 name: neummuk_ver2
 description: "2026 관광데이터 활용 공모전 - 내움먹 (내가 움직이는 이유는 먹기 위해서다)"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.8.1
