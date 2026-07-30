@@ -32,10 +32,12 @@ import '../mode_b_gpx_export/gpx_writer.dart';
 // "[ModeA][gpx-test-input]" 로그에서 복사할 것.
 // 턴 마커 미표시 버그를 재현하려면 좌우회전이 실제로 있는(직선이 아닌) 경로로 바꿔서
 // 테스트할 것 — 너무 짧거나 곧은 경로는 computeTurnPoints가 턴을 하나도 못 찾을 수 있다.
-const _originLat = 37.465515;
-const _originLng = 127.144647;
-const _destLat = 37.471995;
-const _destLng = 127.128597;
+// transport=walk origin=(37.465385, 127.1445383) waypoints=[] dest=(37.48011055297601, 127.14840204005722)
+// 스타필드시티 위례로 테스트
+const _originLat = 37.465385;
+const _originLng = 127.1445383;
+const _destLat = 37.48011055297601;
+const _destLng = 127.14840204005722;
 
 /// 경유지(선택) — 최대 3개, mode_a_provider의 RouteWaypoint와 동일한 순서 개념.
 const _waypoints = <({double lat, double lng})>[];
