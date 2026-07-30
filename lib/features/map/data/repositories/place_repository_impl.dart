@@ -25,6 +25,12 @@ class PlaceRepositoryImpl implements PlaceRepository {
     double searchLng = longitude;
     String? effectiveKeyword = keyword;
 
+    // 반경 제한 여부: 카테고리 칩/초기 브라우징("내 주변")은 항상 지도 반경으로 제한.
+    // 자유 텍스트 검색은 기본적으로 "세인트존스"처럼 지도에 보이는 범위 밖의
+    // 특정 장소명을 찾는 경우가 많으므로 전국 검색으로 처리한다.
+    // 단, "위례역 술집"처럼 위치 힌트가 있고 지오코딩에 성공하면 그 위치 반경으로 제한한다.
+    bool restrictRadius = isCategory || keyword == null || keyword.isEmpty;
+
     // 자유 텍스트 검색에 위치 힌트가 있으면:
     // 1) 위치 부분을 지오코딩해서 검색 중심 좌표를 얻는다.
     // 2) 위치 부분을 제거한 나머지 키워드만 API에 보낸다.
@@ -38,14 +44,17 @@ class PlaceRepositoryImpl implements PlaceRepository {
           searchLat = coords.$1;
           searchLng = coords.$2;
           effectiveKeyword = parsed.keyword.isNotEmpty ? parsed.keyword : null;
+          restrictRadius = true;
         }
       }
     }
 
     final results = await Future.wait([
-      _fetchTourApi(searchLat, searchLng, radiusMeters, effectiveKeyword, isCategory)
+      _fetchTourApi(searchLat, searchLng, radiusMeters, effectiveKeyword,
+              isCategory, restrictRadius)
           .catchError((_) => <PlaceEntity>[]),
-      _fetchKakaoLocal(searchLat, searchLng, radiusMeters, effectiveKeyword)
+      _fetchKakaoLocal(
+              searchLat, searchLng, radiusMeters, effectiveKeyword, restrictRadius)
           .catchError((_) => <PlaceEntity>[]),
     ]);
     return _merge(results[0], results[1], effectiveKeyword, isCategory: isCategory);
@@ -89,6 +98,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
     int radius,
     String? keyword,
     bool isCategory,
+    bool restrictRadius,
   ) async {
     final String path;
     final Map<String, String> params;
@@ -104,11 +114,15 @@ class PlaceRepositoryImpl implements PlaceRepository {
         'MobileApp': 'neummuk',
         '_type': 'json',
         'keyword': keyword,
-        'mapX': lng.toStringAsFixed(7),
-        'mapY': lat.toStringAsFixed(7),
-        'radius': radius.clamp(0, 20000).toString(),
         'arrange': 'A',
       };
+      // 위치 힌트가 없는 순수 장소명 검색은 mapX/mapY/radius를 넣지 않는다 —
+      // 넣으면 TourAPI가 그 반경 밖의 결과(예: 지도 밖 지역의 호텔)를 모두 제외해버린다.
+      if (restrictRadius) {
+        params['mapX'] = lng.toStringAsFixed(7);
+        params['mapY'] = lat.toStringAsFixed(7);
+        params['radius'] = radius.clamp(0, 20000).toString();
+      }
     } else {
       // 카테고리 칩 or 초기 브라우징: 위치 기반, contentTypeId 없음 → 전체 유형
       path = 'locationBasedList2';
@@ -178,18 +192,24 @@ class PlaceRepositoryImpl implements PlaceRepository {
     double lng,
     int radius,
     String? keyword,
+    bool restrictRadius,
   ) async {
     if (keyword != null && keyword.isNotEmpty) {
       // 자유 텍스트 검색: category_group_code 제거 → 모든 장소 유형 포함
+      // 위치 힌트가 없는 순수 장소명 검색은 x/y/radius를 넣지 않는다 —
+      // 넣으면 Kakao가 그 반경 밖의 결과를 모두 제외해버린다 (전국 검색이 되어야 함).
+      final queryParams = <String, String>{
+        'query': keyword,
+        'size': '15',
+      };
+      if (restrictRadius) {
+        queryParams['x'] = lng.toString();
+        queryParams['y'] = lat.toString();
+        queryParams['radius'] = radius.toString();
+      }
       final response = await http.get(
         Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/keyword.json')
-            .replace(queryParameters: {
-          'query': keyword,
-          'x': lng.toString(),
-          'y': lat.toString(),
-          'radius': radius.toString(),
-          'size': '15',
-        }),
+            .replace(queryParameters: queryParams),
         headers: {'Authorization': 'KakaoAK $_kakaoKey'},
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) return [];
