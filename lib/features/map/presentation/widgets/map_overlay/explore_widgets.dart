@@ -58,6 +58,7 @@ class _ExploreTopPanel extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white),
                         decoration: InputDecoration(
+                          filled: false,
                           hintText: '음식점, 관광지, 백화점 검색',
                           hintStyle: const TextStyle(
                               fontSize: 14, color: Colors.white38, fontWeight: FontWeight.w400),
