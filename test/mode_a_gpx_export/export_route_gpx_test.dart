@@ -23,10 +23,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neummuk_ver2/core/constants/app_constants.dart';
 import 'package:neummuk_ver2/core/models/body_metrics.dart';
 import 'package:neummuk_ver2/core/utils/turn_point_utils.dart';
+import 'package:neummuk_ver2/features/explore/domain/entities/food_catalog_entity.dart';
+import 'package:neummuk_ver2/features/explore/domain/repositories/food_catalog_repository.dart';
 import 'package:neummuk_ver2/features/mode_a/data/repositories/mode_a_repository_impl.dart';
 import 'package:neummuk_ver2/features/mode_a/domain/entities/route_result_entity.dart';
 
 import '../mode_b_gpx_export/gpx_writer.dart';
+
+/// cloud_firestore/firebase_core는 플랫폼 채널이 필요해 순수 `flutter test`에서
+/// 못 쓴다(seed_food_catalog_test.dart 상단 주석 참고). ModeARepositoryImpl 생성자가
+/// FoodCatalogRepository를 요구하지만 이 테스트는 getRoute()만 호출해
+/// getNearbyRestaurants(따라서 food_catalog)는 전혀 안 타므로, Firestore를 건드리지
+/// 않는 더미 구현으로 대체한다.
+class _NoopFoodCatalogRepository implements FoodCatalogRepository {
+  @override
+  Future<List<FoodCatalogEntity>> quickSearchFoods(String query, {String? category}) async => [];
+  @override
+  Future<List<FoodCatalogEntity>> searchFoods(String query, {String? category}) async => [];
+  @override
+  Future<List<FoodCatalogEntity>> fetchCandidatesFromApi(String query) async => [];
+  @override
+  Future<void> persistFood(FoodCatalogEntity entity) async {}
+  @override
+  Future<List<FoodCatalogEntity>> getPopularFoods({String? category, int limit = 20}) async => [];
+  @override
+  Future<void> incrementSearchCount(String canonicalName) async {}
+  @override
+  Future<void> pruneStaleData() async {}
+  @override
+  Future<List<String>> getCategories() async => [];
+  @override
+  Future<List<FoodCatalogEntity>> getFoodsNearKcal(double targetKcal, double tolerancePct) async =>
+      [];
+}
 
 // adb shell dumpsys location으로 확인한 에뮬레이터 실측 GPS를 넣거나, 앱 콘솔의
 // "[ModeA][gpx-test-input]" 로그에서 복사할 것.
@@ -57,7 +86,7 @@ void main() {
   test('Mode A 도보/자전거/대중교통 경로 → 도로 기반 GPX 내보내기 + kcal 검증', () async {
     await dotenv.load(fileName: '.env');
 
-    final repo = ModeARepositoryImpl();
+    final repo = ModeARepositoryImpl(foodCatalogRepo: _NoopFoodCatalogRepository());
     final waypoints = [
       for (var i = 0; i < _waypoints.length; i++)
         RouteWaypoint(
