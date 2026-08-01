@@ -221,7 +221,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       if (modeANavState.isNavigating && modeAState.routeResult != null) {
         unawaited(_restoreModeANavOnMap(modeAState.routeResult!, modeANavState));
       } else {
-        unawaited(_drawModeAPolyline(modeAState.routeResult));
+        // 도착 후엔 routeResult가 요약 표시용으로 남아있을 뿐 폴리라인은 이미
+        // 지워진 상태이므로, 화면 재진입 때 되살리면 안 된다.
+        unawaited(_drawModeAPolyline(
+            modeAState.hasArrived ? null : modeAState.routeResult));
       }
       // Home에서 이미 Mode A로 진입한 채 화면이 열린 경우(ref.listen이 초기값에는
       // 반응하지 않으므로 _onModeChanged의 자동 GPS 설정이 실행되지 않음) — 여기서
@@ -443,7 +446,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         final modeAState = ref.read(modeAProvider);
         if (modeAState.originLat == null) _fetchGpsOriginForModeA();
         _syncModeAMarkers(modeAState);
-        _drawModeAPolyline(modeAState.routeResult);
+        _drawModeAPolyline(modeAState.hasArrived ? null : modeAState.routeResult);
       case MapMode.modeB:
         _resetModeAFocusState();
         final modeBState = ref.read(routeSearchProvider);
@@ -559,7 +562,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final bottomPad = MediaQuery.paddingOf(context).bottom;
+    final bottomPad = context.bottomPadding;
     final mode         = ref.watch(mapModeProvider);
     final exploreState = ref.watch(mapSearchNotifierProvider);
     final modeAState   = ref.watch(modeAProvider);
@@ -691,8 +694,18 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       if ((prev?.isNavigating ?? false) &&
           next.isNavigating &&
           next.remainingDistanceM < 50) {
+        // stop()이 elapsedKcal을 즉시 0으로 리셋하므로, 그 전에 "실제 소모 kcal"을
+        // 캡처해 ModeAState로 넘긴다(대중교통은 실측 트래킹이 없어 추정치로 대체).
+        final route = ref.read(modeAProvider).routeResult;
+        final arrivalKcal = route?.transport == 'transit'
+            ? (route?.kcalBurn.toDouble() ?? next.elapsedKcal)
+            : next.elapsedKcal;
         _modeAArrivalDialogPending = true;
         ref.read(modeANavProvider.notifier).stop();
+        unawaited(ref.read(modeAProvider.notifier).markArrived(arrivalKcal));
+        unawaited(_drawModeAPolyline(null));
+        unawaited(_syncModeAMarkers(ref.read(modeAProvider)));
+        _fetchGpsOriginForModeA();
         _resetNavCamera();
         _showArrivalRestaurantDialog();
       }
