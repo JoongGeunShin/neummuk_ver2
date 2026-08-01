@@ -575,14 +575,16 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     }
   }
 
-  /// 도착 시 "주변 맛집을 보실까요?" 확인 후 응답에 따라 처리.
-  /// 예 → 검색 시점에 이미 로드해둔 state.restaurants를 지도에 표시하고 결과
-  ///      시트를 다시 올림(routeResult 유지). 아니오 → 기존처럼 바로 정리.
+  /// 도착 시 실제 소모 kcal을 보여주고 "주변 맛집을 보실까요?" 확인 후 응답에 따라
+  /// 처리한다. 폴리라인·출발/경유/도착지 정리는 map_overlay.dart의 도착 감지
+  /// 리스너가 markArrived() 호출로 이미 처리했으므로, 여기선 다이얼로그 응답에 따른
+  /// 화면 전환만 담당한다 — routeResult는 도착 요약 표시를 위해 계속 유지.
   void _showArrivalRestaurantDialog() {
     if (!mounted) {
       _modeAArrivalDialogPending = false;
       return;
     }
+    final arrivalKcal = ref.read(modeAProvider).arrivalKcal?.round() ?? 0;
     showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -595,9 +597,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           Text('목적지에 도착했어요!',
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
         ]),
-        content: const Text(
-          '수고하셨어요. 주변 맛집을 보실까요?',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+        content: Text(
+          '수고하셨어요. 실제로 $arrivalKcal kcal를 소모했어요.\n주변 맛집을 보실까요?',
+          style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
         ),
         actions: [
           TextButton(
@@ -616,18 +618,34 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       _modeAArrivalDialogPending = false;
       if (!mounted) return;
       if (showRestaurants == true) {
+        // food_catalog로 매칭된 맛집(RestaurantEntity)을 탐색 모드(MapMode.explore)
+        // 지도에 그대로 보여준다 — 마커/목록시트/상세페이지는 탐색 모드 기존 구현을
+        // 재사용(map_overlay.dart의 places 리스너가 마커·카메라 fit을 자동 처리).
         final s = ref.read(modeAProvider);
-        if (s.nearbyTab != ModeANearbyTab.restaurant) {
-          unawaited(ref.read(modeAProvider.notifier).switchNearbyTab(ModeANearbyTab.restaurant));
-        }
-        unawaited(_updateNearbyMarkers(s));
-        if (_sheetACtrl.isAttached) {
-          _sheetACtrl.animateTo(0.52,
-              duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
-        }
+        final places = [
+          for (final r in s.restaurants)
+            PlaceEntity(
+              id: r.id,
+              name: r.name,
+              latitude: r.latitude,
+              longitude: r.longitude,
+              address: r.address,
+              phone: r.tel,
+              category: '${r.menu} · ${r.kcal}kcal',
+              source: PlaceSource.kakaoLocal,
+            ),
+        ];
+        ref.read(mapSearchNotifierProvider.notifier).setPlaces(
+              places,
+              centerLat: s.restaurants.isNotEmpty ? s.restaurants.first.latitude : null,
+              centerLng: s.restaurants.isNotEmpty ? s.restaurants.first.longitude : null,
+            );
+        ref.read(modeAProvider.notifier).clearRouteResult();
+        ref.read(mapModeProvider.notifier).set(MapMode.explore);
       } else {
         ref.read(modeAProvider.notifier).clearRouteResult();
         unawaited(_clearNearbyMarkers());
+        context.go('/home');
       }
     });
   }
@@ -882,7 +900,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         Positioned(
           right: 12,
           top: MediaQuery.paddingOf(context).top + 12,
-          child: _KcalWidget(routeKcal: modeAState.routeResult?.kcalBurn),
+          child: _KcalWidget(
+              routeKcal: modeAState.hasArrived
+                  ? modeAState.arrivalKcal?.round()
+                  : modeAState.routeResult?.kcalBurn),
         ),
 
       // ── 결과 시트 (안내 중 아닐 때, 경로 수정 중이 아닐 때) ──────
