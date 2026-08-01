@@ -37,6 +37,14 @@ class FoodFirestoreDatasource {
     return results.where((f) => f.category == category).toList();
   }
 
+  /// 컬렉션 전체(또는 상한까지) 조회 — kcal 기준 매칭처럼 Firestore에 없는 쿼리를
+  /// 클라이언트에서 직접 필터링해야 할 때 사용. food_catalog는 시드 140개 + 소량
+  /// 라이브 데이터라 컬렉션 전체를 가져와도 부담이 없다.
+  Future<List<FoodCatalogEntity>> getAll({int limit = 500}) async {
+    final snap = await _col.limit(limit).get();
+    return snap.docs.map((d) => FoodCatalogEntity.fromFirestore(d.data())).toList();
+  }
+
   Future<List<FoodCatalogEntity>> getPopular({
     String? category,
     int limit = 20,
