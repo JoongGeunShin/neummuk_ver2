@@ -30,6 +30,9 @@ class _ModeAResultSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = state.routeResult!;
+    final visibleTabs = state.hasArrived
+        ? ModeANearbyTab.values
+        : ModeANearbyTab.values.where((t) => t != ModeANearbyTab.restaurant).toList();
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -60,8 +63,8 @@ class _ModeAResultSheet extends StatelessWidget {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('예상 소모',
-                                    style: TextStyle(
+                                Text(state.hasArrived ? '실제 소모' : '예상 소모',
+                                    style: const TextStyle(
                                         fontSize: 11, color: kMapWhite45,
                                         fontWeight: FontWeight.w700,
                                         letterSpacing: 0.3)),
@@ -69,7 +72,8 @@ class _ModeAResultSheet extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
                                   children: [
-                                    Text('${result.kcalBurn}',
+                                    Text(
+                                        '${state.hasArrived ? (state.arrivalKcal?.round() ?? 0) : result.kcalBurn}',
                                         style: TextStyle(
                                             fontSize: context.wp(10.5),
                                             fontWeight: FontWeight.w800,
@@ -87,23 +91,28 @@ class _ModeAResultSheet extends StatelessWidget {
                               ],
                             ),
                             const Spacer(),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                    '${result.distanceKm} km · ${result.durationMinutes}분',
-                                    style: const TextStyle(
-                                        fontSize: 11,
-                                        color: kMapWhite45,
-                                        fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 4),
-                                Text('${result.fromName} → ${result.toName}',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: kMapWhite87,
-                                        fontWeight: FontWeight.w700),
-                                    overflow: TextOverflow.ellipsis),
-                              ],
+                            Flexible(
+                              fit: FlexFit.loose,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                      '${result.distanceKm} km · ${result.durationMinutes}분',
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: kMapWhite45,
+                                          fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  Text('${result.fromName} → ${result.toName}',
+                                      maxLines: 1,
+                                      textAlign: TextAlign.end,
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: kMapWhite87,
+                                          fontWeight: FontWeight.w700),
+                                      overflow: TextOverflow.ellipsis),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -147,16 +156,17 @@ class _ModeAResultSheet extends StatelessWidget {
                     ),
                   ] else ...[
                     const SizedBox(height: 12),
-                    // 탭 바
+                    // 탭 바 — 음식점 탭은 도착 전엔 숨긴다(실측 kcal이 나오기 전엔
+                    // 매칭 근거가 추정치뿐이라 노출 의미가 약함).
                     SizedBox(
                       height: 36,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         padding: EdgeInsets.symmetric(horizontal: context.wp(5)),
-                        itemCount: ModeANearbyTab.values.length,
+                        itemCount: visibleTabs.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 6),
                         itemBuilder: (ctx, i) {
-                          final tab = ModeANearbyTab.values[i];
+                          final tab = visibleTabs[i];
                           final selected = state.nearbyTab == tab;
                           return GestureDetector(
                             onTap: () => onSwitchTab(tab),
@@ -215,25 +225,31 @@ class _ModeAResultSheet extends StatelessWidget {
                       padding: EdgeInsets.fromLTRB(
                           context.wp(5), 8, context.wp(5), 12),
                       child: GestureDetector(
-                        onTap: onStartNavigation,
+                        onTap: state.hasArrived ? null : onStartNavigation,
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: kMapPrimary,
+                            color: state.hasArrived ? kMapPanelAlt : kMapPrimary,
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.navigation_rounded,
-                                  size: 18, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('안내 시작',
+                              Icon(
+                                  state.hasArrived
+                                      ? Icons.check_circle_rounded
+                                      : Icons.navigation_rounded,
+                                  size: 18,
+                                  color: state.hasArrived ? kMapWhite45 : Colors.white),
+                              const SizedBox(width: 8),
+                              Text(state.hasArrived ? '안내 완료' : '안내 시작',
                                   style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
-                                      color: Colors.white)),
+                                      color: state.hasArrived
+                                          ? kMapWhite45
+                                          : Colors.white)),
                             ],
                           ),
                         ),
@@ -600,7 +616,7 @@ class _RestaurantCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
-                  Text(r.menu,
+                  Text('${r.menu} · ${r.kcal}kcal',
                       style: const TextStyle(
                           color: kMapWhite45,
                           fontSize: 11,

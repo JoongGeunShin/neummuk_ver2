@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/body_metrics.dart';
+import '../../../explore/domain/entities/food_catalog_entity.dart';
+import '../../../explore/domain/repositories/food_catalog_repository.dart';
 import '../../../map/data/datasources/road_route_datasource.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
@@ -60,6 +62,10 @@ const _mockRestaurants = [
 const mockRestaurants = _mockRestaurants;
 
 class ModeARepositoryImpl implements ModeARepository {
+  ModeARepositoryImpl({required FoodCatalogRepository foodCatalogRepo})
+      : _foodCatalogRepo = foodCatalogRepo;
+
+  final FoodCatalogRepository _foodCatalogRepo;
   final _roadRoute = const RoadRouteDatasource();
 
   String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
@@ -761,8 +767,14 @@ class ModeARepositoryImpl implements ModeARepository {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
-  // getNearbyRestaurants — Kakao Local FD6 + TourAPI 음식점 (contentTypeId=39)
+  // getNearbyRestaurants — food_catalog(Firestore) kcal 매칭 → Kakao 키워드검색
   // ────────────────────────────────────────────────────────────────────────────
+  //
+  // 순서: (1) food_catalog에서 targetKcal ±kcalMatchTolerancePct 이내 음식을 찾고
+  // (2) 상위 몇 개 음식명으로 Kakao Local 키워드검색(FD6)을 날려 실제 매장을 찾는다.
+  // 로컬 카테고리→kcal 추정 테이블은 쓰지 않는다 — kcal은 항상 food_catalog 실측값.
+
+  static const _kMaxFoodCandidates = 6;
 
   @override
   Future<List<RestaurantEntity>> getNearbyRestaurants({
@@ -772,30 +784,52 @@ class ModeARepositoryImpl implements ModeARepository {
     required int targetKcal,
   }) async {
     try {
-      final results = await _fetchKakaoFoodPlaces(
-          latitude, longitude, (radiusKm * 1000).round());
-      if (results.isEmpty) return _filterMockByKcal(targetKcal);
-      return results;
+      final matchedFoods = await _foodCatalogRepo.getFoodsNearKcal(
+          targetKcal.toDouble(), AppConstants.kcalMatchTolerancePct);
+      if (matchedFoods.isEmpty) return _filterMockByKcal(targetKcal);
+
+      final radiusM = (radiusKm * 1000).round();
+      final candidates = matchedFoods.take(_kMaxFoodCandidates).toList();
+      final results = await Future.wait(candidates.map((food) =>
+          _fetchKakaoFoodPlacesByKeyword(food, latitude, longitude, radiusM)));
+
+      final seen = <String>{};
+      final merged = <RestaurantEntity>[];
+      for (final list in results) {
+        for (final r in list) {
+          if (seen.add(r.id)) merged.add(r);
+        }
+      }
+
+      if (merged.isEmpty) return _filterMockByKcal(targetKcal);
+      merged.sort((a, b) => a.distanceM.compareTo(b.distanceM));
+      return merged;
     } catch (e) {
       debugPrint('[ModeA] getNearbyRestaurants error: $e');
       return _filterMockByKcal(targetKcal);
     }
   }
 
-  Future<List<RestaurantEntity>> _fetchKakaoFoodPlaces(
+  /// [food]의 이름을 키워드로 Kakao Local(FD6)에서 실제 매장을 찾는다. 반환되는
+  /// RestaurantEntity의 kcal/menu/category는 그 매장의 자체 정보가 아니라 검색에
+  /// 쓰인 food_catalog 음식의 실측값 — "이 매장에서 이 칼로리대 음식을 판다"는 매칭
+  /// 근거를 그대로 보여주기 위함.
+  Future<List<RestaurantEntity>> _fetchKakaoFoodPlacesByKeyword(
+    FoodCatalogEntity food,
     double lat,
     double lng,
     int radiusM,
   ) async {
     final response = await http
         .get(
-          Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/category.json')
+          Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/keyword.json')
               .replace(queryParameters: {
+            'query': food.displayName,
             'category_group_code': 'FD6',
             'x': lng.toString(),
             'y': lat.toString(),
             'radius': radiusM.clamp(100, 20000).toString(),
-            'size': '15',
+            'size': '5',
             'sort': 'distance',
           }),
           headers: {'Authorization': 'KakaoAK $_kakaoKey'},
@@ -806,6 +840,7 @@ class ModeARepositoryImpl implements ModeARepository {
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final docs = json['documents'] as List? ?? [];
+    final kcal = food.nutrition.caloriesKcal.round();
 
     return docs.map<RestaurantEntity?>((doc) {
       final x = double.tryParse(doc['x']?.toString() ?? '');
@@ -815,15 +850,13 @@ class ModeARepositoryImpl implements ModeARepository {
       if (name.isEmpty) return null;
 
       final categoryName = doc['category_name'] as String? ?? '';
-      final distanceM =
-          int.tryParse(doc['distance']?.toString() ?? '0') ?? 0;
-      final kcal = _estimateKcal(categoryName);
+      final distanceM = int.tryParse(doc['distance']?.toString() ?? '0') ?? 0;
 
       return RestaurantEntity(
         id: 'kakao_${doc['id']}',
         name: name,
-        menu: _extractLeafCategory(categoryName),
-        category: _extractMainCategory(categoryName),
+        menu: food.displayName,
+        category: food.category,
         kcal: kcal,
         distanceM: distanceM,
         walkMinutes: max(1, (distanceM / 80).ceil()), // 도보 ~80m/분
@@ -840,40 +873,6 @@ class ModeARepositoryImpl implements ModeARepository {
         kakaoPlaceId: doc['id'] as String?,
       );
     }).whereType<RestaurantEntity>().toList();
-  }
-
-  // ── 카테고리 기반 kcal 추정 ──────────────────────────────────────────────────
-
-  static const _kcalTable = <String, int>{
-    '한식': 520, '일식': 550, '중식': 600, '양식': 680, '동남아': 550,
-    '분식': 380, '패스트푸드': 700, '치킨': 650, '피자': 720,
-    '카페': 350, '베이커리': 400, '디저트': 350, '아이스크림': 280,
-    '뷔페': 900, '고기': 700, '해물': 500, '채식': 400, '죽': 300,
-  };
-
-  static int _estimateKcal(String categoryName) {
-    final lower = categoryName.toLowerCase();
-    for (final entry in _kcalTable.entries) {
-      if (lower.contains(entry.key)) return entry.value;
-    }
-    return 500; // 기본값
-  }
-
-  static String _extractMainCategory(String categoryName) {
-    // "음식점 > 한식 > 갈비/삼겹살" → "한식"
-    final parts = categoryName.split('>').map((s) => s.trim()).toList();
-    if (parts.length >= 2) return parts[1];
-    if (parts.isNotEmpty) return parts[0];
-    return '음식점';
-  }
-
-  static String _extractLeafCategory(String categoryName) {
-    // "음식점 > 한식 > 갈비/삼겹살" → "갈비/삼겹살"
-    final parts = categoryName.split('>').map((s) => s.trim()).toList();
-    final last = parts.isNotEmpty ? parts.last : categoryName;
-    if (last.isEmpty) return '식사';
-    // 너무 길면 앞 15자 잘라냄
-    return last.length > 15 ? '${last.substring(0, 15)}...' : last;
   }
 
   static bool _isKindCafe(String categoryName) {
@@ -1045,6 +1044,20 @@ class ModeARepositoryImpl implements ModeARepository {
     required double radiusKm,
     required int contentTypeId,
   }) async {
+    final places =
+        await _fetchNearbyPlacesAtRadius(latitude, longitude, radiusKm, contentTypeId);
+    if (places.isNotEmpty || radiusKm >= 5.0) return places;
+    // 문화시설·축제 등 희소 카테고리는 반경 안에 결과가 없을 수 있음 — 한 번 더
+    // 넓은 반경(5km)으로 재시도해 "API는 정상인데 반경이 좁아 비어보이는" 케이스를 줄인다.
+    return _fetchNearbyPlacesAtRadius(latitude, longitude, 5.0, contentTypeId);
+  }
+
+  Future<List<PlaceEntity>> _fetchNearbyPlacesAtRadius(
+    double latitude,
+    double longitude,
+    double radiusKm,
+    int contentTypeId,
+  ) async {
     try {
       final uri = Uri.parse('${AppConstants.tourApiBaseUrl}/locationBasedList2')
           .replace(queryParameters: {

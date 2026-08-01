@@ -6,6 +6,7 @@ import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
 import '../../domain/entities/waypoint_candidate_entity.dart';
 import '../../domain/repositories/mode_a_repository.dart';
+import '../../../explore/presentation/providers/explore_provider.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../onboarding/presentation/providers/onboarding_provider.dart';
@@ -28,7 +29,8 @@ enum ModeANearbyTab {
 const _kRemove = Object();
 
 @Riverpod(keepAlive: true)
-ModeARepository modeARepository(ModeARepositoryRef ref) => ModeARepositoryImpl();
+ModeARepository modeARepository(ModeARepositoryRef ref) =>
+    ModeARepositoryImpl(foodCatalogRepo: ref.watch(foodCatalogRepositoryProvider));
 
 class ModeAState {
   const ModeAState({
@@ -51,11 +53,13 @@ class ModeAState {
     // Phase 4: waypoint candidates
     this.waypointCandidates = const [],
     this.loadingCandidates = false,
-    // 도착지 근처 탭
-    this.nearbyTab = ModeANearbyTab.restaurant,
+    // 도착지 근처 탭 — 음식점 탭은 도착 전엔 숨기므로 기본은 관광지
+    this.nearbyTab = ModeANearbyTab.sight,
     this.nearbyPlaces = const [],
     this.nearbyDurunubi = const [],
     this.nearbyLoading = false,
+    this.hasArrived = false,
+    this.arrivalKcal,
   });
 
   final String from;
@@ -85,6 +89,10 @@ class ModeAState {
   final List<PlaceEntity> nearbyPlaces;
   final List<TouristRouteEntity> nearbyDurunubi;
   final bool nearbyLoading;
+  /// 도착 후 실측 소모 kcal이 확정되면 true — 결과 시트가 "예상"에서 "실제" 표시로
+  /// 전환되고, 음식점 탭이 노출된다.
+  final bool hasArrived;
+  final double? arrivalKcal;
 
   ModeAState copyWith({
     String? from,
@@ -108,6 +116,8 @@ class ModeAState {
     List<PlaceEntity>? nearbyPlaces,
     List<TouristRouteEntity>? nearbyDurunubi,
     bool? nearbyLoading,
+    bool? hasArrived,
+    Object? arrivalKcal = _kRemove,
   }) {
     return ModeAState(
       from: from ?? this.from,
@@ -133,20 +143,25 @@ class ModeAState {
       nearbyPlaces: nearbyPlaces ?? this.nearbyPlaces,
       nearbyDurunubi: nearbyDurunubi ?? this.nearbyDurunubi,
       nearbyLoading: nearbyLoading ?? this.nearbyLoading,
+      hasArrived: hasArrived ?? this.hasArrived,
+      arrivalKcal:
+          identical(arrivalKcal, _kRemove) ? this.arrivalKcal : arrivalKcal as double?,
     );
   }
 }
 
 @Riverpod(keepAlive: true)
 class ModeA extends _$ModeA {
+  // build()에서 _loadFromPrefs()를 자동 호출하지 않는다 — 안내 시작 전 강제종료 시
+  // 경로(routeResult)는 저장되지 않는데 좌표만 복원되면 목적지 마커만 지도에 덩그러니
+  // 남는 문제가 있었다. 좌표 복원은 "활성 안내가 있었다"는 확실한 신호가 있을 때만
+  // restoreFromPrefs()를 통해 명시적으로 수행한다(splash_screen.dart의
+  // _tryRestoreModeANav() 참고 — 복원 후 search()까지 다시 호출해 경로를 재생성함).
   @override
-  ModeAState build() {
-    _loadFromPrefs();
-    return const ModeAState();
-  }
+  ModeAState build() => const ModeAState();
 
-  /// 스플래시 화면의 앱 재시작 복원 흐름에서 호출 — _loadFromPrefs()가 끝날 때까지
-  /// await 가능하도록 감싼 public 진입점.
+  /// 스플래시 화면의 앱 재시작 복원 흐름(활성 안내가 있었을 때만)에서 호출 —
+  /// _loadFromPrefs()가 끝날 때까지 await 가능하도록 감싼 public 진입점.
   Future<void> restoreFromPrefs() => _loadFromPrefs();
 
   Future<void> _loadFromPrefs() async {
@@ -221,9 +236,11 @@ class ModeA extends _$ModeA {
       destIsRestaurant: false,
       destKcal: 0,
       waypointCandidates: const [],
-      nearbyTab: ModeANearbyTab.restaurant,
+      nearbyTab: ModeANearbyTab.sight,
       nearbyPlaces: const [],
       nearbyDurunubi: const [],
+      hasArrived: false,
+      arrivalKcal: null,
     );
     _save();
   }
@@ -306,27 +323,59 @@ class ModeA extends _$ModeA {
       debugPrint('[ModeA][gpx-test-input] result: source=${result.routeSource} '
           'distanceKm=${result.distanceKm} durationSec=${result.durationSeconds} '
           'kcalBurn=${result.kcalBurn} points=${result.routePoints.length}');
-      state = state.copyWith(routeResult: result, isLoading: false);
+      state = state.copyWith(
+        routeResult: result,
+        isLoading: false,
+        hasArrived: false,
+        arrivalKcal: null,
+      );
       // 도착지가 음식점/카페가 아닌 경우에만 주변 식당 로드
       if (!state.destIsRestaurant) {
         await _loadRestaurants(result.kcalBurn);
       }
+      // 기본 탭(음식점 제외)은 사용자가 탭을 직접 누르기 전까지 아무도 안 채워주므로
+      // 여기서 현재 선택된 탭 데이터를 미리 로드해둔다 — 안 그러면 도착 전 기본 탭인
+      // 관광지가 처음엔 빈 목록으로 보인다.
+      await _fetchNearbyTabData(state.nearbyTab);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> _loadRestaurants(int targetKcal) async {
-    final lat = state.destLat ?? 37.5635;
-    final lng = state.destLng ?? 126.9869;
+  Future<void> _loadRestaurants(int targetKcal, {double? lat, double? lng}) async {
+    final rLat = lat ?? state.destLat ?? 37.5635;
+    final rLng = lng ?? state.destLng ?? 126.9869;
     final restaurants =
         await ref.read(modeARepositoryProvider).getNearbyRestaurants(
-              latitude: lat,
-              longitude: lng,
+              latitude: rLat,
+              longitude: rLng,
               radiusKm: 2.0,
               targetKcal: targetKcal,
             );
     state = state.copyWith(restaurants: restaurants);
+  }
+
+  /// 목적지 도착 시 호출 — 실측 소모 kcal을 확정하고, 검색 상태(출발/경유/도착지)를
+  /// 초기화한다. routeResult는 유지해 결과 시트가 도착 요약(거리/시간/실제 kcal)을
+  /// 계속 보여줄 수 있게 한다. 좌표는 초기화 전에 캡처해 도착지 기준 맛집 재조회에 쓴다.
+  Future<void> markArrived(double kcal) async {
+    final lat = state.destLat;
+    final lng = state.destLng;
+    state = state.copyWith(
+      hasArrived: true,
+      arrivalKcal: kcal,
+      from: '현재 위치',
+      to: '',
+      originLat: null,
+      originLng: null,
+      destLat: null,
+      destLng: null,
+      waypoints: const [],
+      nearbyTab: ModeANearbyTab.restaurant,
+    );
+    if (!state.destIsRestaurant && lat != null && lng != null) {
+      await _loadRestaurants(kcal.round(), lat: lat, lng: lng);
+    }
   }
 
   /// Phase 4: 경유지 후보 로드
@@ -367,14 +416,20 @@ class ModeA extends _$ModeA {
 
   Future<void> switchNearbyTab(ModeANearbyTab tab) async {
     if (state.nearbyTab == tab) return;
-    state = state.copyWith(nearbyTab: tab, nearbyLoading: true);
+    state = state.copyWith(nearbyTab: tab);
+    await _fetchNearbyTabData(tab);
+  }
+
+  /// [tab]에 해당하는 주변 데이터를 가져와 state에 반영한다. 음식점 탭은 별도
+  /// 흐름(_loadRestaurants — 목표 kcal 기준 food_catalog 매칭)에서 관리하므로 여기선
+  /// 건드리지 않는다. search()가 초기 기본 탭을 채울 때와 switchNearbyTab()이 탭 전환
+  /// 시 채울 때 공용으로 쓴다.
+  Future<void> _fetchNearbyTabData(ModeANearbyTab tab) async {
+    if (tab == ModeANearbyTab.restaurant) return;
+    state = state.copyWith(nearbyLoading: true);
     final lat = state.destLat ?? 37.5635;
     final lng = state.destLng ?? 126.9869;
     try {
-      if (tab == ModeANearbyTab.restaurant) {
-        state = state.copyWith(nearbyLoading: false);
-        return;
-      }
       if (tab == ModeANearbyTab.durunubi) {
         final metrics = ref.read(userProfileProvider).toBodyMetrics();
         final courses = await ref
