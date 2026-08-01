@@ -136,6 +136,21 @@ class FoodCatalogRepositoryImpl implements FoodCatalogRepository {
   }
 
   @override
+  Future<List<FoodCatalogEntity>> getFoodsNearKcal(
+      double targetKcal, double tolerancePct) async {
+    if (targetKcal <= 0) return [];
+    final all = await _firestore.getAll();
+    final matched = all.where((f) {
+      final k = f.nutrition.caloriesKcal;
+      return k > 0 && (k - targetKcal).abs() <= targetKcal * tolerancePct;
+    }).toList();
+    matched.sort((a, b) => (a.nutrition.caloriesKcal - targetKcal)
+        .abs()
+        .compareTo((b.nutrition.caloriesKcal - targetKcal).abs()));
+    return matched;
+  }
+
+  @override
   Future<List<String>> getCategories() async {
     try {
       final cats = await _firestore.getCategories();
