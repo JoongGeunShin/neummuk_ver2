@@ -233,8 +233,6 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     final modeAState = ref.watch(modeAProvider);
     final canAddWaypoint = modeAState.waypoints.length < 3;
     final tel = _enrichedTel ?? detail.phone;
-    final mapMode = ref.read(mapModeProvider);
-    final isExploreMode = mapMode == MapMode.explore && extra is PlaceEntity;
 
     return Scaffold(
       backgroundColor: kMapPanel,
@@ -278,7 +276,7 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                       const SizedBox(height: 12),
                       _TagsSection(tags: detail.tags),
                     ],
-                    SizedBox(height: isExploreMode ? 32 : 96),
+                    const SizedBox(height: 96),
                   ]),
                 ),
               ),
@@ -304,9 +302,8 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
             ),
           ),
 
-          // ── 하단 버튼 (탐색 모드에서는 숨김, Mode A에서만 경로 버튼 표시) ──
-          if (!isExploreMode)
-            Positioned(
+          // ── 하단 버튼 (경로 설정 — 진입 경로와 무관하게 항상 표시) ──
+          Positioned(
               bottom: 0, left: 0, right: 0,
               child: Container(
                 padding: EdgeInsets.fromLTRB(
