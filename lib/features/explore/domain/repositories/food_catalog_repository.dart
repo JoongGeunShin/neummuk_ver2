@@ -21,4 +21,8 @@ abstract class FoodCatalogRepository {
 
   /// Firestore의 카테고리 목록 조회.
   Future<List<String>> getCategories();
+
+  /// targetKcal ±tolerancePct 이내 음식을 kcal 오차 오름차순으로 반환.
+  /// 매칭 0건이면 빈 리스트(호출부가 폴백 처리).
+  Future<List<FoodCatalogEntity>> getFoodsNearKcal(double targetKcal, double tolerancePct);
 }
