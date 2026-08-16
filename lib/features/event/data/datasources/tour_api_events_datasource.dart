@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../domain/entities/event_entity.dart';
 
 class TourApiEventsDatasource {
@@ -23,9 +23,9 @@ class TourApiEventsDatasource {
   Future<List<EventEntity>> fetchUpcomingEvents({int numOfRows = 8}) async {
     if (_upcomingCacheValid) return _upcomingCache!;
 
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) {
-      debugPrint('[TourApiEvents] TOUR_API_SERVICE_KEY not set');
+      debugPrint('[TourApiEvents] DATA_GO_KEY not set');
       return [];
     }
 
@@ -95,7 +95,7 @@ class TourApiEventsDatasource {
     int numOfRows = 8,
     int radiusM = 20000,
   }) async {
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) return [];
 
     final uri =

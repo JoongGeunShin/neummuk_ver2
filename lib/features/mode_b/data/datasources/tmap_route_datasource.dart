@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../domain/entities/spot_entity.dart';
 
@@ -14,8 +14,8 @@ import '../../domain/entities/spot_entity.dart';
 /// 실제 도로망과 오차가 클 수 있다. 이 클래스는 선택이 끝난 스팟 조합에 대해
 /// 실측 거리를 조회해, 리포지토리가 목표 칼로리에 맞게 스팟 구성을 보정할 수 있게 한다.
 class TmapRouteDatasource {
-  String get _tmapKey => dotenv.env['TMAP_APP_KEY'] ?? '';
-  String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+  String get _tmapKey => AppEnv.tmapAppKey;
+  String get _kakaoKey => AppEnv.kakaoRestApiKey;
 
   /// [startLat]/[startLng] 출발 → [orderedSpots] 순서대로 경유 → 출발지 복귀.
   /// 왕복 총 도로 거리(km). 두 API 모두 실패하면 null (호출부는 직선거리 추정치로 폴백).

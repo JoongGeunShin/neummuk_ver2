@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:math' show pi;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
@@ -13,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/utils/geo_utils.dart';

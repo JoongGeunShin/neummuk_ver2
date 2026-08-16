@@ -5,7 +5,7 @@
 // 그대로 import해 재생하면, 실기기 GPS 없이도 이탈 감지·도착 판정·잔여거리 계산을 검증할 수 있다.
 //
 // 실행: flutter test test/mode_b_gpx_export/export_generated_course_gpx_test.dart
-// (TMAP_APP_KEY/KAKAO_REST_API_KEY/TOUR_API_SERVICE_KEY가 필요한 실제 네트워크 호출이 있어 CI 대상이 아님)
+// (TMAP_APP_KEY/KAKAO_REST_API_KEY/DATA_GO_KEY가 필요한 실제 네트워크 호출이 있어 CI 대상이 아님)
 import 'dart:io';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -52,7 +52,7 @@ void main() {
       transport: _transport,
     );
     expect(spots, isNotEmpty,
-        reason: 'KAKAO_REST_API_KEY/TOUR_API_SERVICE_KEY를 확인하거나, '
+        reason: 'KAKAO_REST_API_KEY/DATA_GO_KEY를 확인하거나, '
             '반경 내에 검색되는 스팟이 있는 좌표인지 확인할 것');
 
     final route = await gen.generateCourse(

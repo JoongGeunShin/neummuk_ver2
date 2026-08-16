@@ -143,7 +143,7 @@ flutter pub get
 cp .env.example .env
 ```
 
-필요한 키: `FIREBASE_*`, `KAKAO_REST_API_KEY`, `NAVER_MAP_CLIENT_ID`, `TOUR_API_SERVICE_KEY`, `FOOD_API_SERVICE_KEY`, `ODSAY_API_KEY`, `TMAP_APP_KEY`
+필요한 키: `FIREBASE_*`, `KAKAO_REST_API_KEY`, `NAVER_MAP_CLIENT_ID`, `DATA_GO_KEY`(TourAPI/두루누비/식품영양성분 DB 공용), `ODSAY_API_KEY`, `TMAP_APP_KEY`
 
 Firebase는 FlutterFire CLI로 생성된 `lib/firebase_options.dart`를 사용하며, Android/iOS 네이티브 설정 파일(`google-services.json`, `GoogleService-Info.plist`)도 별도로 필요합니다.
 

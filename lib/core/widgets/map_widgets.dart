@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+
+import '../env/app_env.dart';
 
 // ─── 지도 화면 공용 다크 팔레트 ──────────────────────────────────────────────
 // 모든 지도 화면(MapScreen, ModeBRouteScreen, ModeAMapScreen)에서 동일하게 사용.
@@ -39,11 +40,10 @@ NaverMapViewOptions buildMapViewOptions({
     NLayerGroup.transit,
   ],
   String? customStyleId,
+  bool isDark = true,
 }) {
   final styleId = customStyleId ??
-      (dotenv.env['NAVER_MAP_STYLE_ID']?.isNotEmpty == true
-          ? dotenv.env['NAVER_MAP_STYLE_ID']
-          : null);
+      (isDark ? AppEnv.naverMapStyleDarkId : AppEnv.naverMapStyleBrightId);
 
   return NaverMapViewOptions(
     initialCameraPosition: initialCameraPosition,

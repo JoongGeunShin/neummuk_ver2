@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../domain/entities/event_detail_entity.dart';
 
 class TourApiEventDetailDatasource {
@@ -11,7 +11,7 @@ class TourApiEventDetailDatasource {
       String contentId, {
       String? fallbackImageUrl,
     }) async {
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
 
     final commonUri =
         Uri.parse('${AppConstants.tourApiBaseUrl}/detailCommon2').replace(

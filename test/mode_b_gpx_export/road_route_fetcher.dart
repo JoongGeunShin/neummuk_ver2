@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:neummuk_ver2/core/env/app_env.dart';
 import 'package:neummuk_ver2/features/mode_b/domain/entities/tourist_route_entity.dart';
 
 /// mode_b_mixin.dart의 _fetchAllSegmentPolylines/_fetchApproachRoute와 동일한 정책으로
@@ -101,7 +101,7 @@ Future<List<RoadPoint>> _fetchTmapPedestrianLeg({
   required double toLat,
   required double toLng,
 }) async {
-  final tmapKey = dotenv.env['TMAP_APP_KEY'] ?? '';
+  final tmapKey = AppEnv.tmapAppKey;
   if (tmapKey.isEmpty) return const [];
   try {
     final body = [
@@ -164,7 +164,7 @@ Future<List<RoadPoint>> _fetchKakaoCarLeg({
   required double toLat,
   required double toLng,
 }) async {
-  final kakaoKey = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+  final kakaoKey = AppEnv.kakaoRestApiKey;
   if (kakaoKey.isEmpty) return const [];
   try {
     final res = await http

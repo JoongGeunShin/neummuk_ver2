@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 
 import 'app.dart';
+import 'core/env/app_env.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -18,7 +19,7 @@ void main() async {
 
   // Naver Map SDK (네이티브 Android)
   await FlutterNaverMap().init(
-    clientId: dotenv.env['NAVER_MAP_CLIENT_ID'] ?? '',
+    clientId: AppEnv.naverMapClientId,
     onAuthFailed: (ex) => debugPrint('NaverMap auth failed: $ex'),
   );
 

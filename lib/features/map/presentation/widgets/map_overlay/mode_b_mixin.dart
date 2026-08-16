@@ -897,7 +897,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   }) async {
     if (waypointCoords.isEmpty) return [];
     try {
-      final key = dotenv.env['TMAP_APP_KEY'] ?? '';
+      final key = AppEnv.tmapAppKey;
       if (key.isEmpty) return [];
 
       final destination = waypointCoords.last;
@@ -1189,7 +1189,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     double fromLat, double fromLng, double toLat, double toLng,
   ) async {
     try {
-      final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+      final key = AppEnv.kakaoRestApiKey;
       if (key.isEmpty) return [];
       final uri = Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions');
       final res = await http

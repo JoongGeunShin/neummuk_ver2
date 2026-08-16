@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../domain/entities/spot_entity.dart';
 
 /// Kakao Local API 카테고리 검색
@@ -17,7 +17,7 @@ class KakaoLocalSpotsDatasource {
     int radiusM = 3000,
     int size = 15,
   }) async {
-    final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+    final key = AppEnv.kakaoRestApiKey;
     if (key.isEmpty || categoryGroupCodes.isEmpty) return [];
 
     final results = <SpotEntity>[];

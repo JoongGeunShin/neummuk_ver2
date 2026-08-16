@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 
+import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/map_widgets.dart';
 
 typedef MapOverlayBuilder = Widget Function(
@@ -49,6 +50,7 @@ class _AppMapScreenState extends State<AppMapScreen> {
               options: buildMapViewOptions(
                 initialCameraPosition: widget.initialCamera,
                 activeLayerGroups: widget.activeLayerGroups,
+                isDark: context.isDark,
               ),
               onMapReady: (ctrl) {
                 _ctrl = ctrl;

@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 
 class SpotDetailData {
   const SpotDetailData({
@@ -27,7 +27,7 @@ class TourApiDetailDatasource {
 
   /// TourAPI contentId 기반 상세 정보 (detailCommon2 + detailInfo2 + detailImage2) 병렬 호출
   Future<SpotDetailData?> fetchDetail(String contentId, int contentTypeId) async {
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) return null;
 
     try {
@@ -69,7 +69,7 @@ class TourApiDetailDatasource {
 
   /// 카카오 스팟 이름+좌표로 TourAPI 키워드 검색 → 이미지 URL 반환 (없으면 null)
   Future<String?> findImageByKeyword(String name, double lat, double lng) async {
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) return null;
 
     try {

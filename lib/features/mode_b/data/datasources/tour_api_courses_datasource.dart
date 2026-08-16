@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 
@@ -20,9 +20,9 @@ class TourApiCoursesDatasource {
     int radiusM = 3000,
     int numOfRows = 20,
   }) async {
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) {
-      debugPrint('[TourApi] TOUR_API_SERVICE_KEY not set');
+      debugPrint('[TourApi] DATA_GO_KEY not set');
       return [];
     }
 
@@ -91,7 +91,7 @@ class TourApiCoursesDatasource {
     if (!base.id.startsWith('tour_')) return base;
 
     final contentId = base.id.replaceFirst('tour_', '');
-    final key = dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) return base;
 
     try {

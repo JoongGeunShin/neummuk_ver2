@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../explore/domain/entities/food_catalog_entity.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
@@ -68,9 +68,9 @@ class ModeARepositoryImpl implements ModeARepository {
   final FoodCatalogRepository _foodCatalogRepo;
   final _roadRoute = const RoadRouteDatasource();
 
-  String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
-  String get _odsayKey => dotenv.env['ODSAY_API_KEY'] ?? '';
-  String get _tourApiKey => dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
+  String get _kakaoKey => AppEnv.kakaoRestApiKey;
+  String get _odsayKey => AppEnv.odsayApiKey;
+  String get _tourApiKey => AppEnv.dataGoKey;
 
   // ────────────────────────────────────────────────────────────────────────────
   // getRoute

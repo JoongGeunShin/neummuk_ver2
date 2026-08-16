@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../../../core/utils/geo_utils.dart';
 
 /// 위경도 좌표 한 점 — 지도 SDK(NLatLng)나 도메인 엔티티(LatLng)에 종속되지 않는
@@ -144,7 +144,7 @@ class RoadRouteDatasource {
     required double toLng,
   }) async {
     try {
-      final key = dotenv.env['TMAP_APP_KEY'] ?? '';
+      final key = AppEnv.tmapAppKey;
       if (key.isEmpty) return [];
 
       final bodyStr = [
@@ -208,7 +208,7 @@ class RoadRouteDatasource {
     required double toLng,
   }) async {
     try {
-      final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+      final key = AppEnv.kakaoRestApiKey;
       if (key.isEmpty) return _emptyKakaoLeg;
 
       final uri = Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions');

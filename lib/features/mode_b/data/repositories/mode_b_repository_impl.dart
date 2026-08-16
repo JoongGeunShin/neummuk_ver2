@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
@@ -283,7 +283,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
 
   Future<({String sido, String sigungu})?> _reverseGeocode(double lat, double lng) async {
     try {
-      final key = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+      final key = AppEnv.kakaoRestApiKey;
       if (key.isEmpty) return null;
       final uri = Uri.parse('https://dapi.kakao.com/v2/local/geo/coord2regioncode.json')
           .replace(queryParameters: {'x': '$lng', 'y': '$lat'});

@@ -1,16 +1,16 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 import '../../domain/entities/place_entity.dart';
 import '../../domain/repositories/place_repository.dart';
 
 class PlaceRepositoryImpl implements PlaceRepository {
-  String get _tourKey => dotenv.env['TOUR_API_SERVICE_KEY'] ?? '';
-  String get _kakaoKey => dotenv.env['KAKAO_REST_API_KEY'] ?? '';
+  String get _tourKey => AppEnv.dataGoKey;
+  String get _kakaoKey => AppEnv.kakaoRestApiKey;
 
   // 좌표는 외부 검색 API 파라미터로만 사용 — Firestore 저장 없음 (LAW_RESTRICT)
   @override

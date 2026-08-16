@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/env/app_env.dart';
 
 class DurunubiDatasource {
   // 앱 버전 올릴 때 v숫자를 올리면 기존 캐시가 자동 무효화됨
@@ -94,9 +94,7 @@ class DurunubiDatasource {
     int pageSize,
     int pageNo,
   ) async {
-    final key = dotenv.env['DURUNUBI_SERVICE_KEY'] ??
-        dotenv.env['TOUR_API_SERVICE_KEY'] ??
-        '';
+    final key = AppEnv.dataGoKey;
     if (key.isEmpty) {
       debugPrint('[Durunubi] API key not set');
       return (0, <Map<String, dynamic>>[]);

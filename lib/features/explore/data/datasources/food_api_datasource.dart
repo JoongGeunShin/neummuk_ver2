@@ -30,15 +30,15 @@ class FoodApiDatasource {
   static const _timeout = Duration(seconds: 10);
 
   Future<List<FoodApiItem>> search(String foodName, {int numOfRows = 10}) async {
-    if (AppEnv.foodApiKey.isEmpty) {
-      debugPrint('[FoodApi] FOOD_API_SERVICE_KEY not set');
+    if (AppEnv.dataGoKey.isEmpty) {
+      debugPrint('[FoodApi] DATA_GO_KEY not set');
       return [];
     }
 
     final uri = Uri.parse(
       '${AppConstants.foodApiBaseUrl}/${AppConstants.foodApiEndpoint}',
     ).replace(queryParameters: {
-      'serviceKey': AppEnv.foodApiKey,
+      'serviceKey': AppEnv.dataGoKey,
       'pageNo': '1',
       'numOfRows': numOfRows.toString(),
       'FOOD_NM_KR': foodName,
@@ -46,8 +46,8 @@ class FoodApiDatasource {
     });
 
     try {
-      final keyPreview = AppEnv.foodApiKey.length > 8
-          ? '${AppEnv.foodApiKey.substring(0, 8)}...'
+      final keyPreview = AppEnv.dataGoKey.length > 8
+          ? '${AppEnv.dataGoKey.substring(0, 8)}...'
           : '(empty)';
       debugPrint('[FoodApi] search: $foodName | key: $keyPreview');
       final res = await http.get(uri).timeout(_timeout);
