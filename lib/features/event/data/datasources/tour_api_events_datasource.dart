@@ -4,11 +4,9 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/env/app_env.dart';
 import '../../domain/entities/event_entity.dart';
+import 'event_api_shared.dart';
 
 class TourApiEventsDatasource {
-  // 행사/공연/축제 contentTypeId
-  static const int _contentTypeId = 15;
-
   // 전국 임박 행사 in-memory cache (TTL 1h)
   List<EventEntity>? _upcomingCache;
   DateTime? _upcomingCachedAt;
@@ -109,7 +107,7 @@ class TourApiEventsDatasource {
         'mapX': '$lng',
         'mapY': '$lat',
         'radius': '$radiusM',
-        'contentTypeId': '$_contentTypeId',
+        'contentTypeId': '${EventApiConstants.contentTypeId}',
         'arrange': 'E',
         '_type': 'json',
       },
@@ -132,8 +130,22 @@ class TourApiEventsDatasource {
           ? raw.cast<Map<String, dynamic>>()
           : [Map<String, dynamic>.from(raw as Map)];
 
-      final events = list
-          .map((item) => _parseWithDist(item))
+      // locationBasedList2는 eventstartdate/eventenddate를 주지 않으므로
+      // 전국 리스트(searchFestival2)와 동일한 기간/진행상태를 보여주기 위해
+      // detailIntro2로 개별 보강한다.
+      final enriched = await Future.wait(list.map((item) async {
+        if (item['eventstartdate'] != null) return item;
+        final contentId = item['contentid']?.toString() ?? '';
+        final dates = await _fetchEventDates(contentId);
+        if (dates != null) {
+          item['eventstartdate'] = dates.start;
+          item['eventenddate'] = dates.end;
+        }
+        return item;
+      }));
+
+      final events = enriched
+          .map((item) => _parse(item))
           .whereType<EventEntity>()
           .toList()
         ..sort(_sortByUrgency);
@@ -143,6 +155,49 @@ class TourApiEventsDatasource {
     } catch (e) {
       debugPrint('[TourApiEvents] fetchNearbyEvents error: $e');
       return [];
+    }
+  }
+
+  /// detailIntro2 — locationBasedList2에 없는 행사 기간 보강용.
+  Future<({String? start, String? end})?> _fetchEventDates(
+      String contentId) async {
+    if (contentId.isEmpty) return null;
+    final key = AppEnv.dataGoKey;
+    if (key.isEmpty) return null;
+
+    final uri =
+        Uri.parse('${AppConstants.tourApiBaseUrl}/detailIntro2').replace(
+      queryParameters: {
+        'serviceKey': key,
+        'contentId': contentId,
+        'contentTypeId': '${EventApiConstants.contentTypeId}',
+        'MobileOS': 'ETC',
+        'MobileApp': 'neummuk',
+        '_type': 'json',
+      },
+    );
+
+    try {
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return null;
+      if (res.body.trimLeft().startsWith('<')) return null;
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final raw = body['response']?['body']?['items']?['item'];
+      if (raw == null) return null;
+
+      final item = raw is List
+          ? (raw.isNotEmpty ? raw.first as Map<String, dynamic> : null)
+          : Map<String, dynamic>.from(raw as Map);
+      if (item == null) return null;
+
+      return (
+        start: item['eventstartdate']?.toString(),
+        end: item['eventenddate']?.toString(),
+      );
+    } catch (e) {
+      debugPrint('[TourApiEvents] fetchEventDates error: $e');
+      return null;
     }
   }
 
@@ -156,45 +211,14 @@ class TourApiEventsDatasource {
         id: id,
         name: name,
         addr: item['addr1']?.toString(),
-        startDate: _parseDate(item['eventstartdate']?.toString()),
-        endDate: _parseDate(item['eventenddate']?.toString()),
+        startDate: parseTourApiDate(item['eventstartdate']?.toString()),
+        endDate: parseTourApiDate(item['eventenddate']?.toString()),
         lat: double.tryParse(item['mapy']?.toString() ?? ''),
         lng: double.tryParse(item['mapx']?.toString() ?? ''),
         imageUrl: _pickImage(item),
       );
     } catch (e) {
       debugPrint('[TourApiEvents] parse error: $e');
-      return null;
-    }
-  }
-
-  EventEntity? _parseWithDist(Map<String, dynamic> item) {
-    final entity = _parse(item);
-    if (entity == null) return null;
-    final dist =
-        int.tryParse(item['dist']?.toString().split('.').first ?? '') ?? 0;
-    return EventEntity(
-      id: entity.id,
-      name: entity.name,
-      addr: entity.addr,
-      startDate: entity.startDate,
-      endDate: entity.endDate,
-      lat: entity.lat,
-      lng: entity.lng,
-      imageUrl: entity.imageUrl,
-      distanceFromUserM: dist > 0 ? dist : null,
-    );
-  }
-
-  DateTime? _parseDate(String? s) {
-    if (s == null || s.length < 8) return null;
-    try {
-      return DateTime(
-        int.parse(s.substring(0, 4)),
-        int.parse(s.substring(4, 6)),
-        int.parse(s.substring(6, 8)),
-      );
-    } catch (_) {
       return null;
     }
   }

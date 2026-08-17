@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../../data/repositories/event_repository_impl.dart';
 import '../../domain/entities/event_entity.dart';
 import '../../domain/repositories/event_repository.dart';
@@ -50,17 +51,23 @@ class HomeEvents extends _$HomeEvents {
   Future<void> _loadInitial() async {
     final repo = ref.read(eventRepositoryProvider);
 
-    // 1. 위치 없이 전국 임박 행사 먼저 로드
+    // 전국 임박 행사가 기본값 — 위치 권한 보유 여부와 무관하게 항상 이 상태로 시작
     final events = await repo.getUpcomingEvents();
     state = state.copyWith(events: events, isLoading: false);
 
-    // 2. 이미 권한이 있으면 조용히 위치 기반으로 업그레이드
     final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.deniedForever) {
+      state = state.copyWith(canRequestLocation: false);
+      return;
+    }
+    // 이미 위치 권한이 있다면 팝업 없이 마지막으로 알려진 위치로
+    // 전국 리스트에도 거리만 조용히 채워준다 (목록 자체는 그대로 전국 유지)
     if (permission == LocationPermission.whileInUse ||
         permission == LocationPermission.always) {
-      await _loadNearby();
-    } else if (permission == LocationPermission.deniedForever) {
-      state = state.copyWith(canRequestLocation: false);
+      final pos = await Geolocator.getLastKnownPosition();
+      if (pos != null && !state.hasLocation) {
+        state = state.copyWith(events: _withDistances(state.events, pos));
+      }
     }
   }
 
@@ -79,7 +86,7 @@ class HomeEvents extends _$HomeEvents {
         lng: pos.longitude,
       );
       state = state.copyWith(
-        events: events,
+        events: _withDistances(events, pos),
         isLoading: false,
         hasLocation: true,
       );
@@ -92,7 +99,28 @@ class HomeEvents extends _$HomeEvents {
   Future<void> resetToUpcoming() async {
     state = state.copyWith(isLoading: true, hasLocation: false);
     final events = await ref.read(eventRepositoryProvider).getUpcomingEvents();
+
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.whileInUse ||
+        permission == LocationPermission.always) {
+      final pos = await Geolocator.getLastKnownPosition();
+      if (pos != null) {
+        state = state.copyWith(events: _withDistances(events, pos), isLoading: false);
+        return;
+      }
+    }
     state = state.copyWith(events: events, isLoading: false);
+  }
+
+  /// 위치·행사 목록 출처와 무관하게 거리는 항상 동일한 방식(Haversine)으로 계산한다.
+  List<EventEntity> _withDistances(List<EventEntity> events, Position pos) {
+    return events.map((e) {
+      if (e.lat == null || e.lng == null) return e;
+      final meters =
+          haversineDistanceM(pos.latitude, pos.longitude, e.lat!, e.lng!)
+              .round();
+      return e.copyWith(distanceFromUserM: meters);
+    }).toList();
   }
 
   /// 홈 화면 "내 주변 보기" 버튼 탭 시 호출

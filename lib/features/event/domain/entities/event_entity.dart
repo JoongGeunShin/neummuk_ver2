@@ -21,7 +21,18 @@ class EventEntity {
   final String? imageUrl;
   final int? distanceFromUserM;
 
-  // id 형식: 'event_${contentid}' → 순수 contentId 추출
+  EventEntity copyWith({int? distanceFromUserM}) => EventEntity(
+        id: id,
+        name: name,
+        addr: addr,
+        startDate: startDate,
+        endDate: endDate,
+        lat: lat,
+        lng: lng,
+        imageUrl: imageUrl,
+        distanceFromUserM: distanceFromUserM ?? this.distanceFromUserM,
+      );
+
   String get contentId => id.startsWith('event_') ? id.substring(6) : id;
 
   DateTime get _today =>

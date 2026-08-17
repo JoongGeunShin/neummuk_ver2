@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/env/app_env.dart';
 import '../../domain/entities/event_detail_entity.dart';
+import 'event_api_shared.dart';
 
 class TourApiEventDetailDatasource {
   /// detailCommon2 + detailIntro2 병렬 조회
@@ -18,7 +19,7 @@ class TourApiEventDetailDatasource {
       queryParameters: {
         'serviceKey': key,
         'contentId': contentId,
-        'contentTypeId': '15',
+        'contentTypeId': '${EventApiConstants.contentTypeId}',
         'MobileOS': 'ETC',
         'MobileApp': 'neummuk',
         'defaultYN': 'Y',
@@ -34,7 +35,7 @@ class TourApiEventDetailDatasource {
       queryParameters: {
         'serviceKey': key,
         'contentId': contentId,
-        'contentTypeId': '15',
+        'contentTypeId': '${EventApiConstants.contentTypeId}',
         'MobileOS': 'ETC',
         'MobileApp': 'neummuk',
         '_type': 'json',
@@ -69,8 +70,8 @@ class TourApiEventDetailDatasource {
         agelimit: _text(intro?['agelimit']),
         bookingplace: _text(intro?['bookingplace']),
         discountinfo: _stripHtml(intro?['discountinfofestival']?.toString()),
-        startDate: _parseDate(intro?['eventstartdate']?.toString()),
-        endDate: _parseDate(intro?['eventenddate']?.toString()),
+        startDate: parseTourApiDate(intro?['eventstartdate']?.toString()),
+        endDate: parseTourApiDate(intro?['eventenddate']?.toString()),
         eventplace: _text(intro?['eventplace']),
         eventhomepage: _stripHtml(intro?['eventhomepage']?.toString()),
         festivalgrade: _text(intro?['festivalgrade']),
@@ -117,19 +118,6 @@ class TourApiEventDetailDatasource {
     if (sa.isEmpty && sb.isEmpty) return null;
     if (sb.isEmpty) return sa;
     return '$sa $sb'.trim();
-  }
-
-  DateTime? _parseDate(String? s) {
-    if (s == null || s.length < 8) return null;
-    try {
-      return DateTime(
-        int.parse(s.substring(0, 4)),
-        int.parse(s.substring(4, 6)),
-        int.parse(s.substring(6, 8)),
-      );
-    } catch (_) {
-      return null;
-    }
   }
 
   String? _stripHtml(String? html) {
