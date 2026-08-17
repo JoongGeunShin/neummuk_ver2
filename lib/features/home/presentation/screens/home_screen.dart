@@ -23,11 +23,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _mode = 'A';
   NavTab _activeTab = NavTab.home;
 
-  // ── 드래그 가능한 지도 FAB ──────────────────────────────────
   static const double _fabSize = 56;
-  Offset? _fabPos; // null → 첫 빌드 시 우하단으로 초기화
+  Offset? _fabPos;
   bool _fabDragging = false;
-  Offset _fabDragOrigin = Offset.zero; // long press 시작 시 FAB 위치 스냅샷
+  Offset _fabDragOrigin = Offset.zero;
   final GlobalKey _fabKey = GlobalKey();
 
   void _openMap() {
@@ -38,7 +37,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // 로그아웃 후 재로그인처럼 세션이 정지된 상태라면 다시 시작 — 이미 추적 중이면 no-op.
     final user = ref.read(authStateProvider).valueOrNull;
     if (user != null) {
       ref.read(walkSessionProvider.notifier).restart();
@@ -69,15 +67,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    // steps/kcal/distance만 select — elapsed·speedKmh 등 다른 필드가 200ms~1s마다
-    // 바뀌어도 이 값들이 그대로면 홈 화면 전체가 재빌드되지 않는다 (표시값은 동일).
     final walk = ref.watch(walkSessionProvider.select(
       (s) => (steps: s.steps, caloriesKcal: s.caloriesKcal, distanceM: s.distanceM),
     ));
 
-    // FAB 초기 위치: 우하단 (바텀 탭 위)
     final screenSize = MediaQuery.sizeOf(context);
-    final bottomNavH = context.hp(9);
+    final bottomNavH = context.hp(12);
     _fabPos ??= Offset(
       screenSize.width - _fabSize - 20,
       screenSize.height - _fabSize - bottomNavH - 16,
@@ -88,13 +83,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: c.bg,
         body: Stack(
           children: [
-            // ── 메인 콘텐츠 ──────────────────────────────────────
             Column(
               children: [
                 Expanded(
                   child: CustomScrollView(
                     slivers: [
-                      // App bar
                       SliverToBoxAdapter(
                         child: SafeArea(
                           bottom: false,
@@ -132,39 +125,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     ),
                                   ],
                                 ),
-                                const Spacer(),
-                                SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      Positioned(
-                                        top: 8,
-                                        right: 9,
-                                        child: Container(
-                                          width: 7,
-                                          height: 7,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: c.secondary,
-                                            border: Border.all(
-                                              color: c.surface,
-                                              width: 2,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ),
-
-                      // Mode toggle
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
@@ -191,8 +156,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-
-                      // Hero CTA
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
@@ -214,15 +177,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             },
                             onHorizontalDragEnd: (details) {
                               if (details.primaryVelocity == null) return;
-                              if (details.primaryVelocity! > 0) {
+                              if (details.primaryVelocity! < 0) {
                                 if (_mode != 'B') {
                                   setState(() {
                                     _mode = 'B';
                                   });
                                 }
                               }
-                              // primaryVelocity < 0 이면 왼쪽 스와이프
-                              else if (details.primaryVelocity! < 0) {
+                              else if (details.primaryVelocity! > 0) {
                                 if (_mode != 'A') {
                                   setState(() {
                                     _mode = 'A';
@@ -355,8 +317,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-
-                      // Quick stats
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
@@ -396,8 +356,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-
-                      // Events section
                       _EventsSection(),
                     ],
                   ),
@@ -407,8 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onChanged: _handleTabChange,
                 ),
               ],
-            ), // Column
-            // ── 드래그 가능한 지도 FAB ───────────────────────────
+            ),
             Positioned(
               left: _fabPos!.dx,
               top: _fabPos!.dy,
@@ -465,15 +422,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
-          ], // Stack children
-        ), // Stack
+          ],
+        ),
       ),
-    ); // Scaffold, DoubleBackToExit
+    );
   }
 }
 
-// ── 행사/공연/축제 섹션 ───────────────────────────────────────
-
+// tourAPI 행사 공연 축제
 class _EventsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -484,7 +440,6 @@ class _EventsSection extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 헤더
           Padding(
             padding: EdgeInsets.fromLTRB(
               context.wp(5),
@@ -504,13 +459,10 @@ class _EventsSection extends ConsumerWidget {
                   ),
                 ),
                 const Spacer(),
-                // 전국 / 내 주변 토글 칩
                 _EventLocationToggle(),
               ],
             ),
           ),
-
-          // 카드 리스트
           SizedBox(
             height: context.hp(30),
             child: eventsState.isLoading && eventsState.events.isEmpty
@@ -603,7 +555,6 @@ class _EventsEmpty extends StatelessWidget {
   }
 }
 
-// 전국 / 내 주변 토글 칩 쌍 — provider를 직접 watch해 항상 최신 상태 반영
 class _EventLocationToggle extends ConsumerWidget {
   const _EventLocationToggle();
 
