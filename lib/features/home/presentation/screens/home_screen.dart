@@ -483,18 +483,10 @@ class _EventsSection extends ConsumerWidget {
                       final event = eventsState.events[i];
                       return EventCard(
                         event: event,
-                        onTap: event.isEnded
-                            ? () => ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text('종료된 행사입니다'),
-                                  duration: Duration(seconds: 2),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              )
-                            : () => ctx.push(
-                                '/event/${event.contentId}',
-                                extra: event.imageUrl,
-                              ),
+                        onTap: () => ctx.push(
+                          '/event/${event.contentId}',
+                          extra: event.imageUrl,
+                        ),
                       );
                     },
                   ),
