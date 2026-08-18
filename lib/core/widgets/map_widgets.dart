@@ -3,18 +3,19 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../env/app_env.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 // ─── 지도 화면 공용 다크 팔레트 ──────────────────────────────────────────────
 // 모든 지도 화면(MapScreen, ModeBRouteScreen, ModeAMapScreen)에서 동일하게 사용.
-const kMapPanel    = Color(0xFF1C1C1E);
+const kMapPanel = Color(0xFF1C1C1E);
 const kMapPanelAlt = Color(0xFF2C2C2E);
-const kMapHandle   = Color(0xFF48484A);
-const kMapWhite87  = Color(0xDEFFFFFF);
-const kMapWhite45  = Color(0x73FFFFFF);
-const kMapPrimary  = Color(0xFFFF7A45);
+const kMapHandle = Color(0xFF48484A);
+const kMapWhite87 = Color(0xDEFFFFFF);
+const kMapWhite45 = Color(0x73FFFFFF);
+const kMapPrimary = Color(0xFFFF7A45);
 // 대중교통(Mode A) 폴리라인 전용 — 도보/버스/지하철 구간 구분 없이 항상 이 색 하나로
 // 통일해 "코스생성" 미리보기와 "안내시작" 후 색이 달라 보이지 않게 한다.
-const kMapTransit  = Color(0xFFFFD600);
+const kMapTransit = Color(0xFFFFD600);
 
 // ─── 맵 이벤트 싱크 ──────────────────────────────────────────────────────────────
 // AppMapScreen이 보유하고, 각 오버레이가 initState에서 핸들러를 등록.
@@ -22,6 +23,7 @@ class MapEventSink {
   void Function(NPoint, NLatLng)? onMapTapped;
   void Function(NPoint, NLatLng)? onLongTapped;
   VoidCallback? onCameraIdle;
+
   /// 카메라가 변경될 때마다 호출됨 (reason: gesture=사용자, developer=코드)
   void Function(NCameraUpdateReason reason, bool animated)? onCameraChange;
 }
@@ -42,7 +44,8 @@ NaverMapViewOptions buildMapViewOptions({
   String? customStyleId,
   bool isDark = true,
 }) {
-  final styleId = customStyleId ??
+  final styleId =
+      customStyleId ??
       (isDark ? AppEnv.naverMapStyleDarkId : AppEnv.naverMapStyleBrightId);
 
   return NaverMapViewOptions(
@@ -77,7 +80,10 @@ Future<Position?> fetchMapPosition({
       return null;
     }
     return await Geolocator.getCurrentPosition(
-      locationSettings: LocationSettings(accuracy: accuracy, timeLimit: timeout),
+      locationSettings: LocationSettings(
+        accuracy: accuracy,
+        timeLimit: timeout,
+      ),
     );
   } catch (_) {
     return null;
@@ -109,7 +115,11 @@ class MapControlButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(size / 4),
           border: Border.all(color: Colors.white12),
           boxShadow: const [
-            BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 2)),
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
         child: Center(child: child),
@@ -156,10 +166,15 @@ class MapZoomControls extends StatelessWidget {
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: kMapWhite45),
+                    strokeWidth: 2,
+                    color: kMapWhite45,
+                  ),
                 )
-              : const Icon(Icons.my_location_rounded,
-                  size: 22, color: kMapWhite87),
+              : const Icon(
+                  Icons.my_location_rounded,
+                  size: 22,
+                  color: kMapWhite87,
+                ),
         ),
       ],
     );
@@ -191,14 +206,12 @@ class MapLoadingChip extends StatelessWidget {
             width: 14,
             height: 14,
             child: CircularProgressIndicator(
-                strokeWidth: 2, color: kMapWhite45),
+              strokeWidth: 2,
+              color: kMapWhite45,
+            ),
           ),
           const SizedBox(width: 8),
-          Text(text,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: kMapWhite45)),
+          Text(text, style: AppTypography.label.copyWith(color: kMapWhite45)),
         ],
       ),
     );

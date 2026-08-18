@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../providers/auth_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class EmailSignupScreen extends ConsumerStatefulWidget {
   const EmailSignupScreen({super.key});
@@ -41,10 +42,9 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
 
   void _submit() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    ref.read(authStateProvider.notifier).signInWithEmail(
-          _emailCtrl.text.trim(),
-          _passwordCtrl.text,
-        );
+    ref
+        .read(authStateProvider.notifier)
+        .signInWithEmail(_emailCtrl.text.trim(), _passwordCtrl.text);
   }
 
   String _errorMessage(Object? error) {
@@ -87,9 +87,8 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
         ),
         title: Text(
           '이메일로 시작하기',
-          style: TextStyle(
+          style: AppTypography.h3.copyWith(
             color: c.text,
-            fontSize: 17,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.3,
           ),
@@ -99,7 +98,11 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-              context.wp(6), context.hp(3), context.wp(6), context.hp(4)),
+            context.wp(6),
+            context.hp(3),
+            context.wp(6),
+            context.hp(4),
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -107,8 +110,7 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
               children: [
                 Text(
                   '이메일 주소',
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: AppTypography.label.copyWith(
                     fontWeight: FontWeight.w700,
                     color: c.textMuted,
                   ),
@@ -117,19 +119,22 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                 TextFormField(
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
-                  style: TextStyle(color: c.text, fontSize: 15),
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w400,
+                    color: c.text,
+                  ),
                   decoration: _inputDecoration(c, '이메일을 입력하세요'),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return '이메일을 입력하세요';
-                    if (!v.contains('@')) return '올바른 이메일 형식이 아닙니다'; // 현재 실제 메일주소는 사용 안함 (gmail.com)
+                    if (!v.contains('@'))
+                      return '올바른 이메일 형식이 아닙니다'; // 현재 실제 메일주소는 사용 안함 (gmail.com)
                     return null;
                   },
                 ),
                 SizedBox(height: context.hp(2.5)),
                 Text(
                   '비밀번호',
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: AppTypography.label.copyWith(
                     fontWeight: FontWeight.w700,
                     color: c.textMuted,
                   ),
@@ -138,7 +143,10 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                 TextFormField(
                   controller: _passwordCtrl,
                   obscureText: _obscure,
-                  style: TextStyle(color: c.text, fontSize: 15),
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w400,
+                    color: c.text,
+                  ),
                   decoration: _inputDecoration(c, '비밀번호를 입력하세요').copyWith(
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -160,11 +168,7 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                 SizedBox(height: context.hp(1)),
                 Text(
                   '처음 사용하시면 자동으로 가입됩니다.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: c.textFaint,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppTypography.caption.copyWith(color: c.textFaint),
                 ),
                 const Spacer(),
                 AppButton(
@@ -178,10 +182,8 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                   Text(
                     _errorMessage(authState.error),
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: AppTypography.label.copyWith(
                       color: Colors.red.shade400,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -196,11 +198,13 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
   InputDecoration _inputDecoration(dynamic c, String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: c.textFaint, fontSize: 15),
+      hintStyle: AppTypography.body.copyWith(
+        fontWeight: FontWeight.w400,
+        color: c.textFaint,
+      ),
       filled: true,
       fillColor: c.surface,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: c.outline),

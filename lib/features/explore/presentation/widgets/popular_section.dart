@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import 'food_card.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class PopularSection extends ConsumerWidget {
   const PopularSection({super.key, required this.foods});
@@ -37,31 +38,44 @@ class PopularSection extends ConsumerWidget {
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Center(
-                        child: Text('🔥', style: TextStyle(fontSize: 28))),
+                    child: Center(
+                      child: Text(
+                        '🔥',
+                        style: AppTypography.headline.copyWith(
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('지금 많이 찾는 메뉴',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                height: 1)),
+                        Text(
+                          '지금 많이 찾는 메뉴',
+                          style: AppTypography.caption.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
                         SizedBox(height: 2),
-                        Text('사람들이 자주 검색한 음식이에요',
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white)),
+                        Text(
+                          '사람들이 자주 검색한 음식이에요',
+                          style: AppTypography.body.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.trending_up_rounded,
-                      size: 22, color: Colors.white),
+                  const Icon(
+                    Icons.trending_up_rounded,
+                    size: 22,
+                    color: Colors.white,
+                  ),
                 ],
               ),
             ),
@@ -71,12 +85,14 @@ class PopularSection extends ConsumerWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-            child: Text('인기 메뉴',
-                style: TextStyle(
-                    color: c.text,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2)),
+            child: Text(
+              '인기 메뉴',
+              style: AppTypography.h3.copyWith(
+                color: c.text,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+            ),
           ),
         ),
 
@@ -85,15 +101,24 @@ class PopularSection extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Center(
-                child: Text('로딩 중...',
-                    style: TextStyle(color: c.textMuted, fontSize: 14)),
+                child: Text(
+                  '로딩 중...',
+                  style: AppTypography.bodyMute.copyWith(
+                    fontWeight: FontWeight.w400,
+                    color: c.textMuted,
+                  ),
+                ),
               ),
             ),
           )
         else
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
-                16, 0, 16, context.hp(3) + context.bottomPadding),
+              16,
+              0,
+              16,
+              context.hp(3) + context.bottomPadding,
+            ),
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,

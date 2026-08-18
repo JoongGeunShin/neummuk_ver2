@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/context_ext.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 enum NavTab { home, search, record, me }
 
@@ -27,56 +28,55 @@ class AppBottomNav extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border(top: BorderSide(color: c.outline)),
-        // border: Border.all(color: c.outline)
-      ),
-      // margin: const EdgeInsets.all(2),
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: tabs.map((t) {
-          final (tab, label, icon) = t;
-          final on = activeTab == tab;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(tab),
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 56,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: on ? c.primarySoft : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
+        decoration: BoxDecoration(
+          color: c.surface,
+          border: Border(top: BorderSide(color: c.outline)),
+          // border: Border.all(color: c.outline)
+        ),
+        // margin: const EdgeInsets.all(2),
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: tabs.map((t) {
+            final (tab, label, icon) = t;
+            final on = activeTab == tab;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onChanged(tab),
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 56,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: on ? c.primarySoft : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 22,
+                        color: on ? c.primary : c.textMuted,
+                      ),
                     ),
-                    child: Icon(
-                      icon,
-                      size: 22,
-                      color: on ? c.primary : c.textMuted,
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      style: AppTypography.tiny.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.1,
+                        color: on ? c.primary : c.textMuted,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.1,
-                      color: on ? c.primary : c.textMuted,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        }).toList(),
-      ),
-      ),  // Container
-    );    // SafeArea
+            );
+          }).toList(),
+        ),
+      ), // Container
+    ); // SafeArea
   }
 }

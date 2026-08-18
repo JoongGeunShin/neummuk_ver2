@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/env/app_env.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/utils/geo_utils.dart';
@@ -59,20 +60,16 @@ part 'map_overlay/mode_b_nav_mixin.dart';
 part 'map_overlay/mode_b_nav_panels.dart';
 part 'map_overlay/mode_a_walk_nav_panels.dart';
 
-const _kPanel    = kMapPanel;
+const _kPanel = kMapPanel;
 const _kPanelAlt = kMapPanelAlt;
-const _kHandle   = kMapHandle;
-const _kWhite87  = kMapWhite87;
-const _kWhite45  = kMapWhite45;
-const _kGreen    = kMapPrimary;
-const _kTransit  = kMapTransit;
+const _kHandle = kMapHandle;
+const _kWhite87 = kMapWhite87;
+const _kWhite45 = kMapWhite45;
+const _kGreen = kMapPrimary;
+const _kTransit = kMapTransit;
 
 class MapOverlay extends ConsumerStatefulWidget {
-  const MapOverlay({
-    super.key,
-    required this.controller,
-    required this.events,
-  });
+  const MapOverlay({super.key, required this.controller, required this.events});
 
   final NaverMapController? controller;
   final MapEventSink events;
@@ -82,13 +79,20 @@ class MapOverlay extends ConsumerStatefulWidget {
 }
 
 class _MapOverlayState extends ConsumerState<MapOverlay>
-    with _ExploreOverlayMixin, _NavOverlayMixin, _ModeAOverlayMixin, _ModeBOverlayMixin, _ModeBNavOverlayMixin {
-
-  @override Position? get _position => __position;
+    with
+        _ExploreOverlayMixin,
+        _NavOverlayMixin,
+        _ModeAOverlayMixin,
+        _ModeBOverlayMixin,
+        _ModeBNavOverlayMixin {
+  @override
+  Position? get _position => __position;
   Position? __position;
 
-  @override bool get _locating => __locating;
-  @override set _locating(bool value) => __locating = value;
+  @override
+  bool get _locating => __locating;
+  @override
+  set _locating(bool value) => __locating = value;
   bool __locating = false;
 
   NLocationOverlay? _locationOverlay;
@@ -98,10 +102,14 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   // 실제 내비게이션 중일 때만 고정밀 GPS(3m/high)를 쓰고, 단순 지도 탐색 중에는
   // medium/8m로 낮춰 배터리를 아낀다. 안내 시작·종료 시 _syncPositionStreamAccuracy()가
   // 전환한다 — 안내 중 정확도·실시간성은 기존과 동일하게 유지된다.
-  static const _navLocationSettings =
-      LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 3);
-  static const _idleLocationSettings =
-      LocationSettings(accuracy: LocationAccuracy.medium, distanceFilter: 8);
+  static const _navLocationSettings = LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 3,
+  );
+  static const _idleLocationSettings = LocationSettings(
+    accuracy: LocationAccuracy.medium,
+    distanceFilter: 8,
+  );
   bool _positionStreamHighAccuracy = false;
 
   // 기기 나침반 방위각 — _ModeBNavOverlayMixin abstract getter 충족
@@ -167,7 +175,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       if (now.difference(_lastCameraCompassUpdate).inMilliseconds < 800) return;
 
       final modeBNav = ref.read(modeBNavProvider);
-      if (modeBNav.isNavigating && !_modeBNorthUpMode && _modeBNavCameraFollow) {
+      if (modeBNav.isNavigating &&
+          !_modeBNorthUpMode &&
+          _modeBNavCameraFollow) {
         _lastCameraCompassUpdate = now;
         final pos = __position;
         if (pos != null) {
@@ -211,7 +221,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     _lastSearchLng = lng;
     final radius = await _getVisibleRadiusMeters();
     if (!mounted) return;
-    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
+    ref
+        .read(mapSearchNotifierProvider.notifier)
+        .loadPlaces(lat, lng, radiusMeters: radius);
 
     // 홈에서 진입 시 이미 모드 A 상태라면 마커·폴리라인 동기화 (안내 중 복원이면 순수 드로잉만)
     if (ref.read(mapModeProvider) == MapMode.modeA) {
@@ -219,12 +231,17 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       final modeANavState = ref.read(modeANavProvider);
       unawaited(_syncModeAMarkers(modeAState));
       if (modeANavState.isNavigating && modeAState.routeResult != null) {
-        unawaited(_restoreModeANavOnMap(modeAState.routeResult!, modeANavState));
+        unawaited(
+          _restoreModeANavOnMap(modeAState.routeResult!, modeANavState),
+        );
       } else {
         // 도착 후엔 routeResult가 요약 표시용으로 남아있을 뿐 폴리라인은 이미
         // 지워진 상태이므로, 화면 재진입 때 되살리면 안 된다.
-        unawaited(_drawModeAPolyline(
-            modeAState.hasArrived ? null : modeAState.routeResult));
+        unawaited(
+          _drawModeAPolyline(
+            modeAState.hasArrived ? null : modeAState.routeResult,
+          ),
+        );
       }
       // Home에서 이미 Mode A로 진입한 채 화면이 열린 경우(ref.listen이 초기값에는
       // 반응하지 않으므로 _onModeChanged의 자동 GPS 설정이 실행되지 않음) — 여기서
@@ -256,7 +273,8 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   // 낮춰 배터리 소모를 줄인다. Mode A/B 안내가 시작되면 다시 high로 전환되므로
   // 안내 중 정확도·실시간성은 변하지 않는다.
   void _syncPositionStreamAccuracy() {
-    final needsHighAccuracy = ref.read(modeANavProvider).isNavigating ||
+    final needsHighAccuracy =
+        ref.read(modeANavProvider).isNavigating ||
         ref.read(modeBNavProvider).isNavigating;
     if (needsHighAccuracy == _positionStreamHighAccuracy) return;
     _subscribeToPositionStream(highAccuracy: needsHighAccuracy);
@@ -266,7 +284,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     _positionStreamHighAccuracy = highAccuracy;
     _positionSub?.cancel();
     _positionSub = Geolocator.getPositionStream(
-      locationSettings: highAccuracy ? _navLocationSettings : _idleLocationSettings,
+      locationSettings: highAccuracy
+          ? _navLocationSettings
+          : _idleLocationSettings,
     ).listen(_onPositionUpdate);
   }
 
@@ -289,13 +309,23 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       final prev = _prevNavPosition;
       if (prev != null) {
         final bearing = bearingDeg(
-            prev.latitude, prev.longitude, p.latitude, p.longitude);
+          prev.latitude,
+          prev.longitude,
+          p.latitude,
+          p.longitude,
+        );
         final moved = Geolocator.distanceBetween(
-            prev.latitude, prev.longitude, p.latitude, p.longitude);
+          prev.latitude,
+          prev.longitude,
+          p.latitude,
+          p.longitude,
+        );
         if (moved >= 2.0) {
           _lastNavBearing = bearing;
           // 8m 이상 이동 시 자동으로 단계별 안내로 전환
-          if (route != null && route.transport != 'transit' && !_modeANavStepMode) {
+          if (route != null &&
+              route.transport != 'transit' &&
+              !_modeANavStepMode) {
             _movedSinceModeANavStart += moved;
             if (_movedSinceModeANavStart > 8.0) {
               setState(() => _modeANavStepMode = true);
@@ -306,7 +336,8 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       _prevNavPosition = p;
       // Mode B와 동일: 카메라 베어링에 기기 나침반 사용 (north-up 아닐 때)
       _followNavCamera(
-        p.latitude, p.longitude,
+        p.latitude,
+        p.longitude,
         _modeANorthUpMode ? 0.0 : _compassHeading,
       );
       // 잔여 폴리라인 실시간 트리밍 (스로틀 없이 완전 실시간)
@@ -347,8 +378,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       // 턴 마커 복원 — 정상 시작 흐름(_startModeBNavigation)과 동일하게
       // 코스 전체 구간의 턴을 계산해 그린다. 이게 없으면 앱을 강제종료 후
       // 재실행했을 때 다음 웨이포인트 도착까지 턴 마커가 아예 안 보인다.
-      final currentIdx =
-          navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
+      final currentIdx = navState.currentWaypointIdx.clamp(
+        0,
+        _segmentPolylines.length - 1,
+      );
       final curSeg = _segmentPolylines[currentIdx];
       _modeBTurnPoints = curSeg.isNotEmpty
           ? computeTurnPoints(
@@ -390,16 +423,22 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   Future<void> _onCameraIdle() async {
     final cam = await _ctrl?.getCameraPosition();
     if (cam == null) return;
-    if (mounted) setState(() {
-      _currentZoom = cam.zoom;
-    });
+    if (mounted)
+      setState(() {
+        _currentZoom = cam.zoom;
+      });
     final mode = ref.read(mapModeProvider);
     if (mode != MapMode.explore) return;
     final lat = cam.target.latitude;
     final lng = cam.target.longitude;
     ref.read(mapSearchNotifierProvider.notifier).updateCenter(lat, lng);
     if (_lastSearchLat != null) {
-      final d = MapCameraUtils.distanceM(lat, lng, _lastSearchLat!, _lastSearchLng!);
+      final d = MapCameraUtils.distanceM(
+        lat,
+        lng,
+        _lastSearchLat!,
+        _lastSearchLng!,
+      );
       if (mounted) setState(() => _showReSearchButton = d > 300);
     }
   }
@@ -428,7 +467,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         _lastSearchLng = lng;
         _getVisibleRadiusMeters().then((radius) {
           if (!mounted) return;
-          ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
+          ref
+              .read(mapSearchNotifierProvider.notifier)
+              .loadPlaces(lat, lng, radiusMeters: radius);
         });
       case MapMode.modeA:
         if (mounted) {
@@ -436,7 +477,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
             _showExploreList = false;
             _clusterPanelPlaces = null;
             _exploreMapFocus = false;
-            _modeAMapFocus = false;    // 모드 진입 시 포커스 초기화
+            _modeAMapFocus = false; // 모드 진입 시 포커스 초기화
             _routePanelEditing = false; // 수정 패널 초기화
           });
         }
@@ -446,7 +487,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         final modeAState = ref.read(modeAProvider);
         if (modeAState.originLat == null) _fetchGpsOriginForModeA();
         _syncModeAMarkers(modeAState);
-        _drawModeAPolyline(modeAState.hasArrived ? null : modeAState.routeResult);
+        _drawModeAPolyline(
+          modeAState.hasArrived ? null : modeAState.routeResult,
+        );
       case MapMode.modeB:
         _resetModeAFocusState();
         final modeBState = ref.read(routeSearchProvider);
@@ -455,7 +498,12 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         } else if (modeBState.searchedSpots.isNotEmpty) {
           unawaited(_drawSearchedSpotMarkers(modeBState.searchedSpots));
         } else if (modeBState.routes.isNotEmpty) {
-          unawaited(_updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx));
+          unawaited(
+            _updateModeBMarkers(
+              modeBState.routes,
+              selectedIdx: modeBState.selectedRouteIdx,
+            ),
+          );
         } else {
           // 기성 코스·검색 결과 없는 초기 상태 → 카트 스팟만 표시
           final cartItems = ref.read(cartProvider);
@@ -511,10 +559,18 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
     );
 
     if (mode == MapMode.modeA && navState.isNavigating) {
-      return Positioned(right: 12, bottom: 96 + bottomPad + 16, child: zoomWidget);
+      return Positioned(
+        right: 12,
+        bottom: 96 + bottomPad + 16,
+        child: zoomWidget,
+      );
     }
     if (mode == MapMode.modeB && ref.read(modeBNavProvider).isNavigating) {
-      return Positioned(right: 12, bottom: 96 + bottomPad + 16, child: zoomWidget);
+      return Positioned(
+        right: 12,
+        bottom: 96 + bottomPad + 16,
+        child: zoomWidget,
+      );
     }
     if (mode == MapMode.modeB) {
       return AnimatedBuilder(
@@ -550,7 +606,11 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           final sheetH = _sheetACtrl.isAttached
               ? _sheetACtrl.size * screenH
               : screenH * 0.52;
-          return Positioned(right: 12, bottom: sheetH + bottomPad + 16, child: child!);
+          return Positioned(
+            right: 12,
+            bottom: sheetH + bottomPad + 16,
+            child: child!,
+          );
         },
         child: zoomWidget,
       );
@@ -563,32 +623,30 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
   @override
   Widget build(BuildContext context) {
     final bottomPad = context.bottomPadding;
-    final mode         = ref.watch(mapModeProvider);
+    final mode = ref.watch(mapModeProvider);
     final exploreState = ref.watch(mapSearchNotifierProvider);
-    final modeAState   = ref.watch(modeAProvider);
-    final navState     = ref.watch(modeANavProvider);
-    final food         = ref.watch(selectedFoodProvider);
-    final modeBState   = ref.watch(routeSearchProvider);
+    final modeAState = ref.watch(modeAProvider);
+    final navState = ref.watch(modeANavProvider);
+    final food = ref.watch(selectedFoodProvider);
+    final modeBState = ref.watch(routeSearchProvider);
     final modeBNavState = ref.watch(modeBNavProvider);
     final profileAsync = ref.watch(userProfileProvider);
 
     ref.listen<MapMode>(mapModeProvider, _onModeChanged);
 
-    ref.listen(
-      mapSearchNotifierProvider.select((s) => s.places),
-      (_, places) {
-        if (mode == MapMode.explore) {
-          _updateExploreMarkers(places);
-          if (_fitCameraOnNextResult && places.isNotEmpty) {
-            _fitCameraOnNextResult = false;
-            _fitCameraToPlaces(places);
-          }
+    ref.listen(mapSearchNotifierProvider.select((s) => s.places), (_, places) {
+      if (mode == MapMode.explore) {
+        _updateExploreMarkers(places);
+        if (_fitCameraOnNextResult && places.isNotEmpty) {
+          _fitCameraOnNextResult = false;
+          _fitCameraToPlaces(places);
         }
-      },
-    );
+      }
+    });
 
     ref.listen<ModeAState>(modeAProvider, (prev, next) {
-      final coordsChanged = prev?.originLat != next.originLat ||
+      final coordsChanged =
+          prev?.originLat != next.originLat ||
           prev?.originLng != next.originLng ||
           prev?.destLat != next.destLat ||
           prev?.destLng != next.destLng ||
@@ -608,7 +666,8 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       final tabChanged = prev?.nearbyTab != next.nearbyTab;
       final loadFinished =
           (prev?.nearbyLoading ?? false) && !next.nearbyLoading;
-      final restaurantsRefreshed = next.nearbyTab == ModeANearbyTab.restaurant &&
+      final restaurantsRefreshed =
+          next.nearbyTab == ModeANearbyTab.restaurant &&
           !identical(prev?.restaurants, next.restaurants) &&
           next.routeResult != null;
       if ((tabChanged || loadFinished || restaurantsRefreshed) &&
@@ -632,7 +691,9 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         }
       }
       // 기성 코스 목록 변경 시 마커 갱신 (생성 코스 선택 중에는 기성 마커 갱신 생략)
-      if (!next.isLoading && next.routes != prev?.routes && !next.generatedCourseSelected) {
+      if (!next.isLoading &&
+          next.routes != prev?.routes &&
+          !next.generatedCourseSelected) {
         _updateModeBMarkers(next.routes, selectedIdx: next.selectedRouteIdx);
       }
       // 기성 코스 선택 변경 시 GPX/마커 갱신
@@ -664,14 +725,22 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (route != null) _onStartModeBCourse(route);
       }
       // 스팟 검색 완료 후 코스 생성 실패 피드백
-      final fetchDone = (prev?.isFetchingSpots ?? false) && !next.isFetchingSpots;
-      if (fetchDone && next.generatedCourse == null && next.searchedSpots.isEmpty && mounted) {
+      final fetchDone =
+          (prev?.isFetchingSpots ?? false) && !next.isFetchingSpots;
+      if (fetchDone &&
+          next.generatedCourse == null &&
+          next.searchedSpots.isEmpty &&
+          mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('주변에 코스를 만들 스팟이 부족해요. 태그를 바꾸거나 지도를 이동 후 다시 시도해보세요.'),
+            content: const Text(
+              '주변에 코스를 만들 스팟이 부족해요. 태그를 바꾸거나 지도를 이동 후 다시 시도해보세요.',
+            ),
             backgroundColor: kMapPanel,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -727,10 +796,11 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
             unawaited(_drawModeATurnMarkers(_allModeATurnMarkers));
           }
         } else if (route != null) {
-          if (mounted) setState(() {
-            _modeANavStepMode = false;
-            _movedSinceModeANavStart = 0.0;
-          });
+          if (mounted)
+            setState(() {
+              _modeANavStepMode = false;
+              _movedSinceModeANavStart = 0.0;
+            });
           _initModeATurnPoints(route);
           unawaited(_drawModeASegmentsOnMap(route, 0));
           if (_allModeATurnMarkers.any((t) => t.type != TurnType.arrival)) {
@@ -803,7 +873,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
       }
     });
 
-    final categories = ['전체', ...?profileAsync.valueOrNull?.preferredCategories];
+    final categories = [
+      '전체',
+      ...?profileAsync.valueOrNull?.preferredCategories,
+    ];
 
     return PopScope(
       canPop: !modeBNavState.isNavigating && !navState.isNavigating,
@@ -823,100 +896,128 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (mounted) _modeBSafeBack();
       },
       child: Stack(
-      fit: StackFit.expand,
-      children: [
-        // ── Explore overlays ───────────────────────────────────
-        ..._buildExploreOverlays(context, mode, exploreState, categories, bottomPad),
+        fit: StackFit.expand,
+        children: [
+          // ── Explore overlays ───────────────────────────────────
+          ..._buildExploreOverlays(
+            context,
+            mode,
+            exploreState,
+            categories,
+            bottomPad,
+          ),
 
-        // ── Mode A overlays ────────────────────────────────────
-        ..._buildModeAOverlays(context, mode, modeAState, navState, bottomPad),
+          // ── Mode A overlays ────────────────────────────────────
+          ..._buildModeAOverlays(
+            context,
+            mode,
+            modeAState,
+            navState,
+            bottomPad,
+          ),
 
-        // ── Mode B overlays (코스 탐색) ────────────────────────
-        if (!modeBNavState.isNavigating)
-          ..._buildModeBOverlays(context, mode, food, modeBState, bottomPad, __locating),
+          // ── Mode B overlays (코스 탐색) ────────────────────────
+          if (!modeBNavState.isNavigating)
+            ..._buildModeBOverlays(
+              context,
+              mode,
+              food,
+              modeBState,
+              bottomPad,
+              __locating,
+            ),
 
-        // ── Mode B nav overlays (네비게이션 중) ────────────────
-        if (mode == MapMode.modeB)
-          ..._buildModeBNavOverlays(context, modeBNavState, bottomPad),
+          // ── Mode B nav overlays (네비게이션 중) ────────────────
+          if (mode == MapMode.modeB)
+            ..._buildModeBNavOverlays(context, modeBNavState, bottomPad),
 
-        // ── Zoom controls ──────────────────────────────────────
-        _buildZoomControls(context, mode, bottomPad, modeAState, navState),
+          // ── Zoom controls ──────────────────────────────────────
+          _buildZoomControls(context, mode, bottomPad, modeAState, navState),
 
-        // ── Mode B nav 플로팅 버튼 (줌 위에 렌더링) ────────────
-        if (mode == MapMode.modeB && modeBNavState.isNavigating)
-          ..._buildModeBNavFloatingButtons(bottomPad),
+          // ── Mode B nav 플로팅 버튼 (줌 위에 렌더링) ────────────
+          if (mode == MapMode.modeB && modeBNavState.isNavigating)
+            ..._buildModeBNavFloatingButtons(bottomPad),
 
-        // ── Mode A nav 플로팅 버튼 (Mode B와 동일: 나침반 토글 + 재센터) ──
-        if (mode == MapMode.modeA && navState.isNavigating)
-          ..._buildModeANavFloatingButtons(bottomPad),
+          // ── Mode A nav 플로팅 버튼 (Mode B와 동일: 나침반 토글 + 재센터) ──
+          if (mode == MapMode.modeA && navState.isNavigating)
+            ..._buildModeANavFloatingButtons(bottomPad),
 
-        // ── Mode toggle (탐색 중 또는 경로 결과 시트·안내 중이면 숨김) ──
-        if (mode != MapMode.modeB &&
-            !navState.isNavigating &&
-            !modeBNavState.isNavigating &&
-            !(mode == MapMode.explore && _showExploreList) &&
-            !(mode == MapMode.modeA &&
-                modeAState.routeResult != null &&
-                !_routePanelEditing))
-          Positioned(
-            left: 12, bottom: bottomPad + 16,
-            child: _ModeToggle(
-              mode: mode,
-              onExplore: () =>
-                  ref.read(mapModeProvider.notifier).set(MapMode.explore),
-              onModeA: () {
+          // ── Mode toggle (탐색 중 또는 경로 결과 시트·안내 중이면 숨김) ──
+          if (mode != MapMode.modeB &&
+              !navState.isNavigating &&
+              !modeBNavState.isNavigating &&
+              !(mode == MapMode.explore && _showExploreList) &&
+              !(mode == MapMode.modeA &&
+                  modeAState.routeResult != null &&
+                  !_routePanelEditing))
+            Positioned(
+              left: 12,
+              bottom: bottomPad + 16,
+              child: _ModeToggle(
+                mode: mode,
+                onExplore: () =>
+                    ref.read(mapModeProvider.notifier).set(MapMode.explore),
+                onModeA: () {
+                  ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                  if (ref.read(modeAProvider).originLat == null) {
+                    _fetchGpsOriginForModeA();
+                  }
+                },
+              ),
+            ),
+
+          // ── Explore: place sheet ───────────────────────────────
+          if (mode == MapMode.explore && exploreState.selectedPlace != null)
+            _ExplorePlaceSheet(
+              place: exploreState.selectedPlace!,
+              canAddWaypoint: ref.read(modeAProvider).waypoints.length < 3,
+              onClose: () => ref
+                  .read(mapSearchNotifierProvider.notifier)
+                  .selectPlace(null),
+              onSetOrigin: (place) {
+                ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
+                ref
+                    .read(modeAProvider.notifier)
+                    .setOriginGps(place.latitude, place.longitude, place.name);
                 ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                if (ref.read(modeAProvider).originLat == null) {
-                  _fetchGpsOriginForModeA();
-                }
+              },
+              onSetDest: (place) {
+                ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
+                ref
+                    .read(modeAProvider.notifier)
+                    .setDestCoords(place.latitude, place.longitude, place.name);
+                ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+              },
+              onAddWaypoint: (place) {
+                ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
+                ref
+                    .read(modeAProvider.notifier)
+                    .addWaypoint(
+                      RouteWaypoint(
+                        name: place.name,
+                        latitude: place.latitude,
+                        longitude: place.longitude,
+                      ),
+                    );
+                ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+              },
+              onViewDetail: (place) =>
+                  context.push('/place-detail', extra: place),
+            ),
+
+          // ── Explore: cluster panel ─────────────────────────────
+          if (mode == MapMode.explore &&
+              _clusterPanelPlaces != null &&
+              exploreState.selectedPlace == null)
+            _ClusterPanel(
+              places: _clusterPanelPlaces!,
+              onClose: () => setState(() => _clusterPanelPlaces = null),
+              onTapPlace: (place) {
+                setState(() => _clusterPanelPlaces = null);
+                ref.read(mapSearchNotifierProvider.notifier).selectPlace(place);
               },
             ),
-          ),
-
-        // ── Explore: place sheet ───────────────────────────────
-        if (mode == MapMode.explore && exploreState.selectedPlace != null)
-          _ExplorePlaceSheet(
-            place: exploreState.selectedPlace!,
-            canAddWaypoint: ref.read(modeAProvider).waypoints.length < 3,
-            onClose: () =>
-                ref.read(mapSearchNotifierProvider.notifier).selectPlace(null),
-            onSetOrigin: (place) {
-              ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
-              ref.read(modeAProvider.notifier).setOriginGps(
-                    place.latitude, place.longitude, place.name);
-              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-            },
-            onSetDest: (place) {
-              ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
-              ref.read(modeAProvider.notifier).setDestCoords(
-                    place.latitude, place.longitude, place.name);
-              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-            },
-            onAddWaypoint: (place) {
-              ref.read(mapSearchNotifierProvider.notifier).selectPlace(null);
-              ref.read(modeAProvider.notifier).addWaypoint(RouteWaypoint(
-                    name: place.name,
-                    latitude: place.latitude,
-                    longitude: place.longitude,
-                  ));
-              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-            },
-            onViewDetail: (place) => context.push('/place-detail', extra: place),
-          ),
-
-        // ── Explore: cluster panel ─────────────────────────────
-        if (mode == MapMode.explore &&
-            _clusterPanelPlaces != null &&
-            exploreState.selectedPlace == null)
-          _ClusterPanel(
-            places: _clusterPanelPlaces!,
-            onClose: () => setState(() => _clusterPanelPlaces = null),
-            onTapPlace: (place) {
-              setState(() => _clusterPanelPlaces = null);
-              ref.read(mapSearchNotifierProvider.notifier).selectPlace(place);
-            },
-          ),
-      ],
+        ],
       ),
     );
   }

@@ -32,7 +32,9 @@ class _ModeAResultSheet extends StatelessWidget {
     final result = state.routeResult!;
     final visibleTabs = state.hasArrived
         ? ModeANearbyTab.values
-        : ModeANearbyTab.values.where((t) => t != ModeANearbyTab.restaurant).toList();
+        : ModeANearbyTab.values
+              .where((t) => t != ModeANearbyTab.restaurant)
+              .toList();
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -40,7 +42,11 @@ class _ModeAResultSheet extends StatelessWidget {
         decoration: const BoxDecoration(
           color: kMapPanel,
           boxShadow: [
-            BoxShadow(color: Colors.black54, blurRadius: 40, offset: Offset(0, -12)),
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 40,
+              offset: Offset(0, -12),
+            ),
           ],
         ),
         child: CustomScrollView(
@@ -63,29 +69,37 @@ class _ModeAResultSheet extends StatelessWidget {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(state.hasArrived ? '실제 소모' : '예상 소모',
-                                    style: const TextStyle(
-                                        fontSize: 11, color: kMapWhite45,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.3)),
+                                Text(
+                                  state.hasArrived ? '실제 소모' : '예상 소모',
+                                  style: AppTypography.tiny.copyWith(
+                                    color: kMapWhite45,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
                                 Row(
-                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
                                   children: [
                                     Text(
-                                        '${state.hasArrived ? (state.arrivalKcal?.round() ?? 0) : result.kcalBurn}',
-                                        style: TextStyle(
-                                            fontSize: context.wp(10.5),
-                                            fontWeight: FontWeight.w800,
-                                            color: kMapPrimary,
-                                            letterSpacing: -1.5,
-                                            height: 1)),
+                                      '${state.hasArrived ? (state.arrivalKcal?.round() ?? 0) : result.kcalBurn}',
+                                      style: TextStyle(
+                                        fontSize: context.wp(10.5),
+                                        fontWeight: FontWeight.w800,
+                                        color: kMapPrimary,
+                                        letterSpacing: -1.5,
+                                        height: 1,
+                                      ),
+                                    ),
                                     const SizedBox(width: 4),
-                                    const Text('kcal',
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: kMapWhite45)),
+                                    Text(
+                                      'kcal',
+                                      style: AppTypography.bodyMute.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: kMapWhite45,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -97,20 +111,23 @@ class _ModeAResultSheet extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                      '${result.distanceKm} km · ${result.durationMinutes}분',
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          color: kMapWhite45,
-                                          fontWeight: FontWeight.w700)),
+                                    '${result.distanceKm} km · ${result.durationMinutes}분',
+                                    style: AppTypography.tiny.copyWith(
+                                      color: kMapWhite45,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text('${result.fromName} → ${result.toName}',
-                                      maxLines: 1,
-                                      textAlign: TextAlign.end,
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: kMapWhite87,
-                                          fontWeight: FontWeight.w700),
-                                      overflow: TextOverflow.ellipsis),
+                                  Text(
+                                    '${result.fromName} → ${result.toName}',
+                                    maxLines: 1,
+                                    textAlign: TextAlign.end,
+                                    style: AppTypography.caption.copyWith(
+                                      color: kMapWhite87,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ],
                               ),
                             ),
@@ -121,19 +138,27 @@ class _ModeAResultSheet extends StatelessWidget {
                           Wrap(
                             spacing: 6,
                             children: result.waypoints
-                                .map((w) => Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: kMapPrimary.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(20),
+                                .map(
+                                  (w) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: kMapPrimary.withValues(
+                                        alpha: 0.15,
                                       ),
-                                      child: Text('경유 ${w.name}',
-                                          style: const TextStyle(
-                                              fontSize: 11,
-                                              color: kMapPrimary,
-                                              fontWeight: FontWeight.w700)),
-                                    ))
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '경유 ${w.name}',
+                                      style: AppTypography.tiny.copyWith(
+                                        color: kMapPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                           ),
                         ],
@@ -143,8 +168,12 @@ class _ModeAResultSheet extends StatelessWidget {
                   // 칼로리 비교 or 탭 콘텐츠
                   if (state.destIsRestaurant && state.destKcal > 0) ...[
                     Padding(
-                      padding:
-                          EdgeInsets.fromLTRB(context.wp(5), 14, context.wp(5), 0),
+                      padding: EdgeInsets.fromLTRB(
+                        context.wp(5),
+                        14,
+                        context.wp(5),
+                        0,
+                      ),
                       child: _CalorieComparePanel(
                         routeKcal: result.kcalBurn,
                         destKcal: state.destKcal,
@@ -162,7 +191,9 @@ class _ModeAResultSheet extends StatelessWidget {
                       height: 36,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        padding: EdgeInsets.symmetric(horizontal: context.wp(5)),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: context.wp(5),
+                        ),
                         itemCount: visibleTabs.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 6),
                         itemBuilder: (ctx, i) {
@@ -173,7 +204,9 @@ class _ModeAResultSheet extends StatelessWidget {
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 160),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 0),
+                                horizontal: 14,
+                                vertical: 0,
+                              ),
                               decoration: BoxDecoration(
                                 color: selected
                                     ? kMapPrimary.withValues(alpha: 0.9)
@@ -188,8 +221,7 @@ class _ModeAResultSheet extends StatelessWidget {
                               alignment: Alignment.center,
                               child: Text(
                                 tab.label,
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: AppTypography.caption.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: selected ? Colors.white : kMapWhite45,
                                 ),
@@ -223,33 +255,44 @@ class _ModeAResultSheet extends StatelessWidget {
                     top: false,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
-                          context.wp(5), 8, context.wp(5), 12),
+                        context.wp(5),
+                        8,
+                        context.wp(5),
+                        12,
+                      ),
                       child: GestureDetector(
                         onTap: state.hasArrived ? null : onStartNavigation,
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: state.hasArrived ? kMapPanelAlt : kMapPrimary,
+                            color: state.hasArrived
+                                ? kMapPanelAlt
+                                : kMapPrimary,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                  state.hasArrived
-                                      ? Icons.check_circle_rounded
-                                      : Icons.navigation_rounded,
-                                  size: 18,
-                                  color: state.hasArrived ? kMapWhite45 : Colors.white),
+                                state.hasArrived
+                                    ? Icons.check_circle_rounded
+                                    : Icons.navigation_rounded,
+                                size: 18,
+                                color: state.hasArrived
+                                    ? kMapWhite45
+                                    : Colors.white,
+                              ),
                               const SizedBox(width: 8),
-                              Text(state.hasArrived ? '안내 완료' : '안내 시작',
-                                  style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                      color: state.hasArrived
-                                          ? kMapWhite45
-                                          : Colors.white)),
+                              Text(
+                                state.hasArrived ? '안내 완료' : '안내 시작',
+                                style: AppTypography.body.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: state.hasArrived
+                                      ? kMapWhite45
+                                      : Colors.white,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -296,8 +339,11 @@ class _NearbyTabContent extends StatelessWidget {
         return ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.fromLTRB(
-              MediaQuery.sizeOf(context).width * 0.05, 4,
-              MediaQuery.sizeOf(context).width * 0.05, 8),
+            MediaQuery.sizeOf(context).width * 0.05,
+            4,
+            MediaQuery.sizeOf(context).width * 0.05,
+            8,
+          ),
           itemCount: state.restaurants.length,
           itemBuilder: (ctx, i) {
             final r = state.restaurants[i];
@@ -321,8 +367,11 @@ class _NearbyTabContent extends StatelessWidget {
         return ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.fromLTRB(
-              MediaQuery.sizeOf(context).width * 0.05, 4,
-              MediaQuery.sizeOf(context).width * 0.05, 8),
+            MediaQuery.sizeOf(context).width * 0.05,
+            4,
+            MediaQuery.sizeOf(context).width * 0.05,
+            8,
+          ),
           itemCount: state.nearbyDurunubi.length,
           itemBuilder: (ctx, i) => Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -344,8 +393,11 @@ class _NearbyTabContent extends StatelessWidget {
         return ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.fromLTRB(
-              MediaQuery.sizeOf(context).width * 0.05, 4,
-              MediaQuery.sizeOf(context).width * 0.05, 8),
+            MediaQuery.sizeOf(context).width * 0.05,
+            4,
+            MediaQuery.sizeOf(context).width * 0.05,
+            8,
+          ),
           itemCount: state.nearbyPlaces.length,
           itemBuilder: (ctx, i) => Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -362,9 +414,14 @@ class _NearbyTabContent extends StatelessWidget {
   }
 
   Widget _emptyHint(String msg) => Center(
-        child: Text(msg,
-            style: const TextStyle(color: kMapWhite45, fontSize: 13)),
-      );
+    child: Text(
+      msg,
+      style: AppTypography.label.copyWith(
+        fontWeight: FontWeight.w400,
+        color: kMapWhite45,
+      ),
+    ),
+  );
 }
 
 // ── TourAPI 장소 카드 ──────────────────────────────────────────────────────────
@@ -379,80 +436,90 @@ class _PlaceCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      decoration: BoxDecoration(
-        color: kMapPanelAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 이미지 or 플레이스홀더
-          if (place.imageUrl != null && place.imageUrl!.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: place.imageUrl!,
-              height: 90,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => _imgPlaceholder(90),
-            )
-          else
-            _imgPlaceholder(90),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (place.category != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: kMapPrimary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
+        decoration: BoxDecoration(
+          color: kMapPanelAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 이미지 or 플레이스홀더
+            if (place.imageUrl != null && place.imageUrl!.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: place.imageUrl!,
+                height: 90,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => _imgPlaceholder(90),
+              )
+            else
+              _imgPlaceholder(90),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (place.category != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kMapPrimary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          place.category!,
+                          style: AppTypography.micro.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: kMapPrimary,
+                          ),
+                        ),
                       ),
-                      child: Text(place.category!,
-                          style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: kMapPrimary)),
-                    ),
-                  const SizedBox(height: 5),
-                  Text(place.name,
-                      style: const TextStyle(
-                          color: kMapWhite87,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: -0.1),
+                    const SizedBox(height: 5),
+                    Text(
+                      place.name,
+                      style: AppTypography.label.copyWith(
+                        color: kMapWhite87,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.1,
+                      ),
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                  if (place.address != null && place.address!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(place.address!,
-                        style: const TextStyle(
-                            color: kMapWhite45,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (place.address != null && place.address!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        place.address!,
+                        style: AppTypography.tiny.copyWith(
+                          color: kMapWhite45,
+                          fontWeight: FontWeight.w500,
+                        ),
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _imgPlaceholder(double h) => Container(
-        height: h,
-        color: kMapPanelAlt,
-        child: const Center(
-            child: Icon(Icons.place_rounded, color: kMapWhite45, size: 28)),
-      );
+    height: h,
+    color: kMapPanelAlt,
+    child: const Center(
+      child: Icon(Icons.place_rounded, color: kMapWhite45, size: 28),
+    ),
+  );
 }
 
 // ── 두루누비 코스 카드 ─────────────────────────────────────────────────────────
@@ -470,102 +537,125 @@ class _DurunubiCourseCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      decoration: BoxDecoration(
-        color: kMapPanelAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (img != null)
-            CachedNetworkImage(
-              imageUrl: img,
-              height: 90,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => _imgPlaceholder(90),
-            )
-          else
-            _imgPlaceholder(90),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Builder(builder: (ctx) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: ctx.colors.pinUser.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
+        decoration: BoxDecoration(
+          color: kMapPanelAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (img != null)
+              CachedNetworkImage(
+                imageUrl: img,
+                height: 90,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => _imgPlaceholder(90),
+              )
+            else
+              _imgPlaceholder(90),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Builder(
+                          builder: (ctx) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: ctx.colors.pinUser.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '두루누비',
+                              style: AppTypography.micro.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: ctx.colors.pinUser,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (tag != null) ...[
+                          const SizedBox(width: 5),
+                          Text(
+                            '난이도 $tag',
+                            style: AppTypography.micro.copyWith(
+                              color: kMapWhite45,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      course.name,
+                      style: AppTypography.label.copyWith(
+                        color: kMapWhite87,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.1,
                       ),
-                      child: Text('두루누비',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: ctx.colors.pinUser)),
-                    )),
-                    if (tag != null) ...[
-                      const SizedBox(width: 5),
-                      Text('난이도 $tag',
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: kMapWhite45,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ]),
-                  const SizedBox(height: 5),
-                  Text(course.name,
-                      style: const TextStyle(
-                          color: kMapWhite87,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: -0.1),
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                  const Spacer(),
-                  Row(children: [
-                    if (course.distanceKm > 0) ...[
-                      const Icon(Icons.straighten_rounded,
-                          size: 11, color: kMapWhite45),
-                      const SizedBox(width: 3),
-                      Text('${course.distanceKm.toStringAsFixed(1)} km',
-                          style: const TextStyle(
-                              fontSize: 11,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        if (course.distanceKm > 0) ...[
+                          const Icon(
+                            Icons.straighten_rounded,
+                            size: 11,
+                            color: kMapWhite45,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${course.distanceKm.toStringAsFixed(1)} km',
+                            style: AppTypography.tiny.copyWith(
                               color: kMapWhite45,
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(width: 8),
-                    ],
-                    if (course.kcal > 0) ...[
-                      const Icon(Icons.local_fire_department_rounded,
-                          size: 11, color: kMapPrimary),
-                      const SizedBox(width: 3),
-                      Text('${course.kcal} kcal',
-                          style: const TextStyle(
-                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (course.kcal > 0) ...[
+                          const Icon(
+                            Icons.local_fire_department_rounded,
+                            size: 11,
+                            color: kMapPrimary,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${course.kcal} kcal',
+                            style: AppTypography.tiny.copyWith(
                               color: kMapPrimary,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ]),
-                ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _imgPlaceholder(double h) => Container(
-        height: h,
-        color: kMapPanelAlt,
-        child: const Center(
-            child: Icon(Icons.hiking_rounded, color: kMapWhite45, size: 28)),
-      );
+    height: h,
+    color: kMapPanelAlt,
+    child: const Center(
+      child: Icon(Icons.hiking_rounded, color: kMapWhite45, size: 28),
+    ),
+  );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -573,10 +663,7 @@ class _DurunubiCourseCard extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════════════════
 
 class _RestaurantCard extends StatelessWidget {
-  const _RestaurantCard({
-    required this.restaurant,
-    required this.onTap,
-  });
+  const _RestaurantCard({required this.restaurant, required this.onTap});
 
   final RestaurantEntity restaurant;
   final VoidCallback onTap;
@@ -607,43 +694,47 @@ class _RestaurantCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(r.name,
-                      style: const TextStyle(
-                          color: kMapWhite87,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: -0.1),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    r.name,
+                    style: AppTypography.label.copyWith(
+                      color: kMapWhite87,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 2),
-                  Text('${r.menu} · ${r.kcal}kcal',
-                      style: const TextStyle(
-                          color: kMapWhite45,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    '${r.menu} · ${r.kcal}kcal',
+                    style: AppTypography.tiny.copyWith(color: kMapWhite45),
+                  ),
                   const SizedBox(height: 4),
                   if (r.rating > 0)
-                    Row(children: [
-                      Icon(Icons.star_rounded,
-                          size: 11, color: c.accent),
-                      const SizedBox(width: 3),
-                      Text(r.rating.toString(),
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: kMapWhite87)),
-                      Text(' · ${r.distanceLabel}',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: kMapWhite45,
-                              fontWeight: FontWeight.w600)),
-                    ])
-                  else
-                    Text('${r.distanceLabel} · ${r.walkLabel}',
-                        style: const TextStyle(
-                            fontSize: 11,
+                    Row(
+                      children: [
+                        Icon(Icons.star_rounded, size: 11, color: c.accent),
+                        const SizedBox(width: 3),
+                        Text(
+                          r.rating.toString(),
+                          style: AppTypography.tiny.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: kMapWhite87,
+                          ),
+                        ),
+                        Text(
+                          ' · ${r.distanceLabel}',
+                          style: AppTypography.tiny.copyWith(
                             color: kMapWhite45,
-                            fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      '${r.distanceLabel} · ${r.walkLabel}',
+                      style: AppTypography.tiny.copyWith(color: kMapWhite45),
+                    ),
                 ],
               ),
             ),

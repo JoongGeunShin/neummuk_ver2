@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/context_ext.dart';
 import '../../features/record/domain/entities/weekly_data_entity.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class WeeklyChart extends StatelessWidget {
   const WeeklyChart({super.key, required this.data});
@@ -39,8 +40,7 @@ class WeeklyChart extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   d.label,
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: AppTypography.tiny.copyWith(
                     fontWeight: d.isToday ? FontWeight.w800 : FontWeight.w600,
                     color: d.isToday ? c.primary : c.textMuted,
                   ),
@@ -68,7 +68,10 @@ class _Bar extends StatelessWidget {
       height: height.clamp(2.0, 110.0),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(6), bottom: Radius.circular(2)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(6),
+          bottom: Radius.circular(2),
+        ),
       ),
     );
   }

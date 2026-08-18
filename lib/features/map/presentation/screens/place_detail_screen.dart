@@ -16,6 +16,7 @@ import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/place_entity.dart';
 import '../providers/map_mode_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
 // ── 통합 상세 데이터 모델 (PlaceEntity / RestaurantEntity → 정규화)
@@ -42,47 +43,47 @@ class _Detail {
   });
 
   factory _Detail.fromPlace(PlaceEntity p) => _Detail(
-        name: p.name,
-        category: _trimCategory(p.category),
-        address: p.address,
-        phone: p.phone,
-        imageUrl: p.imageUrl,
-        latitude: p.latitude,
-        longitude: p.longitude,
-        source: p.source,
-      );
+    name: p.name,
+    category: _trimCategory(p.category),
+    address: p.address,
+    phone: p.phone,
+    imageUrl: p.imageUrl,
+    latitude: p.latitude,
+    longitude: p.longitude,
+    source: p.source,
+  );
 
   factory _Detail.fromTouristRoute(TouristRouteEntity r) => _Detail(
-        name: r.name,
-        category: r.region != null ? '${r.type} · ${r.region}' : r.type,
-        address: r.region,
-        imageUrl: r.imageUrls.isNotEmpty ? r.imageUrls.first : null,
-        latitude: r.startLat ?? 0,
-        longitude: r.startLng ?? 0,
-        source: r.id.startsWith('tour_') ? PlaceSource.tourApi : PlaceSource.both,
-        kcalEstimate: r.kcal > 0 ? r.kcal : null,
-        distanceM: r.distanceKm > 0 ? (r.distanceKm * 1000).round() : null,
-        walkMinutes: r.durationMinutes > 0 ? r.durationMinutes : null,
-        menu: r.type,
-        tags: r.tags,
-      );
+    name: r.name,
+    category: r.region != null ? '${r.type} · ${r.region}' : r.type,
+    address: r.region,
+    imageUrl: r.imageUrls.isNotEmpty ? r.imageUrls.first : null,
+    latitude: r.startLat ?? 0,
+    longitude: r.startLng ?? 0,
+    source: r.id.startsWith('tour_') ? PlaceSource.tourApi : PlaceSource.both,
+    kcalEstimate: r.kcal > 0 ? r.kcal : null,
+    distanceM: r.distanceKm > 0 ? (r.distanceKm * 1000).round() : null,
+    walkMinutes: r.durationMinutes > 0 ? r.durationMinutes : null,
+    menu: r.type,
+    tags: r.tags,
+  );
 
   factory _Detail.fromRestaurant(RestaurantEntity r) => _Detail(
-        name: r.name,
-        category: r.category,
-        address: r.address,
-        phone: r.tel,
-        latitude: r.latitude,
-        longitude: r.longitude,
-        kcalEstimate: r.kcal,
-        distanceM: r.distanceM,
-        walkMinutes: r.walkMinutes,
-        menu: r.menu,
-        tags: r.tags,
-        imageType: r.imageType,
-        rating: r.rating,
-        isRestaurant: true,
-      );
+    name: r.name,
+    category: r.category,
+    address: r.address,
+    phone: r.tel,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    kcalEstimate: r.kcal,
+    distanceM: r.distanceM,
+    walkMinutes: r.walkMinutes,
+    menu: r.menu,
+    tags: r.tags,
+    imageType: r.imageType,
+    rating: r.rating,
+    isRestaurant: true,
+  );
 
   final String name;
   final String? category;
@@ -103,8 +104,11 @@ class _Detail {
 
   static String? _trimCategory(String? cat) {
     if (cat == null || cat.isEmpty) return null;
-    final parts =
-        cat.split('>').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final parts = cat
+        .split('>')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
     return parts.isNotEmpty ? parts.last : cat;
   }
 
@@ -116,7 +120,7 @@ class _Detail {
       return (category ?? '음식점', const Color(0xFF03C75A));
     }
     return switch (source ?? PlaceSource.kakaoLocal) {
-      PlaceSource.tourApi  => ('장소', const Color(0xFFFF5722)),
+      PlaceSource.tourApi => ('장소', const Color(0xFFFF5722)),
       PlaceSource.kakaoLocal => ('장소', const Color(0xFF1E88E5)),
       PlaceSource.both => ('⭐ 추천', const Color(0xFF03C75A)),
     };
@@ -125,8 +129,8 @@ class _Detail {
   String? get distanceLabel => distanceM == null
       ? null
       : distanceM! < 1000
-          ? '${distanceM}m'
-          : '${(distanceM! / 1000).toStringAsFixed(1)}km';
+      ? '${distanceM}m'
+      : '${(distanceM! / 1000).toStringAsFixed(1)}km';
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -178,7 +182,10 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
     setState(() => _detailLoading = true);
     try {
-      final data = await TourApiDetailDatasource().fetchDetail(contentId, typeId);
+      final data = await TourApiDetailDatasource().fetchDetail(
+        contentId,
+        typeId,
+      );
       if (!mounted || data == null) return;
       final merged = List<String>.from(_images);
       for (final img in data.images) {
@@ -188,7 +195,9 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
         _overview = (data.overview?.isNotEmpty ?? false) ? data.overview : null;
         _enrichedTel = data.tel;
         _homepageUrl = data.homepageUrl;
-        _operatingInfo = (data.operatingInfo?.isNotEmpty ?? false) ? data.operatingInfo : null;
+        _operatingInfo = (data.operatingInfo?.isNotEmpty ?? false)
+            ? data.operatingInfo
+            : null;
         if (merged.isNotEmpty) _images = merged;
       });
     } finally {
@@ -214,12 +223,19 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
             children: [
               const Icon(Icons.error_outline, color: Colors.white38, size: 48),
               const SizedBox(height: 12),
-              const Text('장소 정보를 불러올 수 없습니다',
-                  style: TextStyle(color: Colors.white54, fontSize: 14)),
+              Text(
+                '장소 정보를 불러올 수 없습니다',
+                style: AppTypography.bodyMute.copyWith(
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white54,
+                ),
+              ),
               TextButton(
                 onPressed: () => context.pop(),
-                child: const Text('돌아가기',
-                    style: TextStyle(color: Color(0xFF03C75A))),
+                child: const Text(
+                  '돌아가기',
+                  style: TextStyle(color: Color(0xFF03C75A)),
+                ),
               ),
             ],
           ),
@@ -262,7 +278,9 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                       _OverviewSection(overview: _overview!),
                       const SizedBox(height: 12),
                     ],
-                    if (detail.address != null || tel != null || _operatingInfo != null)
+                    if (detail.address != null ||
+                        tel != null ||
+                        _operatingInfo != null)
                       _ContactSection(
                         detail: detail,
                         overrideTel: tel,
@@ -270,7 +288,10 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                       ),
                     if (_homepageUrl != null) ...[
                       const SizedBox(height: 8),
-                      _HomepageBtn(url: _homepageUrl!, onTap: () => _openUrl(_homepageUrl!)),
+                      _HomepageBtn(
+                        url: _homepageUrl!,
+                        onTap: () => _openUrl(_homepageUrl!),
+                      ),
                     ],
                     if (detail.tags.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -285,7 +306,9 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
           // ── 상단 뒤로가기 버튼 ──────────────────────────────────
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -304,71 +327,93 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
 
           // ── 하단 버튼 (경로 설정 — 진입 경로와 무관하게 항상 표시) ──
           Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: EdgeInsets.fromLTRB(
-                    16, 12, 16, MediaQuery.paddingOf(context).bottom + 12),
-                decoration: const BoxDecoration(
-                  color: kMapPanel,
-                  border: Border(top: BorderSide(color: Colors.white12)),
-                ),
-                child: extra is TouristRouteEntity
-                    ? _ModeBCourseButtons(route: extra)
-                    : Row(
-                        children: [
-                          _RouteBtn(
-                            label: '출발지',
-                            color: c.success,
-                            icon: Icons.trip_origin_rounded,
-                            onTap: () {
-                              ref.read(modeAProvider.notifier).setOriginGps(
-                                    detail.latitude, detail.longitude, detail.name);
-                              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                              context.pop();
-                            },
-                          ),
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.paddingOf(context).bottom + 12,
+              ),
+              decoration: const BoxDecoration(
+                color: kMapPanel,
+                border: Border(top: BorderSide(color: Colors.white12)),
+              ),
+              child: extra is TouristRouteEntity
+                  ? _ModeBCourseButtons(route: extra)
+                  : Row(
+                      children: [
+                        _RouteBtn(
+                          label: '출발지',
+                          color: c.success,
+                          icon: Icons.trip_origin_rounded,
+                          onTap: () {
+                            ref
+                                .read(modeAProvider.notifier)
+                                .setOriginGps(
+                                  detail.latitude,
+                                  detail.longitude,
+                                  detail.name,
+                                );
+                            ref
+                                .read(mapModeProvider.notifier)
+                                .set(MapMode.modeA);
+                            context.pop();
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _RouteBtn(
+                          label: '도착지',
+                          color: c.danger,
+                          icon: Icons.place_rounded,
+                          onTap: () {
+                            final notifier = ref.read(modeAProvider.notifier);
+                            notifier.setDestCoords(
+                              detail.latitude,
+                              detail.longitude,
+                              detail.name,
+                            );
+                            ref
+                                .read(mapModeProvider.notifier)
+                                .set(MapMode.modeA);
+                            if (ref.read(modeAProvider).originLat != null) {
+                              notifier.search();
+                            }
+                            context.pop();
+                          },
+                        ),
+                        if (canAddWaypoint) ...[
                           const SizedBox(width: 8),
                           _RouteBtn(
-                            label: '도착지',
-                            color: c.danger,
-                            icon: Icons.place_rounded,
+                            label: '경유지',
+                            color: c.accent,
+                            icon: Icons.add_location_alt_rounded,
                             onTap: () {
                               final notifier = ref.read(modeAProvider.notifier);
-                              notifier.setDestCoords(
-                                  detail.latitude, detail.longitude, detail.name);
-                              ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                              if (ref.read(modeAProvider).originLat != null) {
+                              notifier.addWaypoint(
+                                RouteWaypoint(
+                                  name: detail.name,
+                                  latitude: detail.latitude,
+                                  longitude: detail.longitude,
+                                ),
+                              );
+                              ref
+                                  .read(mapModeProvider.notifier)
+                                  .set(MapMode.modeA);
+                              final s = ref.read(modeAProvider);
+                              if (s.originLat != null && s.destLat != null) {
                                 notifier.search();
                               }
                               context.pop();
                             },
                           ),
-                          if (canAddWaypoint) ...[
-                            const SizedBox(width: 8),
-                            _RouteBtn(
-                              label: '경유지',
-                              color: c.accent,
-                              icon: Icons.add_location_alt_rounded,
-                              onTap: () {
-                                final notifier = ref.read(modeAProvider.notifier);
-                                notifier.addWaypoint(RouteWaypoint(
-                                      name: detail.name,
-                                      latitude: detail.latitude,
-                                      longitude: detail.longitude,
-                                    ));
-                                ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                                final s = ref.read(modeAProvider);
-                                if (s.originLat != null && s.destLat != null) {
-                                  notifier.search();
-                                }
-                                context.pop();
-                              },
-                            ),
-                          ],
                         ],
-                      ),
-              ),
+                      ],
+                    ),
             ),
+          ),
         ],
       ),
     );
@@ -401,8 +446,12 @@ class _ImageHeader extends StatelessWidget {
         color: kMapPanelAlt,
         child: const Center(
           child: SizedBox(
-            width: 24, height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white24,
+            ),
           ),
         ),
       );
@@ -418,9 +467,12 @@ class _ImageHeader extends StatelessWidget {
           color: kMapPanelAlt,
           child: const Center(
             child: SizedBox(
-              width: 24, height: 24,
+              width: 24,
+              height: 24,
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Colors.white24),
+                strokeWidth: 2,
+                color: Colors.white24,
+              ),
             ),
           ),
         ),
@@ -443,7 +495,9 @@ class _ImageHeader extends StatelessWidget {
           image,
           // 하단 그라디언트
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: Container(
               height: imageH * 0.45,
               decoration: BoxDecoration(
@@ -498,32 +552,32 @@ class _NameSection extends StatelessWidget {
           ),
           child: Text(
             badgeLabel,
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: badgeColor),
+            style: AppTypography.tiny.copyWith(
+              fontWeight: FontWeight.w800,
+              color: badgeColor,
+            ),
           ),
         ),
         const SizedBox(height: 8),
         // 이름
         Text(
           detail.name,
-          style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: -0.5,
-              height: 1.2),
+          style: AppTypography.titleSm.copyWith(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.5,
+            height: 1.2,
+          ),
         ),
         // 카테고리
         if (detail.category != null && detail.category!.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             detail.category!,
-            style: const TextStyle(
-                fontSize: 13,
-                color: Colors.white54,
-                fontWeight: FontWeight.w500),
+            style: AppTypography.label.copyWith(
+              color: Colors.white54,
+              fontWeight: FontWeight.w500,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -533,15 +587,18 @@ class _NameSection extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.star_rounded,
-                  size: 14, color: Color(0xFFFFC56E)),
+              const Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: Color(0xFFFFC56E),
+              ),
               const SizedBox(width: 4),
               Text(
                 detail.rating.toStringAsFixed(1),
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white),
+                style: AppTypography.label.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -625,10 +682,10 @@ class _InfoPill extends StatelessWidget {
         Flexible(
           child: Text(
             label,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: color),
+            style: AppTypography.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -674,14 +731,20 @@ class _ContactSection extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.location_on_outlined, size: 16, color: Colors.white38),
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: Colors.white38,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     detail.address!,
-                    style: const TextStyle(
-                        fontSize: 13, color: Colors.white70,
-                        fontWeight: FontWeight.w500, height: 1.4),
+                    style: AppTypography.label.copyWith(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ],
@@ -691,12 +754,18 @@ class _ContactSection extends StatelessWidget {
           if (hasTel)
             Row(
               children: [
-                const Icon(Icons.phone_outlined, size: 16, color: Colors.white38),
+                const Icon(
+                  Icons.phone_outlined,
+                  size: 16,
+                  color: Colors.white38,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   tel,
-                  style: const TextStyle(
-                      fontSize: 13, color: Colors.white70, fontWeight: FontWeight.w500),
+                  style: AppTypography.label.copyWith(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -705,14 +774,19 @@ class _ContactSection extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.access_time_rounded, size: 16, color: Colors.white38),
+                const Icon(
+                  Icons.access_time_rounded,
+                  size: 16,
+                  color: Colors.white38,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     operatingInfo!,
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.white54,
-                        fontWeight: FontWeight.w500, height: 1.45),
+                    style: AppTypography.caption.copyWith(
+                      color: Colors.white54,
+                      height: 1.45,
+                    ),
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -755,23 +829,38 @@ class _OverviewSectionState extends State<_OverviewSection> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
                 Icon(Icons.article_outlined, size: 14, color: Colors.white38),
                 SizedBox(width: 6),
-                Text('소개', style: TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.w700)),
+                Text(
+                  '소개',
+                  style: AppTypography.tiny.copyWith(
+                    color: Colors.white38,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
               widget.overview,
-              style: const TextStyle(fontSize: 13, color: Colors.white70, height: 1.55, fontWeight: FontWeight.w400),
+              style: AppTypography.label.copyWith(
+                color: Colors.white70,
+                height: 1.55,
+                fontWeight: FontWeight.w400,
+              ),
               maxLines: _expanded ? null : 4,
-              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              overflow: _expanded
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
             ),
             if (!_expanded) ...[
               const SizedBox(height: 4),
-              const Text('더 보기', style: TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.w600)),
+              Text(
+                '더 보기',
+                style: AppTypography.tiny.copyWith(color: Colors.white38),
+              ),
             ],
           ],
         ),
@@ -800,11 +889,14 @@ class _HomepageBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white10),
         ),
-        child: const Row(
+        child: Row(
           children: [
             Icon(Icons.open_in_new_rounded, size: 15, color: Colors.white38),
             SizedBox(width: 8),
-            Text('공식 홈페이지', style: TextStyle(fontSize: 13, color: Colors.white54, fontWeight: FontWeight.w600)),
+            Text(
+              '공식 홈페이지',
+              style: AppTypography.label.copyWith(color: Colors.white54),
+            ),
           ],
         ),
       ),
@@ -826,22 +918,20 @@ class _TagsSection extends StatelessWidget {
       spacing: 6,
       runSpacing: 6,
       children: tags
-          .map((t) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Text(
-                  t,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w600),
-                ),
-              ))
+          .map(
+            (t) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Text(
+                t,
+                style: AppTypography.tiny.copyWith(color: Colors.white70),
+              ),
+            ),
+          )
           .toList(),
     );
   }
@@ -903,18 +993,21 @@ class _ModeBCourseButtons extends ConsumerWidget {
                 color: const Color(0xFF03C75A).withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: const Color(0xFF03C75A).withValues(alpha: 0.45)),
+                  color: const Color(0xFF03C75A).withValues(alpha: 0.45),
+                ),
               ),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.map_rounded, size: 17, color: Color(0xFF03C75A)),
                   SizedBox(height: 2),
-                  Text('지도에서 보기',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF03C75A))),
+                  Text(
+                    '지도에서 보기',
+                    style: AppTypography.tiny.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF03C75A),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -937,17 +1030,18 @@ class _ModeBCourseButtons extends ConsumerWidget {
                 color: const Color(0xFF03C75A),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.navigation_rounded,
-                      size: 17, color: Colors.white),
+                  Icon(Icons.navigation_rounded, size: 17, color: Colors.white),
                   SizedBox(width: 6),
-                  Text('이 코스로 시작하기',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white)),
+                  Text(
+                    '이 코스로 시작하기',
+                    style: AppTypography.label.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -989,10 +1083,10 @@ class _RouteBtn extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 label,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: color),
+                style: AppTypography.tiny.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ],
           ),

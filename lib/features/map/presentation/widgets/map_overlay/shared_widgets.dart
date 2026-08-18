@@ -23,7 +23,11 @@ class _ModeToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white12),
         boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
         ],
       ),
       child: Row(
@@ -68,7 +72,9 @@ class _ToggleTab extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? kMapPrimary.withValues(alpha: 0.9) : Colors.transparent,
+          color: active
+              ? kMapPrimary.withValues(alpha: 0.9)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
@@ -78,8 +84,7 @@ class _ToggleTab extends StatelessWidget {
             const SizedBox(width: 5),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
+              style: AppTypography.caption.copyWith(
                 fontWeight: FontWeight.w700,
                 color: active ? Colors.white : kMapWhite45,
               ),
@@ -244,8 +249,7 @@ class _ClusterDot extends StatelessWidget {
       child: Center(
         child: Text(
           '$count',
-          style: const TextStyle(
-            fontSize: 13,
+          style: AppTypography.label.copyWith(
             fontWeight: FontWeight.w800,
             color: Colors.white,
           ),

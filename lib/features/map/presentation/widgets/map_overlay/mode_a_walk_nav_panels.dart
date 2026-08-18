@@ -48,7 +48,11 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
           boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -76,8 +80,7 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
                       children: [
                         Text(
                           destName.isNotEmpty ? destName : '목적지',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: AppTypography.bodyLg.copyWith(
                             fontWeight: FontWeight.w800,
                             color: kMapWhite87,
                             letterSpacing: -0.3,
@@ -87,27 +90,26 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        Row(children: [
-                          Text(
-                            navState.remainingLabel,
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: accent,
-                              letterSpacing: -1,
-                              height: 1,
+                        Row(
+                          children: [
+                            Text(
+                              navState.remainingLabel,
+                              style: AppTypography.titleSm.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                                letterSpacing: -1,
+                                height: 1,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '약 ${navState.remainingMinutes}분',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: kMapWhite45,
-                              fontWeight: FontWeight.w600,
+                            const SizedBox(width: 8),
+                            Text(
+                              '약 ${navState.remainingMinutes}분',
+                              style: AppTypography.tiny.copyWith(
+                                color: kMapWhite45,
+                              ),
                             ),
-                          ),
-                        ]),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -116,20 +118,26 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onStepMode,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.route_rounded, size: 16, color: kMapWhite45),
+                          Icon(
+                            Icons.route_rounded,
+                            size: 16,
+                            color: kMapWhite45,
+                          ),
                           SizedBox(height: 2),
                           Text(
                             '단계별',
-                            style: TextStyle(
-                              fontSize: 9,
+                            style: AppTypography.nano.copyWith(
                               color: kMapWhite45,
                               fontWeight: FontWeight.w700,
                             ),
@@ -146,37 +154,37 @@ class _ModeAWalkNavOverviewCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               decoration: BoxDecoration(
                 color: kMapPanelAlt,
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
               ),
               child: Column(
                 children: [
-                  Row(children: [
-                    Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 13,
-                      color: accent.withValues(alpha: 0.75),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        '이동 중 · $pctLabel 완료',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: kMapWhite45,
-                          fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 13,
+                        color: accent.withValues(alpha: 0.75),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '이동 중 · $pctLabel 완료',
+                          style: AppTypography.tiny.copyWith(
+                            color: kMapWhite45,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      '${navState.elapsedKcal.round()} kcal',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: accent,
+                      Text(
+                        '${navState.elapsedKcal.round()} kcal',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                        ),
                       ),
-                    ),
-                  ]),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
@@ -226,12 +234,12 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
       : Icons.directions_walk_rounded;
 
   IconData _turnIcon(TurnType? type) => switch (type) {
-        TurnType.right   => Icons.turn_right_rounded,
-        TurnType.left    => Icons.turn_left_rounded,
-        TurnType.uTurn   => Icons.u_turn_right_rounded,
-        TurnType.arrival => Icons.flag_rounded,
-        _                 => _transportIcon(),
-      };
+    TurnType.right => Icons.turn_right_rounded,
+    TurnType.left => Icons.turn_left_rounded,
+    TurnType.uTurn => Icons.u_turn_right_rounded,
+    TurnType.arrival => Icons.flag_rounded,
+    _ => _transportIcon(),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +255,11 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
           boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -275,8 +287,7 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
                       children: [
                         Text(
                           turn?.instruction ?? '경로를 따라 이동하세요',
-                          style: const TextStyle(
-                            fontSize: 15,
+                          style: AppTypography.body.copyWith(
                             fontWeight: FontWeight.w800,
                             color: kMapWhite87,
                             letterSpacing: -0.3,
@@ -287,27 +298,26 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
                         ),
                         if (distanceLabel.isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          Row(children: [
-                            Text(
-                              distanceLabel,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                color: accent,
-                                letterSpacing: -1,
-                                height: 1,
+                          Row(
+                            children: [
+                              Text(
+                                distanceLabel,
+                                style: AppTypography.titleSm.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: accent,
+                                  letterSpacing: -1,
+                                  height: 1,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              '앞',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: kMapWhite45,
+                              const SizedBox(width: 6),
+                              Text(
+                                '앞',
+                                style: AppTypography.label.copyWith(
+                                  color: kMapWhite45,
+                                ),
                               ),
-                            ),
-                          ]),
+                            ],
+                          ),
                         ],
                       ],
                     ),
@@ -317,7 +327,10 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onOverview,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: accent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
@@ -329,8 +342,7 @@ class _ModeAWalkNavTurnCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             '개요',
-                            style: TextStyle(
-                              fontSize: 9,
+                            style: AppTypography.nano.copyWith(
                               color: accent,
                               fontWeight: FontWeight.w700,
                             ),
@@ -409,8 +421,8 @@ class _ModeAWalkNavBottomStrip extends StatelessWidget {
     final label = transport == 'bike'
         ? '🚲 자전거 경로'
         : transport == 'transit'
-            ? '🚌 대중교통 경로'
-            : '🚶 도보 경로';
+        ? '🚌 대중교통 경로'
+        : '🚶 도보 경로';
 
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + bottomPad),
@@ -418,7 +430,11 @@ class _ModeAWalkNavBottomStrip extends StatelessWidget {
         color: kMapPanel,
         border: const Border(top: BorderSide(color: Colors.white12)),
         boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, -2)),
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
         ],
       ),
       child: Column(
@@ -444,36 +460,35 @@ class _ModeAWalkNavBottomStrip extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: kMapWhite45,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTypography.tiny.copyWith(color: kMapWhite45),
                     ),
                     const SizedBox(height: 4),
-                    Row(children: [
-                      Icon(Icons.local_fire_department_rounded,
-                          size: 14, color: accent),
-                      const SizedBox(width: 4),
-                      Text(
-                        navState.remainingLabel,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.local_fire_department_rounded,
+                          size: 14,
                           color: accent,
-                          letterSpacing: -0.5,
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '· 약 ${navState.remainingMinutes}분',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: kMapWhite45,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(width: 4),
+                        Text(
+                          navState.remainingLabel,
+                          style: AppTypography.bodyMute.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: accent,
+                            letterSpacing: -0.5,
+                          ),
                         ),
-                      ),
-                    ]),
+                        const SizedBox(width: 6),
+                        Text(
+                          '· 약 ${navState.remainingMinutes}분',
+                          style: AppTypography.caption.copyWith(
+                            color: kMapWhite45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -481,8 +496,10 @@ class _ModeAWalkNavBottomStrip extends StatelessWidget {
               GestureDetector(
                 onTap: onStop,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: c.danger.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -495,8 +512,7 @@ class _ModeAWalkNavBottomStrip extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '안내 종료',
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: AppTypography.label.copyWith(
                           fontWeight: FontWeight.w700,
                           color: c.danger,
                         ),
@@ -552,7 +568,11 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
           boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -571,8 +591,11 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
                       color: accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(Icons.directions_transit_rounded,
-                        size: 28, color: accent),
+                    child: Icon(
+                      Icons.directions_transit_rounded,
+                      size: 28,
+                      color: accent,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -581,8 +604,7 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
                       children: [
                         Text(
                           route.toName.isNotEmpty ? route.toName : '목적지',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: AppTypography.bodyLg.copyWith(
                             fontWeight: FontWeight.w800,
                             color: kMapWhite87,
                             letterSpacing: -0.3,
@@ -592,27 +614,26 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        Row(children: [
-                          Text(
-                            navState.remainingLabel,
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: accent,
-                              letterSpacing: -1,
-                              height: 1,
+                        Row(
+                          children: [
+                            Text(
+                              navState.remainingLabel,
+                              style: AppTypography.titleSm.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                                letterSpacing: -1,
+                                height: 1,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '약 ${navState.remainingMinutes}분',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: kMapWhite45,
-                              fontWeight: FontWeight.w600,
+                            const SizedBox(width: 8),
+                            Text(
+                              '약 ${navState.remainingMinutes}분',
+                              style: AppTypography.tiny.copyWith(
+                                color: kMapWhite45,
+                              ),
                             ),
-                          ),
-                        ]),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -620,21 +641,26 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onStepMode,
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.route_rounded, size: 16, color: kMapWhite45),
+                          Icon(
+                            Icons.route_rounded,
+                            size: 16,
+                            color: kMapWhite45,
+                          ),
                           SizedBox(height: 2),
                           Text(
                             '단계별',
-                            style: TextStyle(
-                              fontSize: 9,
+                            style: AppTypography.nano.copyWith(
                               color: kMapWhite45,
                               fontWeight: FontWeight.w700,
                             ),
@@ -651,8 +677,9 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               decoration: BoxDecoration(
                 color: kMapPanelAlt,
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -663,29 +690,31 @@ class _ModeATransitNavOverviewCard extends StatelessWidget {
                   Row(
                     children: [
                       if (transferCount > 0) ...[
-                        Icon(Icons.transfer_within_a_station_rounded,
-                            size: 12, color: accent.withValues(alpha: 0.75)),
+                        Icon(
+                          Icons.transfer_within_a_station_rounded,
+                          size: 12,
+                          color: accent.withValues(alpha: 0.75),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '환승 $transferCount회',
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: AppTypography.tiny.copyWith(
                             color: kMapWhite45,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(width: 12),
                       ],
-                      Icon(Icons.local_fire_department_rounded,
-                          size: 12, color: accent.withValues(alpha: 0.75)),
+                      Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 12,
+                        color: accent.withValues(alpha: 0.75),
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           '이동 중 · $pctLabel 완료',
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: AppTypography.tiny.copyWith(
                             color: kMapWhite45,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -728,54 +757,60 @@ class _TransitStepIconRow extends StatelessWidget {
     for (var i = 0; i < displaySteps.length; i++) {
       final step = displaySteps[i];
       if (i > 0) {
-        widgets.add(const Icon(Icons.chevron_right_rounded,
-            size: 13, color: kMapWhite45));
+        widgets.add(
+          const Icon(Icons.chevron_right_rounded, size: 13, color: kMapWhite45),
+        );
       }
       final color = step.isWalk
           ? kMapWhite45
           : step.isBus
-              ? kMapPrimary
-              : c.pinUser;
+          ? kMapPrimary
+          : c.pinUser;
       final icon = step.isWalk
           ? Icons.directions_walk_rounded
           : step.isBus
-              ? Icons.directions_bus_rounded
-              : Icons.directions_subway_rounded;
+          ? Icons.directions_bus_rounded
+          : Icons.directions_subway_rounded;
 
-      widgets.add(Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          if (step.isVehicle && step.lineInfo != null) ...[
-            const SizedBox(width: 2),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                step.lineInfo!.length > 5
-                    ? '${step.lineInfo!.substring(0, 5)}..'
-                    : step.lineInfo!,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+      widgets.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            if (step.isVehicle && step.lineInfo != null) ...[
+              const SizedBox(width: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  step.lineInfo!.length > 5
+                      ? '${step.lineInfo!.substring(0, 5)}..'
+                      : step.lineInfo!,
+                  style: AppTypography.nano.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
-      ));
+        ),
+      );
     }
 
     if (steps.length > 7) {
-      widgets.add(Text(
-        ' +${steps.length - 7}',
-        style: const TextStyle(fontSize: 9, color: kMapWhite45),
-      ));
+      widgets.add(
+        Text(
+          ' +${steps.length - 7}',
+          style: AppTypography.nano.copyWith(
+            fontWeight: FontWeight.w400,
+            color: kMapWhite45,
+          ),
+        ),
+      );
     }
 
     return Wrap(
@@ -805,8 +840,7 @@ class _ModeAWalkStatChip extends StatelessWidget {
       children: [
         Text(
           value,
-          style: TextStyle(
-            fontSize: 15,
+          style: AppTypography.body.copyWith(
             fontWeight: FontWeight.w800,
             color: color,
             letterSpacing: -0.5,
@@ -815,8 +849,7 @@ class _ModeAWalkStatChip extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 10,
+          style: AppTypography.micro.copyWith(
             color: kMapWhite45,
             fontWeight: FontWeight.w500,
           ),

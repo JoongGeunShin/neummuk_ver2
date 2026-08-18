@@ -10,7 +10,9 @@ class _KcalWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final walkKcal = ref.watch(walkSessionProvider.select((s) => s.caloriesKcal));
+    final walkKcal = ref.watch(
+      walkSessionProvider.select((s) => s.caloriesKcal),
+    );
     return GestureDetector(
       onTap: () => context.push('/record'),
       child: Container(
@@ -20,19 +22,28 @@ class _KcalWidget extends ConsumerWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white12),
           boxShadow: const [
-            BoxShadow(color: Colors.black38, blurRadius: 14, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 14,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🔥 ${walkKcal.round()} kcal',
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: context.colors.primary)),
+            Text(
+              '🔥 ${walkKcal.round()} kcal',
+              style: AppTypography.label.copyWith(
+                fontWeight: FontWeight.w800,
+                color: context.colors.primary,
+              ),
+            ),
             if (routeKcal != null)
-              Text('+$routeKcal 예상',
-                  style: const TextStyle(
-                      fontSize: 10, color: kMapPrimary, fontWeight: FontWeight.w600)),
+              Text(
+                '+$routeKcal 예상',
+                style: AppTypography.micro.copyWith(color: kMapPrimary),
+              ),
           ],
         ),
       ),
@@ -76,42 +87,59 @@ class _LongPressSheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 36, height: 4,
-              decoration:
-                  BoxDecoration(color: kMapHandle, borderRadius: BorderRadius.circular(2)),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: kMapHandle,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          Text(locationName,
-              style: const TextStyle(
-                  color: kMapWhite87, fontSize: 15, fontWeight: FontWeight.w700),
-              maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(
+            locationName,
+            style: AppTypography.body.copyWith(
+              color: kMapWhite87,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 4),
-          const Text('이 위치를 어디로 설정할까요?',
-              style: TextStyle(
-                  color: kMapWhite87, fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(
+            '이 위치를 어디로 설정할까요?',
+            style: AppTypography.bodyLg.copyWith(
+              color: kMapWhite87,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 16),
-          Row(children: [
-            MapLocationActionBtn(
+          Row(
+            children: [
+              MapLocationActionBtn(
                 label: '출발지',
                 icon: Icons.trip_origin_rounded,
                 color: context.colors.pinUser,
-                onTap: onSetOrigin),
-            const SizedBox(width: 8),
-            MapLocationActionBtn(
+                onTap: onSetOrigin,
+              ),
+              const SizedBox(width: 8),
+              MapLocationActionBtn(
                 label: '도착지',
                 icon: Icons.place_rounded,
                 color: context.colors.danger,
-                onTap: onSetDest),
-            if (canAddWaypoint) ...[
-              const SizedBox(width: 8),
-              MapLocationActionBtn(
+                onTap: onSetDest,
+              ),
+              if (canAddWaypoint) ...[
+                const SizedBox(width: 8),
+                MapLocationActionBtn(
                   label: '경유지',
                   icon: Icons.add_location_alt_rounded,
                   color: context.colors.accent,
-                  onTap: onAddWaypoint),
+                  onTap: onAddWaypoint,
+                ),
+              ],
             ],
-          ]),
+          ),
         ],
       ),
     );
@@ -140,38 +168,43 @@ class _CalorieComparePanel extends StatelessWidget {
 
     return Column(
       children: [
-        CalorieCompareDonut(
-          kcalBurn: routeKcal,
-          kcalFood: destKcal,
-          size: 160,
-        ),
+        CalorieCompareDonut(kcalBurn: routeKcal, kcalFood: destKcal, size: 160),
         if (needMore) ...[
           const SizedBox(height: 14),
           GestureDetector(
             onTap: onAddWaypoint,
-            child: Builder(builder: (ctx) {
-              final warnColor = ctx.colors.warn;
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: warnColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: warnColor.withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_location_alt_rounded, size: 15, color: warnColor),
-                    const SizedBox(width: 6),
-                    Text('경유지 추가로 더 움직이기',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700,
-                            color: warnColor)),
-                  ],
-                ),
-              );
-            }),
+            child: Builder(
+              builder: (ctx) {
+                final warnColor = ctx.colors.warn;
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: warnColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: warnColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_location_alt_rounded,
+                        size: 15,
+                        color: warnColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '경유지 추가로 더 움직이기',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: warnColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ],
@@ -209,41 +242,59 @@ class _WaypointCandidateSheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 36, height: 4,
-              decoration:
-                  BoxDecoration(color: kMapHandle, borderRadius: BorderRadius.circular(2)),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: kMapHandle,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           const SizedBox(height: 14),
-          const Text('경유지 추천',
-              style: TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w800, color: kMapWhite87)),
+          Text(
+            '경유지 추천',
+            style: AppTypography.bodyLg.copyWith(
+              fontWeight: FontWeight.w800,
+              color: kMapWhite87,
+            ),
+          ),
           const SizedBox(height: 4),
-          const Text('경유하면 칼로리를 더 소모할 수 있는 장소예요',
-              style: TextStyle(
-                  fontSize: 12, color: kMapWhite45, fontWeight: FontWeight.w500)),
+          Text(
+            '경유하면 칼로리를 더 소모할 수 있는 장소예요',
+            style: AppTypography.caption.copyWith(color: kMapWhite45),
+          ),
           const SizedBox(height: 14),
           if (state.loadingCandidates)
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: CircularProgressIndicator(color: kMapPrimary, strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  color: kMapPrimary,
+                  strokeWidth: 2,
+                ),
               ),
             )
           else if (state.waypointCandidates.isEmpty)
-            const Center(
+            Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: Text('추천 경유지가 없습니다',
-                    style: TextStyle(color: kMapWhite45, fontSize: 13)),
+                child: Text(
+                  '추천 경유지가 없습니다',
+                  style: AppTypography.label.copyWith(
+                    fontWeight: FontWeight.w400,
+                    color: kMapWhite45,
+                  ),
+                ),
               ),
             )
           else
-            ...state.waypointCandidates.map((c) => _WaypointCandidateCard(
-                  candidate: c,
-                  canAdd: state.waypoints.length < 3,
-                  onAdd: () => onAdd(c),
-                )),
+            ...state.waypointCandidates.map(
+              (c) => _WaypointCandidateCard(
+                candidate: c,
+                canAdd: state.waypoints.length < 3,
+                onAdd: () => onAdd(c),
+              ),
+            ),
         ],
       ),
     );
@@ -271,71 +322,108 @@ class _WaypointCandidateCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
-      child: Row(children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: candidate.imageUrl != null
-              ? SizedBox(
-                  width: 54, height: 54,
-                  child: Image.network(candidate.imageUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholderIcon()))
-              : _placeholderIcon(),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: kMapPrimary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(candidate.category,
-                    style: const TextStyle(
-                        fontSize: 10, color: kMapPrimary, fontWeight: FontWeight.w700)),
-              ),
-              const SizedBox(height: 4),
-              Text(candidate.name,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700, color: kMapWhite87),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(candidate.detourLabel,
-                  style: const TextStyle(
-                      fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w500)),
-              Text('+${candidate.extraKcal} kcal 추가 소모',
-                  style: TextStyle(
-                      fontSize: 11, color: context.colors.warn, fontWeight: FontWeight.w700)),
-            ],
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: candidate.imageUrl != null
+                ? SizedBox(
+                    width: 54,
+                    height: 54,
+                    child: Image.network(
+                      candidate.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _placeholderIcon(),
+                    ),
+                  )
+                : _placeholderIcon(),
           ),
-        ),
-        const SizedBox(width: 8),
-        if (canAdd)
-          GestureDetector(
-            onTap: onAdd,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: kMapPrimary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: kMapPrimary.withValues(alpha: 0.5)),
-              ),
-              child: const Text('+ 경유지 추가',
-                  style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700, color: kMapPrimary)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kMapPrimary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    candidate.category,
+                    style: AppTypography.micro.copyWith(
+                      color: kMapPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  candidate.name,
+                  style: AppTypography.bodyMute.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: kMapWhite87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  candidate.detourLabel,
+                  style: AppTypography.tiny.copyWith(
+                    color: kMapWhite45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '+${candidate.extraKcal} kcal 추가 소모',
+                  style: AppTypography.tiny.copyWith(
+                    color: context.colors.warn,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
-      ]),
+          const SizedBox(width: 8),
+          if (canAdd)
+            GestureDetector(
+              onTap: onAdd,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: kMapPrimary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: kMapPrimary.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  '+ 경유지 추가',
+                  style: AppTypography.tiny.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: kMapPrimary,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   Widget _placeholderIcon() {
     return Container(
-      width: 54, height: 54,
+      width: 54,
+      height: 54,
       decoration: BoxDecoration(
-          color: kMapPanelAlt, borderRadius: BorderRadius.circular(10)),
+        color: kMapPanelAlt,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: const Icon(Icons.landscape_rounded, size: 24, color: kMapWhite45),
     );
   }

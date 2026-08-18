@@ -37,7 +37,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// 생성 코스: 도로 스냅 폴리라인 기준 이번 GPS 틱의 진행률 계산 결과.
   /// 틱당 1회만 계산해 provider 갱신·폴리라인 트리밍·자동 재경로 판정이
   /// 모두 동일한 값을 공유하도록 한다(중복 계산으로 인한 판정 불일치 방지).
-  ({int nearestIdx, double distToRoadM, double remainingSegM})? _lastGeneratedRoadProgress;
+  ({int nearestIdx, double distToRoadM, double remainingSegM})?
+  _lastGeneratedRoadProgress;
 
   /// 네비게이션 시작 이후 누적 이동 거리 (자동 단계별 전환 트리거)
   double _movedSinceNavStart = 0.0;
@@ -59,14 +60,23 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   Future<void> _drawSegmentsOnMap(int currentWpIdx, {bool showAll = false});
   void _toggleShowAllSegments(int currentWpIdx);
   Future<void> _rerouteGeneratedCourse(
-      Position p, TouristRouteEntity route, int wpIdx);
+    Position p,
+    TouristRouteEntity route,
+    int wpIdx,
+  );
   Future<void> _drawTurnMarkersOnMap(List<TurnPoint> turns);
   Set<String> get _drawnTurnMarkerIds;
-  Future<void> _drawNavSpotMarkers(List<SpotWaypoint> waypoints, {required int currentIdx});
+  Future<void> _drawNavSpotMarkers(
+    List<SpotWaypoint> waypoints, {
+    required int currentIdx,
+  });
   void _clearNavPolylineCache();
   List<SpotEntity> get _currentSearchedSpots;
   Future<void> _drawSearchedSpotMarkers(List<SpotEntity> spots);
-  Future<void> _updateModeBMarkers(List<TouristRouteEntity> routes, {int selectedIdx});
+  Future<void> _updateModeBMarkers(
+    List<TouristRouteEntity> routes, {
+    int selectedIdx,
+  });
   Future<void> _addCartMarkersToMap(List<SpotEntity> items);
 
   void _disposeModeBNav() {
@@ -85,7 +95,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         .map((p) => (lat: p.latitude, lng: p.longitude))
         .toList();
 
-    await ref.read(modeBNavProvider.notifier).start(
+    await ref
+        .read(modeBNavProvider.notifier)
+        .start(
           route: route,
           gpxPoints: gpxPts,
           foodKcal: food?.kcal ?? 0,
@@ -118,7 +130,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
       final firstSeg = _segmentPolylines[0];
       if (firstSeg.isNotEmpty) {
-        final pts = firstSeg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+        final pts = firstSeg
+            .map((p) => (lat: p.latitude, lng: p.longitude))
+            .toList();
         _modeBTurnPoints = computeTurnPoints(pts);
       } else {
         _modeBTurnPoints = [];
@@ -205,9 +219,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           bearing: 0,
           tilt: 0,
         )..setAnimation(
-            animation: NCameraAnimation.easing,
-            duration: const Duration(milliseconds: 600),
-          ),
+          animation: NCameraAnimation.easing,
+          duration: const Duration(milliseconds: 600),
+        ),
       );
     }
   }
@@ -223,7 +237,12 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     } else if (modeBState.searchedSpots.isNotEmpty) {
       unawaited(_drawSearchedSpotMarkers(modeBState.searchedSpots));
     } else if (modeBState.routes.isNotEmpty) {
-      unawaited(_updateModeBMarkers(modeBState.routes, selectedIdx: modeBState.selectedRouteIdx));
+      unawaited(
+        _updateModeBMarkers(
+          modeBState.routes,
+          selectedIdx: modeBState.selectedRouteIdx,
+        ),
+      );
     } else {
       final cartItems = ref.read(cartProvider);
       if (cartItems.isNotEmpty) unawaited(_addCartMarkersToMap(cartItems));
@@ -255,8 +274,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final transport = route?.type == '자전거' ? 'bike' : 'walk';
     final prevWpIdx = navState.currentWaypointIdx;
 
-    final isGenerated = route != null && route.isGenerated && route.waypoints.isNotEmpty;
-    final segmentsReady = isGenerated &&
+    final isGenerated =
+        route != null && route.isGenerated && route.waypoints.isNotEmpty;
+    final segmentsReady =
+        isGenerated &&
         _segmentPolylines.isNotEmpty &&
         prevWpIdx < _segmentPolylines.length;
 
@@ -266,14 +287,24 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (segmentsReady) {
       // 화면에 그려지는 도로 스냅 폴리라인(_segmentPolylines) 기준으로 진행률을
       // 틱당 1회만 계산 — provider 갱신·트리밍 색상·자동 재경로 판정이 모두 이 값을 공유한다.
-      progress = _computeGeneratedRoadProgress(p.latitude, p.longitude, prevWpIdx);
+      progress = _computeGeneratedRoadProgress(
+        p.latitude,
+        p.longitude,
+        prevWpIdx,
+      );
       _lastGeneratedRoadProgress = progress;
 
       final target = route.waypoints[prevWpIdx];
       final distToTargetM = Geolocator.distanceBetween(
-          p.latitude, p.longitude, target.lat, target.lng);
+        p.latitude,
+        p.longitude,
+        target.lat,
+        target.lng,
+      );
 
-      ref.read(modeBNavProvider.notifier).updateGeneratedFromRoad(
+      ref
+          .read(modeBNavProvider.notifier)
+          .updateGeneratedFromRoad(
             lat: p.latitude,
             lng: p.longitude,
             distToTargetM: distToTargetM,
@@ -283,8 +314,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
             transport: transport,
           );
     } else {
-      ref.read(modeBNavProvider.notifier).onPositionUpdate(
-            p.latitude, p.longitude, metrics, transport);
+      ref
+          .read(modeBNavProvider.notifier)
+          .onPositionUpdate(p.latitude, p.longitude, metrics, transport);
     }
 
     final updatedState = ref.read(modeBNavProvider);
@@ -306,7 +338,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       final ptIdx = wpAdvanced ? -1 : (progress?.nearestIdx ?? -1);
       _pruneRouteTurnMarkers(currentSegIdx: newWpIdx, currentPtIdx: ptIdx);
     } else {
-      _pruneRouteTurnMarkers(currentSegIdx: 0, currentPtIdx: updatedState.nearestGpxPtIdx);
+      _pruneRouteTurnMarkers(
+        currentSegIdx: 0,
+        currentPtIdx: updatedState.nearestGpxPtIdx,
+      );
     }
 
     // 이동 방향 계산 (GPS 기반)
@@ -314,9 +349,17 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     double movedNow = 0.0;
     if (prev != null) {
       final bearing = _calcModeBBearing(
-          prev.latitude, prev.longitude, p.latitude, p.longitude);
+        prev.latitude,
+        prev.longitude,
+        p.latitude,
+        p.longitude,
+      );
       movedNow = Geolocator.distanceBetween(
-          prev.latitude, prev.longitude, p.latitude, p.longitude);
+        prev.latitude,
+        prev.longitude,
+        p.latitude,
+        p.longitude,
+      );
       if (movedNow >= 2.0) _modeBNavLastBearing = bearing;
     }
     _modeBNavPrevPosition = p;
@@ -331,8 +374,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       if (movedNow >= 2.0) {
         _movedSinceNavStart += movedNow;
         if (_movedSinceNavStart >= 50.0) {
-          final hasRealTurns =
-              _modeBTurnPoints.any((t) => t.type != TurnType.arrival);
+          final hasRealTurns = _modeBTurnPoints.any(
+            (t) => t.type != TurnType.arrival,
+          );
           if (hasRealTurns && mounted) {
             setState(() => _modeBNavStepMode = true);
           }
@@ -341,15 +385,17 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     }
 
     // 단계별 모드: GPX 코스 전용 세그먼트 갱신
-    if (_modeBNavStepMode && !isGenerated &&
+    if (_modeBNavStepMode &&
+        !isGenerated &&
         _modeBTurnPoints.any((t) => t.type != TurnType.arrival)) {
       unawaited(_updateStepModeSegment(updatedState));
     }
 
     // 생성 코스: 다음 waypoint 도착 감지 → 구간 교체
     if (isGenerated && wpAdvanced) {
-      unawaited(_onGeneratedCourseWaypointAdvanced(
-          updatedState.route!, newWpIdx));
+      unawaited(
+        _onGeneratedCourseWaypointAdvanced(updatedState.route!, newWpIdx),
+      );
     }
 
     // GPX 코스 이탈 스낵바는 map_overlay.dart의 ref.listen(modeBNavProvider)에서
@@ -379,7 +425,7 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// (순증가 전용이 아님) — 화면에 그려지는 경로와 동일한 데이터를 사용하므로
   /// 이 결과가 도착/이탈/잔여거리 판정의 유일한 근거가 된다.
   ({int nearestIdx, double distToRoadM, double remainingSegM})
-      _computeGeneratedRoadProgress(double lat, double lng, int currentWpIdx) {
+  _computeGeneratedRoadProgress(double lat, double lng, int currentWpIdx) {
     final pts = _segmentPolylines[currentWpIdx];
     final searchStart = (_modeBRoadNearestPtIdx - 30).clamp(0, pts.length - 1);
     final searchEnd = (_modeBRoadNearestPtIdx + 200).clamp(0, pts.length);
@@ -397,14 +443,24 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     double remainingSegM = 0;
     for (int i = best; i < pts.length - 1; i++) {
       remainingSegM += _preciseDistM(
-          pts[i].latitude, pts[i].longitude, pts[i + 1].latitude, pts[i + 1].longitude);
+        pts[i].latitude,
+        pts[i].longitude,
+        pts[i + 1].latitude,
+        pts[i + 1].longitude,
+      );
     }
-    return (nearestIdx: best, distToRoadM: bestDist, remainingSegM: remainingSegM);
+    return (
+      nearestIdx: best,
+      distToRoadM: bestDist,
+      remainingSegM: remainingSegM,
+    );
   }
 
   // 생성 코스 waypoint 진행 시 호출 — 구간 교체 + 턴 포인트 재계산
   Future<void> _onGeneratedCourseWaypointAdvanced(
-      TouristRouteEntity route, int newWpIdx) async {
+    TouristRouteEntity route,
+    int newWpIdx,
+  ) async {
     if (!mounted) return;
     if (newWpIdx >= route.waypoints.length) return;
 
@@ -418,7 +474,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (newWpIdx < _segmentPolylines.length) {
       final seg = _segmentPolylines[newWpIdx];
       if (seg.isNotEmpty) {
-        final pts = seg.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+        final pts = seg
+            .map((p) => (lat: p.latitude, lng: p.longitude))
+            .toList();
         _modeBTurnPoints = computeTurnPoints(pts, legIdx: newWpIdx);
       } else {
         _modeBTurnPoints = [];
@@ -452,8 +510,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (isGenerated) {
       // 생성 코스: seg_N 폴리라인은 항상 유지 — 단계별 ON/OFF는 UI 카드만 전환
       // 단계별 OFF 시 "전체 경로" 아이콘 버튼이 전체 보기 역할
-      await _drawSegmentsOnMap(navState.currentWaypointIdx,
-          showAll: _modeBShowAllSegments);
+      await _drawSegmentsOnMap(
+        navState.currentWaypointIdx,
+        showAll: _modeBShowAllSegments,
+      );
     } else {
       // GPX 코스: 단계별 ON → step_segment 추가, OFF → 제거하고 route_path 복원
       final ctrl = _ctrl;
@@ -462,26 +522,34 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       if (_modeBNavStepMode) {
         unawaited(_updateStepModeSegment(navState));
       } else {
-        await ctrl.deleteOverlay(
-          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
-        ).catchError((_) {});
+        await ctrl
+            .deleteOverlay(
+              NOverlayInfo(
+                type: NOverlayType.polylineOverlay,
+                id: 'step_segment',
+              ),
+            )
+            .catchError((_) {});
         if (!mounted) return;
         final c = context.colors;
         final pts = navState.gpxPoints;
         final startIdx = navState.nearestGpxPtIdx;
         if (pts.length > startIdx + 1) {
-          final remaining =
-              pts.sublist(startIdx).map((p) => NLatLng(p.lat, p.lng)).toList();
-          final routeColor =
-              navState.route?.type == '자전거' ? c.warn : c.primary;
-          await ctrl.addOverlay(NPolylineOverlay(
-            id: 'route_path',
-            coords: remaining,
-            color: routeColor,
-            width: 5,
-            lineCap: NLineCap.round,
-            lineJoin: NLineJoin.round,
-          ));
+          final remaining = pts
+              .sublist(startIdx)
+              .map((p) => NLatLng(p.lat, p.lng))
+              .toList();
+          final routeColor = navState.route?.type == '자전거' ? c.warn : c.primary;
+          await ctrl.addOverlay(
+            NPolylineOverlay(
+              id: 'route_path',
+              coords: remaining,
+              color: routeColor,
+              width: 5,
+              lineCap: NLineCap.round,
+              lineJoin: NLineJoin.round,
+            ),
+          );
         }
       }
     }
@@ -507,8 +575,10 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
     final nearestIdx = _activeNearestIdx(navState);
     final nextTurnGpxIdx = _getNextTurnGpxIdx(nearestIdx);
-    final endIdx = (nextTurnGpxIdx > 0 ? nextTurnGpxIdx : pts.length - 1)
-        .clamp(0, pts.length - 1);
+    final endIdx = (nextTurnGpxIdx > 0 ? nextTurnGpxIdx : pts.length - 1).clamp(
+      0,
+      pts.length - 1,
+    );
     final startIdx = nearestIdx.clamp(0, pts.length - 1);
     if (endIdx - startIdx < 1) return;
 
@@ -518,22 +588,25 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         .toList();
 
     // GPX 코스: route_path는 건드리지 않고 step_segment를 위에 덧그림
-    await ctrl.deleteOverlay(
-      NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
-    ).catchError((_) {});
+    await ctrl
+        .deleteOverlay(
+          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'step_segment'),
+        )
+        .catchError((_) {});
     if (!mounted) return;
 
     final c = context.colors;
-    final routeColor =
-        navState.route?.type == '자전거' ? c.warn : c.primary;
-    await ctrl.addOverlay(NPolylineOverlay(
-      id: 'step_segment',
-      coords: segment,
-      color: routeColor,
-      width: 6,
-      lineCap: NLineCap.round,
-      lineJoin: NLineJoin.round,
-    ));
+    final routeColor = navState.route?.type == '자전거' ? c.warn : c.primary;
+    await ctrl.addOverlay(
+      NPolylineOverlay(
+        id: 'step_segment',
+        coords: segment,
+        color: routeColor,
+        width: 6,
+        lineCap: NLineCap.round,
+        lineJoin: NLineJoin.round,
+      ),
+    );
   }
 
   int _getNextTurnGpxIdx(int nearestIdx) {
@@ -587,21 +660,29 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
   /// [currentPtIdx]: 그 구간 내에서의 최근접점 인덱스 — currentSegIdx로 막 넘어온 틱에는
   ///   이전 구간 기준 값이라 의미가 없으므로 -1을 넘겨 "이 구간의 부분 통과분"은
   ///   판정에서 제외한다(legIdx 비교만으로 이전 구간 전체는 이미 걸러진다).
-  void _pruneRouteTurnMarkers({required int currentSegIdx, required int currentPtIdx}) {
+  void _pruneRouteTurnMarkers({
+    required int currentSegIdx,
+    required int currentPtIdx,
+  }) {
     if (_allRouteTurnMarkers.isEmpty) return;
     final ctrl = _ctrl;
     if (ctrl == null) return;
 
     final remaining = <TurnPoint>[];
     for (final t in _allRouteTurnMarkers) {
-      final passed = t.legIdx < currentSegIdx ||
-          (t.legIdx == currentSegIdx && currentPtIdx >= 0 && t.ptIdx <= currentPtIdx);
+      final passed =
+          t.legIdx < currentSegIdx ||
+          (t.legIdx == currentSegIdx &&
+              currentPtIdx >= 0 &&
+              t.ptIdx <= currentPtIdx);
       if (passed) {
         final id = turnMarkerId(t);
         _drawnTurnMarkerIds.remove(id);
-        unawaited(ctrl
-            .deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: id))
-            .catchError((_) {}));
+        unawaited(
+          ctrl
+              .deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: id))
+              .catchError((_) {}),
+        );
       } else {
         remaining.add(t);
       }
@@ -623,9 +704,16 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final endIdx = nextTurnGpxIdx.clamp(0, pts.length - 1);
     double dist = 0;
     for (int i = nearestIdx; i < endIdx && i < pts.length - 1; i++) {
-      dist += _fastDistM(pts[i].lat, pts[i].lng, pts[i + 1].lat, pts[i + 1].lng);
+      dist += _fastDistM(
+        pts[i].lat,
+        pts[i].lng,
+        pts[i + 1].lat,
+        pts[i + 1].lng,
+      );
     }
-    return dist < 1000 ? '${dist.round()}m' : '${(dist / 1000).toStringAsFixed(1)}km';
+    return dist < 1000
+        ? '${dist.round()}m'
+        : '${(dist / 1000).toStringAsFixed(1)}km';
   }
 
   /// 현재 위치 기준 다음 턴 포인트 (GPX + 생성 코스 공통)
@@ -639,21 +727,30 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 카메라 팔로우 ──────────────────────────────────────────────
 
-  double _calcModeBBearing(double lat1, double lng1, double lat2, double lng2) =>
-      bearingDeg(lat1, lng1, lat2, lng2);
+  double _calcModeBBearing(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) => bearingDeg(lat1, lng1, lat2, lng2);
 
-  Future<void> _followModeBCamera(double lat, double lng, double bearing) async {
+  Future<void> _followModeBCamera(
+    double lat,
+    double lng,
+    double bearing,
+  ) async {
     if (!_modeBNavCameraFollow || _ctrl == null) return;
     _modeBNavCameraUpdating = true;
-    final update = NCameraUpdate.withParams(
-      target: NLatLng(lat, lng),
-      zoom: 17,
-      bearing: bearing,
-      tilt: 40,
-    )..setAnimation(
-        animation: NCameraAnimation.linear,
-        duration: const Duration(milliseconds: 700),
-      );
+    final update =
+        NCameraUpdate.withParams(
+          target: NLatLng(lat, lng),
+          zoom: 17,
+          bearing: bearing,
+          tilt: 40,
+        )..setAnimation(
+          animation: NCameraAnimation.linear,
+          duration: const Duration(milliseconds: 700),
+        );
     await _ctrl!.updateCamera(update);
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) _modeBNavCameraUpdating = false;
@@ -666,10 +763,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final wp = waypoints[idx];
     _modeBNavCameraUpdating = true;
     await ctrl.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(
-        target: NLatLng(wp.lat, wp.lng),
-        zoom: 17,
-      )..setAnimation(
+      NCameraUpdate.scrollAndZoomTo(target: NLatLng(wp.lat, wp.lng), zoom: 17)
+        ..setAnimation(
           animation: NCameraAnimation.easing,
           duration: const Duration(milliseconds: 500),
         ),
@@ -719,7 +814,8 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final kcal = navState.elapsedKcal.toInt();
     final distKm = (navState.route?.distanceKm ?? 0.0) * navState.kcalProgress;
     final route = navState.route;
-    final spotCount = route?.waypoints.where((w) => w.type != '출발지').length ?? 0;
+    final spotCount =
+        route?.waypoints.where((w) => w.type != '출발지').length ?? 0;
 
     showDialog(
       context: context,
@@ -732,34 +828,44 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('🎉', style: TextStyle(fontSize: 44)),
+              Text(
+                '🎉',
+                style: AppTypography.displayXl.copyWith(
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
               const SizedBox(height: 10),
               Text(
                 '$routeName\n완료!',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: AppTypography.h2.copyWith(
                   color: Colors.white,
-                  fontSize: 20,
                   fontWeight: FontWeight.w900,
                   height: 1.25,
                 ),
               ),
               const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                _ArrivalStatChip(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _ArrivalStatChip(
                     icon: Icons.local_fire_department_rounded,
                     value: '${kcal}kcal',
-                    color: context.colors.primary),
-                _ArrivalStatChip(
+                    color: context.colors.primary,
+                  ),
+                  _ArrivalStatChip(
                     icon: Icons.straighten_rounded,
                     value: '${distKm.toStringAsFixed(1)}km',
-                    color: context.colors.pinUser),
-                if (spotCount > 0)
-                  _ArrivalStatChip(
+                    color: context.colors.pinUser,
+                  ),
+                  if (spotCount > 0)
+                    _ArrivalStatChip(
                       icon: Icons.place_rounded,
                       value: '스팟 $spotCount곳',
-                      color: context.colors.secondary),
-              ]),
+                      color: context.colors.secondary,
+                    ),
+                ],
+              ),
               const SizedBox(height: 24),
               GestureDetector(
                 onTap: () => Navigator.of(ctx).pop(),
@@ -770,12 +876,14 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     color: context.colors.pinUser,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text('확인',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15)),
+                  child: Text(
+                    '확인',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.body.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -785,7 +893,11 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     );
   }
 
-  void _showGeneratedOffRouteDialog(Position p, TouristRouteEntity route, int wpIdx) {
+  void _showGeneratedOffRouteDialog(
+    Position p,
+    TouristRouteEntity route,
+    int wpIdx,
+  ) {
     if (!mounted) return;
     // 중복 다이얼로그 방지
     _offRouteStartTime = null;
@@ -795,31 +907,54 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       builder: (ctx) => AlertDialog(
         backgroundColor: kMapPanel,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(Icons.warning_amber_rounded, color: context.colors.warn, size: 22),
-          const SizedBox(width: 8),
-          const Text('경로 이탈',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-        ]),
-        content: const Text(
+        title: Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: context.colors.warn,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '경로 이탈',
+              style: AppTypography.bodyLg.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
           '현재 경로에서 벗어났어요.\n새로운 경로를 찾을까요?',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+          style: AppTypography.label.copyWith(
+            fontWeight: FontWeight.w400,
+            color: Colors.white70,
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('현재 경로 유지',
-                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600)),
+            child: const Text(
+              '현재 경로 유지',
+              style: TextStyle(
+                color: Colors.white54,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               unawaited(_rerouteGeneratedCourse(p, route, wpIdx));
             },
-            child: Text('재경로',
-                style: TextStyle(
-                    color: context.colors.accent, fontWeight: FontWeight.w800)),
+            child: Text(
+              '재경로',
+              style: TextStyle(
+                color: context.colors.accent,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
       ),
@@ -835,28 +970,51 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
       builder: (ctx) => AlertDialog(
         backgroundColor: kMapPanel,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(Icons.warning_amber_rounded, color: context.colors.warn, size: 22),
-          const SizedBox(width: 8),
-          const Text('안내 종료',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-        ]),
-        content: const Text(
+        title: Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: context.colors.warn,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '안내 종료',
+              style: AppTypography.bodyLg.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
           '진행 중인 코스 안내가 종료됩니다.\n안내를 종료하시겠습니까?',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+          style: AppTypography.label.copyWith(
+            fontWeight: FontWeight.w400,
+            color: Colors.white70,
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('계속 안내받기',
-                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600)),
+            child: const Text(
+              '계속 안내받기',
+              style: TextStyle(
+                color: Colors.white54,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('종료',
-                style: TextStyle(
-                    color: context.colors.danger, fontWeight: FontWeight.w800)),
+            child: Text(
+              '종료',
+              style: TextStyle(
+                color: context.colors.danger,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
       ),
@@ -889,7 +1047,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           ? (navState.route!.distanceKm * 1000 * navState.kcalProgress)
           : 0.0;
       final date = DateTime.now().toIso8601String().substring(0, 10);
-      await ref.read(recordRepositoryProvider).addModeBCalories(uid, date, kcal, distM);
+      await ref
+          .read(recordRepositoryProvider)
+          .addModeBCalories(uid, date, kcal, distM);
       ref.invalidate(weekRecordsProvider);
     } catch (_) {}
   }
@@ -905,13 +1065,19 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: const Row(children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
-          SizedBox(width: 8),
-          Text('경로에서 벗어났어요. 경로로 돌아오세요.',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-        ]),
+        content: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text(
+              '경로에서 벗어났어요. 경로로 돌아오세요.',
+              style: AppTypography.label.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -924,7 +1090,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     try {
       final points = await _fetchGpxPoints(gpxUrl);
       if (!mounted || points.isEmpty) return;
-      final pts = points.map((p) => (lat: p.latitude, lng: p.longitude)).toList();
+      final pts = points
+          .map((p) => (lat: p.latitude, lng: p.longitude))
+          .toList();
       ref.read(modeBNavProvider.notifier).setGpxPoints(pts);
 
       // 턴 마커 복원 — 정상 시작 흐름과 동일하게 전체 트랙 기준으로 계산해 그린다.
@@ -960,7 +1128,9 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     final route = navState.route!;
 
     // 단계별 모드용 현재 턴 정보 계산 (GPX + 생성 코스 공통)
-    final bool hasRealTurns = _modeBTurnPoints.any((t) => t.type != TurnType.arrival);
+    final bool hasRealTurns = _modeBTurnPoints.any(
+      (t) => t.type != TurnType.arrival,
+    );
     final TurnType curTurnType;
     final String curTurnInstruction;
     final String distToTurn;
@@ -983,42 +1153,42 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
         right: 12,
         child: route.isGenerated && route.waypoints.isNotEmpty
             ? (_modeBNavStepMode
-                ? _ModeBTurnBar(
-                    turnType: curTurnType,
-                    distanceLabel: distToTurn,
-                    instruction: curTurnInstruction,
-                    navState: navState,
-                    onOverview: _toggleNavStepMode,
-                  )
-                : _ModeBNavSpotCarousel(
-                    waypoints: route.waypoints,
-                    activeIdx: _modeBNavWaypointPageIdx,
-                    navState: navState,
-                    onPageChanged: (idx) {
-                      setState(() {
-                        _modeBNavWaypointPageIdx = idx;
-                        _modeBNavCameraFollow = false;
-                      });
-                      _panToWaypoint(idx, route.waypoints);
-                    },
-                    onStepMode: hasRealTurns ? _toggleNavStepMode : null,
-                    showAllSegments: _modeBShowAllSegments,
-                    onShowAllToggle: () => _toggleShowAllSegments(
-                        navState.currentWaypointIdx),
-                    onSpotTap: _navigateToSpotFromWaypoint,
-                  ))
+                  ? _ModeBTurnBar(
+                      turnType: curTurnType,
+                      distanceLabel: distToTurn,
+                      instruction: curTurnInstruction,
+                      navState: navState,
+                      onOverview: _toggleNavStepMode,
+                    )
+                  : _ModeBNavSpotCarousel(
+                      waypoints: route.waypoints,
+                      activeIdx: _modeBNavWaypointPageIdx,
+                      navState: navState,
+                      onPageChanged: (idx) {
+                        setState(() {
+                          _modeBNavWaypointPageIdx = idx;
+                          _modeBNavCameraFollow = false;
+                        });
+                        _panToWaypoint(idx, route.waypoints);
+                      },
+                      onStepMode: hasRealTurns ? _toggleNavStepMode : null,
+                      showAllSegments: _modeBShowAllSegments,
+                      onShowAllToggle: () =>
+                          _toggleShowAllSegments(navState.currentWaypointIdx),
+                      onSpotTap: _navigateToSpotFromWaypoint,
+                    ))
             : (_modeBNavStepMode
-                ? _ModeBTurnBar(
-                    turnType: curTurnType,
-                    distanceLabel: distToTurn,
-                    instruction: curTurnInstruction,
-                    navState: navState,
-                    onOverview: _toggleNavStepMode,
-                  )
-                : _ModeBNavTopCard(
-                    navState: navState,
-                    onStepMode: hasRealTurns ? _toggleNavStepMode : null,
-                  )),
+                  ? _ModeBTurnBar(
+                      turnType: curTurnType,
+                      distanceLabel: distToTurn,
+                      instruction: curTurnInstruction,
+                      navState: navState,
+                      onOverview: _toggleNavStepMode,
+                    )
+                  : _ModeBNavTopCard(
+                      navState: navState,
+                      onStepMode: hasRealTurns ? _toggleNavStepMode : null,
+                    )),
       ),
 
       // 하단 스트립
@@ -1031,7 +1201,6 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
           onStop: _stopModeBNavigation,
         ),
       ),
-
     ];
   }
 
@@ -1059,7 +1228,11 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                     : Colors.white24,
               ),
               boxShadow: const [
-                BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 2)),
+                BoxShadow(
+                  color: Colors.black45,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
               ],
             ),
             child: Center(
@@ -1091,10 +1264,18 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
                 color: context.colors.pinUser,
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 2)),
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
                 ],
               ),
-              child: const Icon(Icons.my_location_rounded, size: 22, color: Colors.white),
+              child: const Icon(
+                Icons.my_location_rounded,
+                size: 22,
+                color: Colors.white,
+              ),
             ),
           ),
         ),

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/context_ext.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class CalorieCompareDonut extends StatelessWidget {
   const CalorieCompareDonut({
@@ -39,24 +40,28 @@ class CalorieCompareDonut extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('NET',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: c.textMuted,
-                          letterSpacing: 0.3)),
-                  Text(netLabel,
-                      style: TextStyle(
-                          fontSize: size * 0.178,
-                          fontWeight: FontWeight.w800,
-                          color: netColor,
-                          letterSpacing: -1,
-                          height: 1)),
-                  Text('kcal',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: c.textMuted)),
+                  Text(
+                    'NET',
+                    style: AppTypography.tiny.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: c.textMuted,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  Text(
+                    netLabel,
+                    style: TextStyle(
+                      fontSize: size * 0.178,
+                      fontWeight: FontWeight.w800,
+                      color: netColor,
+                      letterSpacing: -1,
+                      height: 1,
+                    ),
+                  ),
+                  Text(
+                    'kcal',
+                    style: AppTypography.tiny.copyWith(color: c.textMuted),
+                  ),
                 ],
               ),
             ),
@@ -160,15 +165,28 @@ class _Legend extends StatelessWidget {
     return Row(
       children: [
         Container(
-            width: 10, height: 10, decoration: BoxDecoration(color: dot, borderRadius: BorderRadius.circular(3))),
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: dot,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: TextStyle(fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w600)),
-            Text(value,
-                style: TextStyle(fontSize: 13, color: c.text, fontWeight: FontWeight.w800)),
+            Text(
+              label,
+              style: AppTypography.micro.copyWith(color: c.textMuted),
+            ),
+            Text(
+              value,
+              style: AppTypography.label.copyWith(
+                color: c.text,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ],
         ),
       ],

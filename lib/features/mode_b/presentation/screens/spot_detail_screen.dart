@@ -7,6 +7,7 @@ import '../../../../core/utils/context_ext.dart';
 import '../../data/datasources/tour_api_detail_datasource.dart';
 import '../../domain/entities/spot_entity.dart';
 import '../providers/cart_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class SpotDetailScreen extends ConsumerStatefulWidget {
   const SpotDetailScreen({super.key, required this.spot});
@@ -88,7 +89,11 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
       } else {
         // 카카오: 이미지가 없으면 TourAPI 키워드 매칭 시도
         if (_allImages.isEmpty) {
-          final img = await ds.findImageByKeyword(spot.name, spot.lat, spot.lng);
+          final img = await ds.findImageByKeyword(
+            spot.name,
+            spot.lat,
+            spot.lng,
+          );
           if (mounted && img != null) {
             setState(() => _allImages = [img]);
           }
@@ -113,16 +118,24 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
           SnackBar(
             backgroundColor: const Color(0xFF333344),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             duration: const Duration(seconds: 2),
-            content: const Row(children: [
-              Icon(Icons.shopping_cart_outlined, color: Colors.white70, size: 18),
-              SizedBox(width: 8),
-              Text(
-                '스팟은 최대 $kCartMaxSpots개까지 담을 수 있어요',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-            ]),
+            content: Row(
+              children: [
+                Icon(
+                  Icons.shopping_cart_outlined,
+                  color: Colors.white70,
+                  size: 18,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '스팟은 최대 $kCartMaxSpots개까지 담을 수 있어요',
+                  style: AppTypography.label.copyWith(color: Colors.white),
+                ),
+              ],
+            ),
           ),
         );
       }
@@ -150,10 +163,8 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
     final spot = widget.spot;
     final inCart = ref.watch(cartProvider).any((s) => s.id == spot.id);
 
-    final externalUrl =
-        spot.source == 'kakao' ? spot.placeUrl : _homepageUrl;
-    final externalLabel =
-        spot.source == 'kakao' ? '지도에서 보기' : '공식 홈페이지';
+    final externalUrl = spot.source == 'kakao' ? spot.placeUrl : _homepageUrl;
+    final externalLabel = spot.source == 'kakao' ? '지도에서 보기' : '공식 홈페이지';
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -198,17 +209,19 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
                       alignment: Alignment.centerLeft,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: c.primarySoft,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           spot.category!,
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: c.primary,
-                              fontWeight: FontWeight.w700),
+                          style: AppTypography.tiny.copyWith(
+                            color: c.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -217,10 +230,10 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
                 // 장소명
                 Text(
                   spot.name,
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: c.text),
+                  style: AppTypography.titleSm.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: c.text,
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -233,7 +246,9 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
                 // 주소
                 if (spot.address != null) ...[
                   _InfoRow(
-                      icon: Icons.location_on_rounded, text: spot.address!),
+                    icon: Icons.location_on_rounded,
+                    text: spot.address!,
+                  ),
                   const SizedBox(height: 10),
                 ],
 
@@ -262,8 +277,11 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
                   const SizedBox(height: 16),
                   Text(
                     _overview!,
-                    style: TextStyle(
-                        fontSize: 14, color: c.textMuted, height: 1.75),
+                    style: AppTypography.bodyMute.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: c.textMuted,
+                      height: 1.75,
+                    ),
                   ),
                 ],
 
@@ -301,15 +319,17 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.open_in_new_rounded,
-                            size: 15, color: c.textMuted),
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 15,
+                          color: c.textMuted,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           externalLabel,
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: c.textMuted),
+                          style: AppTypography.label.copyWith(
+                            color: c.textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -355,8 +375,7 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen>
                           child: Text(
                             inCart ? '장바구니에서 빼기' : '코스 장바구니에 담기',
                             key: ValueKey(inCart),
-                            style: TextStyle(
-                              fontSize: 15,
+                            style: AppTypography.body.copyWith(
                               fontWeight: FontWeight.w800,
                               color: inCart ? c.primary : c.onPrimary,
                             ),
@@ -421,8 +440,9 @@ class _ImageGallery extends StatelessWidget {
         fit: BoxFit.cover,
         errorWidget: (_, __, ___) => Container(
           color: c.surfaceAlt,
-          child:
-              Center(child: Icon(Icons.landscape_rounded, size: 64, color: c.outline)),
+          child: Center(
+            child: Icon(Icons.landscape_rounded, size: 64, color: c.outline),
+          ),
         ),
       );
     } else {
@@ -436,7 +456,8 @@ class _ImageGallery extends StatelessWidget {
           errorWidget: (_, __, ___) => Container(
             color: c.surfaceAlt,
             child: Center(
-                child: Icon(Icons.landscape_rounded, size: 64, color: c.outline)),
+              child: Icon(Icons.landscape_rounded, size: 64, color: c.outline),
+            ),
           ),
         ),
       );
@@ -457,10 +478,7 @@ class _ImageGallery extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  c.bg.withValues(alpha: 0.55),
-                ],
+                colors: [Colors.transparent, c.bg.withValues(alpha: 0.55)],
               ),
             ),
           ),
@@ -511,11 +529,7 @@ class _TelRow extends StatelessWidget {
         children: [
           Icon(Icons.phone_rounded, size: 16, color: c.primary),
           const SizedBox(width: 8),
-          Text(
-            tel,
-            style: TextStyle(
-                fontSize: 13, color: c.primary, fontWeight: FontWeight.w600),
-          ),
+          Text(tel, style: AppTypography.label.copyWith(color: c.primary)),
           const SizedBox(width: 4),
           Icon(Icons.north_east_rounded, size: 11, color: c.primary),
         ],
@@ -544,8 +558,10 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: TextStyle(
-                fontSize: 13, color: textColor, fontWeight: FontWeight.w500),
+            style: AppTypography.label.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -571,7 +587,12 @@ class _OperatingInfoCard extends StatelessWidget {
       ),
       child: Text(
         info,
-        style: TextStyle(fontSize: 12.5, color: c.textMuted, height: 1.7),
+        style: AppTypography.label.copyWith(
+          fontWeight: FontWeight.w400,
+          fontSize: 12.5,
+          color: c.textMuted,
+          height: 1.7,
+        ),
       ),
     );
   }
@@ -600,11 +621,11 @@ class _LoadingShimmer extends StatelessWidget {
   }
 
   Widget _bar(dynamic c, double width) => Container(
-        height: 12,
-        width: width,
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(6),
-        ),
-      );
+    height: 12,
+    width: width,
+    decoration: BoxDecoration(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(6),
+    ),
+  );
 }

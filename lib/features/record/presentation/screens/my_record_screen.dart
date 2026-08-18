@@ -9,6 +9,7 @@ import '../../../record/domain/entities/badge_entity.dart';
 import '../../../record/domain/entities/daily_record_entity.dart';
 import '../../../walk/presentation/providers/walk_provider.dart';
 import '../providers/record_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 const _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -46,9 +47,15 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
   Widget build(BuildContext context) {
     final c = context.colors;
     // steps/kcal/distance만 select — 다른 필드 변경으로 인한 불필요한 재빌드 방지
-    final walk = ref.watch(walkSessionProvider.select(
-      (s) => (steps: s.steps, caloriesKcal: s.caloriesKcal, distanceM: s.distanceM),
-    ));
+    final walk = ref.watch(
+      walkSessionProvider.select(
+        (s) => (
+          steps: s.steps,
+          caloriesKcal: s.caloriesKcal,
+          distanceM: s.distanceM,
+        ),
+      ),
+    );
     final summaryAsync = ref.watch(weeklySummaryProvider);
     final weeklyAsync = ref.watch(weeklyDataProvider);
     final badgesAsync = ref.watch(badgesProvider);
@@ -56,198 +63,240 @@ class _MyRecordScreenState extends ConsumerState<MyRecordScreen>
 
     return DoubleBackToExit(
       child: Scaffold(
-      backgroundColor: c.bg,
-      body: Column(
-        children: [
-          // Header — MY 페이지와 동일한 구조
-          SafeArea(
-            bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 뒤로가기 + 타이틀 Row (MY 페이지 스타일)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(context.wp(2), context.hp(1), context.wp(3), 0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => context.go('/home'),
-                        icon: Icon(Icons.arrow_back_ios_new_rounded,
-                            color: c.text, size: 20),
-                      ),
-                      Text(
-                        '나의 기록',
-                        style: TextStyle(
-                            fontSize: 18,
+        backgroundColor: c.bg,
+        body: Column(
+          children: [
+            // Header — MY 페이지와 동일한 구조
+            SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 뒤로가기 + 타이틀 Row (MY 페이지 스타일)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      context.wp(2),
+                      context.hp(1),
+                      context.wp(3),
+                      0,
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => context.go('/home'),
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: c.text,
+                            size: 20,
+                          ),
+                        ),
+                        Text(
+                          '나의 기록',
+                          style: AppTypography.subtitle.copyWith(
                             fontWeight: FontWeight.w800,
                             color: c.text,
-                            letterSpacing: -0.3),
-                      ),
-                      const Spacer(),
-                    ],
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
                   ),
-                ),
 
-                // 통계 카드 + 탭바
-                Padding(
-                  padding: EdgeInsets.fromLTRB(context.wp(5), context.hp(1.5), context.wp(5), 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Summary cards — Firestore 주간 집계
-                      summaryAsync.when(
-                        loading: () => const _StatCardRow(
-                            kcalText: '-', kmText: '-', daysText: '-'),
-                        error: (_, __) => const _StatCardRow(
-                            kcalText: '0', kmText: '0.0', daysText: '0'),
-                        data: (s) => _StatCardRow(
-                          kcalText: NumberFormat('#,###').format(s.kcal.round()),
-                          kmText: s.km.toStringAsFixed(1),
-                          daysText: s.days.toString(),
+                  // 통계 카드 + 탭바
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      context.wp(5),
+                      context.hp(1.5),
+                      context.wp(5),
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Summary cards — Firestore 주간 집계
+                        summaryAsync.when(
+                          loading: () => const _StatCardRow(
+                            kcalText: '-',
+                            kmText: '-',
+                            daysText: '-',
+                          ),
+                          error: (_, __) => const _StatCardRow(
+                            kcalText: '0',
+                            kmText: '0.0',
+                            daysText: '0',
+                          ),
+                          data: (s) => _StatCardRow(
+                            kcalText: NumberFormat(
+                              '#,###',
+                            ).format(s.kcal.round()),
+                            kmText: s.km.toStringAsFixed(1),
+                            daysText: s.days.toString(),
+                          ),
                         ),
-                      ),
 
-                      SizedBox(height: context.hp(2)),
+                        SizedBox(height: context.hp(2)),
 
-                      // Tab bar
-                      Container(
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: c.surfaceAlt,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: c.outline),
-                        ),
-                        child: TabBar(
-                          controller: _tab,
-                          indicator: BoxDecoration(
-                            color: c.surface,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
+                        // Tab bar
+                        Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: c.surfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: c.outline),
+                          ),
+                          child: TabBar(
+                            controller: _tab,
+                            indicator: BoxDecoration(
+                              color: c.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 8,
-                                  offset: const Offset(0, 2))
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            indicatorPadding: const EdgeInsets.all(3),
+                            labelColor: c.text,
+                            unselectedLabelColor: c.textMuted,
+                            labelStyle: AppTypography.label.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            unselectedLabelStyle: AppTypography.label,
+                            dividerColor: Colors.transparent,
+                            tabs: const [
+                              Tab(text: '주간 차트'),
+                              Tab(text: '뱃지'),
                             ],
                           ),
-                          indicatorPadding: const EdgeInsets.all(3),
-                          labelColor: c.text,
-                          unselectedLabelColor: c.textMuted,
-                          labelStyle: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700),
-                          unselectedLabelStyle: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w600),
-                          dividerColor: Colors.transparent,
-                          tabs: const [
-                            Tab(text: '주간 차트'),
-                            Tab(text: '뱃지'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: [
-                // Weekly chart tab
-                SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                      context.wp(5), context.hp(2.5), context.wp(5), 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      weeklyAsync.when(
-                        loading: () => SizedBox(
-                          height: 180,
-                          child: Center(
-                              child: CircularProgressIndicator(color: c.primary)),
-                        ),
-                        error: (_, __) => const SizedBox.shrink(),
-                        data: (weekly) => WeeklyChart(data: weekly),
-                      ),
-                      SizedBox(height: context.hp(3)),
-
-                      // Activity tiles — Firestore 기록 + 실시간 walk 오버레이
-                      weekRecordsAsync.when(
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                        data: (records) =>
-                            _WeekActivitySection(records: records, liveWalk: walk),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Badges tab
-                badgesAsync.when(
-                  loading: () => Center(
-                      child: CircularProgressIndicator(color: c.primary)),
-                  error: (_, __) => const SizedBox.shrink(),
-                  data: (badges) {
-                    final earned = badges.where((b) => b.earned).toList();
-                    final locked = badges.where((b) => !b.earned).toList();
-                    return ListView(
-                      padding: EdgeInsets.fromLTRB(
-                          context.wp(5), context.hp(2.5), context.wp(5), 20),
-                      children: [
-                        Text('획득한 뱃지 ${earned.length}개',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: c.textMuted,
-                                letterSpacing: 0.3)),
-                        const SizedBox(height: 12),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  mainAxisSpacing: 12,
-                                  crossAxisSpacing: 12,
-                                  childAspectRatio: 1),
-                          itemCount: earned.length,
-                          itemBuilder: (_, i) => _BadgeTile(
-                              badge: earned[i], earned: true),
-                        ),
-                        SizedBox(height: context.hp(2.5)),
-                        Text('잠긴 뱃지 ${locked.length}개',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: c.textMuted,
-                                letterSpacing: 0.3)),
-                        const SizedBox(height: 12),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  mainAxisSpacing: 12,
-                                  crossAxisSpacing: 12,
-                                  childAspectRatio: 1),
-                          itemCount: locked.length,
-                          itemBuilder: (_, i) => _BadgeTile(
-                              badge: locked[i], earned: false),
                         ),
                       ],
-                    );
-                  },
-                ),
-              ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-        ],
+            // Tab content
+            Expanded(
+              child: TabBarView(
+                controller: _tab,
+                children: [
+                  // Weekly chart tab
+                  SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      context.wp(5),
+                      context.hp(2.5),
+                      context.wp(5),
+                      20,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        weeklyAsync.when(
+                          loading: () => SizedBox(
+                            height: 180,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: c.primary,
+                              ),
+                            ),
+                          ),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (weekly) => WeeklyChart(data: weekly),
+                        ),
+                        SizedBox(height: context.hp(3)),
+
+                        // Activity tiles — Firestore 기록 + 실시간 walk 오버레이
+                        weekRecordsAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (records) => _WeekActivitySection(
+                            records: records,
+                            liveWalk: walk,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Badges tab
+                  badgesAsync.when(
+                    loading: () => Center(
+                      child: CircularProgressIndicator(color: c.primary),
+                    ),
+                    error: (_, __) => const SizedBox.shrink(),
+                    data: (badges) {
+                      final earned = badges.where((b) => b.earned).toList();
+                      final locked = badges.where((b) => !b.earned).toList();
+                      return ListView(
+                        padding: EdgeInsets.fromLTRB(
+                          context.wp(5),
+                          context.hp(2.5),
+                          context.wp(5),
+                          20,
+                        ),
+                        children: [
+                          Text(
+                            '획득한 뱃지 ${earned.length}개',
+                            style: AppTypography.bodyMute.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: c.textMuted,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  mainAxisSpacing: 12,
+                                  crossAxisSpacing: 12,
+                                  childAspectRatio: 1,
+                                ),
+                            itemCount: earned.length,
+                            itemBuilder: (_, i) =>
+                                _BadgeTile(badge: earned[i], earned: true),
+                          ),
+                          SizedBox(height: context.hp(2.5)),
+                          Text(
+                            '잠긴 뱃지 ${locked.length}개',
+                            style: AppTypography.bodyMute.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: c.textMuted,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  mainAxisSpacing: 12,
+                                  crossAxisSpacing: 12,
+                                  childAspectRatio: 1,
+                                ),
+                            itemCount: locked.length,
+                            itemBuilder: (_, i) =>
+                                _BadgeTile(badge: locked[i], earned: false),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    )); // DoubleBackToExit, Scaffold
+    ); // DoubleBackToExit, Scaffold
   }
 }
 
@@ -306,10 +355,7 @@ class _StatCardRow extends StatelessWidget {
 // ──────────────────────────────────────────────
 
 class _WeekActivitySection extends StatelessWidget {
-  const _WeekActivitySection({
-    required this.records,
-    required this.liveWalk,
-  });
+  const _WeekActivitySection({required this.records, required this.liveWalk});
   final List<DailyRecordEntity> records;
   final ({int steps, double caloriesKcal, double distanceM}) liveWalk;
 
@@ -326,24 +372,27 @@ class _WeekActivitySection extends StatelessWidget {
     final hasLive = liveSteps > 0;
 
     final todaySteps = hasLive ? liveSteps : (firestoreToday?.steps ?? 0);
-    final todayKcal = hasLive ? liveKcal : (firestoreToday?.caloriesKcal ?? 0.0);
+    final todayKcal = hasLive
+        ? liveKcal
+        : (firestoreToday?.caloriesKcal ?? 0.0);
     final todayKm = hasLive ? liveKm : (firestoreToday?.distanceKm ?? 0.0);
     final hasTodayData = todaySteps > 0;
 
-    final pastRecs = records
-        .where((r) => r.date != today && r.steps > 0)
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final pastRecs =
+        records.where((r) => r.date != today && r.steps > 0).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('오늘의 기록',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: c.text,
-                letterSpacing: -0.2)),
+        Text(
+          '오늘의 기록',
+          style: AppTypography.bodyLg.copyWith(
+            fontWeight: FontWeight.w800,
+            color: c.text,
+            letterSpacing: -0.2,
+          ),
+        ),
         const SizedBox(height: 12),
         if (hasTodayData)
           _ActivityTile(
@@ -364,30 +413,43 @@ class _WeekActivitySection extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.directions_walk_rounded, color: c.textFaint, size: 20),
+                Icon(
+                  Icons.directions_walk_rounded,
+                  color: c.textFaint,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
-                Text('아직 오늘 기록이 없어요',
-                    style: TextStyle(color: c.textMuted, fontSize: 14)),
+                Text(
+                  '아직 오늘 기록이 없어요',
+                  style: AppTypography.bodyMute.copyWith(
+                    fontWeight: FontWeight.w400,
+                    color: c.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
         if (pastRecs.isNotEmpty) ...[
           SizedBox(height: context.hp(3)),
-          Text('이번 주 기록',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: c.text,
-                  letterSpacing: -0.2)),
+          Text(
+            '이번 주 기록',
+            style: AppTypography.bodyLg.copyWith(
+              fontWeight: FontWeight.w800,
+              color: c.text,
+              letterSpacing: -0.2,
+            ),
+          ),
           const SizedBox(height: 12),
-          ...pastRecs.map((r) => _ActivityTile(
-                icon: Icons.directions_walk_rounded,
-                color: c.primary,
-                title: '${_weekdayOf(r.date)}요일 걷기',
-                sub:
-                    '${NumberFormat('#,###').format(r.steps)}걸음 · ${r.distanceKm.toStringAsFixed(1)} km',
-                kcal: r.caloriesKcal.round(),
-              )),
+          ...pastRecs.map(
+            (r) => _ActivityTile(
+              icon: Icons.directions_walk_rounded,
+              color: c.primary,
+              title: '${_weekdayOf(r.date)}요일 걷기',
+              sub:
+                  '${NumberFormat('#,###').format(r.steps)}걸음 · ${r.distanceKm.toStringAsFixed(1)} km',
+              kcal: r.caloriesKcal.round(),
+            ),
+          ),
         ],
         SizedBox(height: context.hp(2)),
       ],
@@ -434,28 +496,28 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 6),
             RichText(
               text: TextSpan(
-                style: TextStyle(
-                    color: c.text,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    letterSpacing: -0.5),
+                style: AppTypography.subtitle.copyWith(
+                  color: c.text,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
                 children: [
                   TextSpan(text: value),
                   TextSpan(
-                      text: ' $unit',
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: c.textMuted,
-                          fontWeight: FontWeight.w700)),
+                    text: ' $unit',
+                    style: AppTypography.micro.copyWith(
+                      color: c.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 2),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10,
-                    color: c.textMuted,
-                    fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: AppTypography.micro.copyWith(color: c.textMuted),
+            ),
           ],
         ),
       ),
@@ -504,33 +566,35 @@ class _ActivityTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        color: c.text,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14)),
+                Text(
+                  title,
+                  style: AppTypography.bodyMute.copyWith(
+                    color: c.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(sub,
-                    style: TextStyle(
-                        color: c.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500)),
+                Text(
+                  sub,
+                  style: AppTypography.caption.copyWith(color: c.textMuted),
+                ),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('-$kcal',
-                  style: TextStyle(
-                      color: c.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15)),
-              Text('kcal',
-                  style: TextStyle(
-                      color: c.textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                '-$kcal',
+                style: AppTypography.body.copyWith(
+                  color: c.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                'kcal',
+                style: AppTypography.micro.copyWith(color: c.textMuted),
+              ),
             ],
           ),
         ],
@@ -552,34 +616,44 @@ class _BadgeTile extends StatelessWidget {
         color: earned ? c.surfaceAlt : c.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: earned ? c.primary.withValues(alpha: 0.3) : c.outline),
+          color: earned ? c.primary.withValues(alpha: 0.3) : c.outline,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Opacity(
             opacity: earned ? 1.0 : 0.3,
-            child: Text(badge.icon, style: const TextStyle(fontSize: 28)),
+            child: Text(
+              badge.icon,
+              style: AppTypography.headline.copyWith(
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ),
           const SizedBox(height: 6),
-          Text(badge.name,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: earned ? c.text : c.textFaint),
-              overflow: TextOverflow.ellipsis),
+          Text(
+            badge.name,
+            textAlign: TextAlign.center,
+            style: AppTypography.tiny.copyWith(
+              fontWeight: FontWeight.w700,
+              color: earned ? c.text : c.textFaint,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 2),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(badge.desc,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 9,
-                    color: c.textMuted,
-                    fontWeight: FontWeight.w500),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
+            child: Text(
+              badge.desc,
+              textAlign: TextAlign.center,
+              style: AppTypography.nano.copyWith(
+                color: c.textMuted,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

@@ -16,44 +16,65 @@ class _ModeBTopBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: c.bg,
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
+        ],
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 12, 10),
-          child: Row(children: [
-            MapControlButton(
-              onTap: onBack,
-              child: Icon(Icons.arrow_back_rounded, size: 20, color: c.text),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: c.surfaceAlt, borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              MapControlButton(
+                onTap: onBack,
+                child: Icon(Icons.arrow_back_rounded, size: 20, color: c.text),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(food.emoji, style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('내 주변 코스 찾기',
-                          style: TextStyle(
-                              fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w700)),
-                      Text('${food.name} · ${food.kcal} kcal',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w800, color: c.text)),
-                    ],
-                  ),
-                ],
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: c.surfaceAlt,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      food.emoji,
+                      style: AppTypography.subtitle.copyWith(
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '내 주변 코스 찾기',
+                          style: AppTypography.micro.copyWith(
+                            color: c.textMuted,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${food.name} · ${food.kcal} kcal',
+                          style: AppTypography.label.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: c.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
       ),
     );
@@ -81,42 +102,58 @@ class _ModeBNavRestoreTopBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: c.bg,
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
+        ],
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 12, 10),
-          child: Row(children: [
-            MapControlButton(
-              onTap: onBack,
-              child: Icon(Icons.arrow_back_rounded, size: 20, color: c.text),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: c.surfaceAlt, borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              MapControlButton(
+                onTap: onBack,
+                child: Icon(Icons.arrow_back_rounded, size: 20, color: c.text),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('안내 진행 중',
-                          style: TextStyle(
-                              fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w700)),
-                      Text('$foodName · $foodKcal kcal',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w800, color: c.text)),
-                    ],
-                  ),
-                ],
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: c.surfaceAlt,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '안내 진행 중',
+                          style: AppTypography.micro.copyWith(
+                            color: c.textMuted,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '$foodName · $foodKcal kcal',
+                          style: AppTypography.label.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: c.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
       ),
     );
@@ -159,8 +196,10 @@ class _ModeBBottomPanel extends StatelessWidget {
   final void Function(int, TouristRouteEntity) onCardTap;
   final void Function(TouristRouteEntity) onStartNav;
   final void Function(TouristRouteEntity) onGeneratedCourseTap;
+
   /// sheet 최소화 상태에서 핸들 탭 시 호출 — sheet를 기본 크기로 올림
   final VoidCallback onHandleTap;
+
   /// 외부 CourseGenerateBar 높이 (하단 패딩용)
   final double generateBarHeight;
 
@@ -188,18 +227,29 @@ class _ModeBBottomPanel extends StatelessWidget {
                           onTap: onHandleTap,
                           behavior: HitTestBehavior.opaque,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 48,
+                              vertical: 6,
+                            ),
                             child: Container(
-                              width: 40, height: 4,
+                              width: 40,
+                              height: 4,
                               decoration: BoxDecoration(
-                                  color: c.outline, borderRadius: BorderRadius.circular(2)),
+                                color: c.outline,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 4),
                         if (!state.isLoading && !isLocating) ...[
                           Padding(
-                            padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
+                            padding: EdgeInsets.fromLTRB(
+                              context.wp(4),
+                              0,
+                              context.wp(4),
+                              8,
+                            ),
                             child: _TransportToggle(
                               value: state.transport,
                               onChanged: onTransportChange,
@@ -207,11 +257,17 @@ class _ModeBBottomPanel extends StatelessWidget {
                           ),
                           // ── 태그 선택 ─────────────────────────────
                           Padding(
-                            padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 10),
+                            padding: EdgeInsets.fromLTRB(
+                              context.wp(4),
+                              0,
+                              context.wp(4),
+                              10,
+                            ),
                             child: _SpotTagRow(
                               activeSpotTag: state.activeSpotTag,
                               nearbyCoursesActive: state.nearbyCoursesActive,
-                              isFetching: state.isFetchingSpots || state.isLoading,
+                              isFetching:
+                                  state.isFetchingSpots || state.isLoading,
                               onSpotTagTap: onSpotTagTap,
                               onNearbyCourseTap: onNearbyCourseTap,
                             ),
@@ -219,12 +275,20 @@ class _ModeBBottomPanel extends StatelessWidget {
                           // ── 생성된 코스 카드 (있을 때) ────────────
                           if (state.generatedCourse != null)
                             Padding(
-                              padding: EdgeInsets.fromLTRB(context.wp(4), 0, context.wp(4), 8),
+                              padding: EdgeInsets.fromLTRB(
+                                context.wp(4),
+                                0,
+                                context.wp(4),
+                                8,
+                              ),
                               child: _GeneratedCourseCard(
                                 course: state.generatedCourse!,
                                 isSelected: state.generatedCourseSelected,
-                                onTap: () => onGeneratedCourseTap(state.generatedCourse!),
-                                onStart: () => onStartNav(state.generatedCourse!),
+                                onTap: () => onGeneratedCourseTap(
+                                  state.generatedCourse!,
+                                ),
+                                onStart: () =>
+                                    onStartNav(state.generatedCourse!),
                               ),
                             ),
                         ],
@@ -236,15 +300,22 @@ class _ModeBBottomPanel extends StatelessWidget {
                   if (isLocating)
                     SliverFillRemaining(
                       child: Center(
-                        child: Text('위치를 확인하는 중...',
-                            style: TextStyle(
-                                color: c.textMuted, fontSize: 14, fontWeight: FontWeight.w600)),
+                        child: Text(
+                          '위치를 확인하는 중...',
+                          style: AppTypography.bodyMute.copyWith(
+                            color: c.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     )
                   else if (state.isLoading || state.isFetchingSpots)
                     SliverFillRemaining(
                       child: Center(
-                        child: CircularProgressIndicator(color: c.primary, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: c.primary,
+                          strokeWidth: 2,
+                        ),
                       ),
                     )
                   // ── 스팟 목록 (스팟 태그 선택 시) ─────────────────
@@ -255,13 +326,18 @@ class _ModeBBottomPanel extends StatelessWidget {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.search_off_rounded, size: 36, color: c.textMuted),
+                              Icon(
+                                Icons.search_off_rounded,
+                                size: 36,
+                                color: c.textMuted,
+                              ),
                               const SizedBox(height: 12),
-                              Text('주변에 ${state.activeSpotTag!.label}이 없어요',
-                                  style: TextStyle(
-                                      color: c.textMuted,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                '주변에 ${state.activeSpotTag!.label}이 없어요',
+                                style: AppTypography.label.copyWith(
+                                  color: c.textMuted,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -270,20 +346,21 @@ class _ModeBBottomPanel extends StatelessWidget {
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                         sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (ctx, i) {
-                              final spot = state.searchedSpots[i];
-                              return _SpotListItem(
-                                spot: spot,
-                                isSelected: i == state.selectedSpotIdx,
-                                onTap: () => onSpotItemTap(i, spot),
-                              );
-                            },
-                            childCount: state.searchedSpots.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((ctx, i) {
+                            final spot = state.searchedSpots[i];
+                            return _SpotListItem(
+                              spot: spot,
+                              isSelected: i == state.selectedSpotIdx,
+                              onTap: () => onSpotItemTap(i, spot),
+                            );
+                          }, childCount: state.searchedSpots.length),
                         ),
                       ),
-                    SliverToBoxAdapter(child: SizedBox(height: context.bottomPadding + generateBarHeight + 8)),
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: context.bottomPadding + generateBarHeight + 8,
+                      ),
+                    ),
                   ]
                   // ── 기성 코스 목록 (주변 코스 선택 시) ────────────
                   else if (state.nearbyCoursesActive) ...[
@@ -293,13 +370,18 @@ class _ModeBBottomPanel extends StatelessWidget {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.map_outlined, size: 36, color: c.textMuted),
+                              Icon(
+                                Icons.map_outlined,
+                                size: 36,
+                                color: c.textMuted,
+                              ),
                               const SizedBox(height: 12),
-                              Text('주변 코스를 찾는 중이에요',
-                                  style: TextStyle(
-                                      color: c.textMuted,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                '주변 코스를 찾는 중이에요',
+                                style: AppTypography.label.copyWith(
+                                  color: c.textMuted,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -308,61 +390,75 @@ class _ModeBBottomPanel extends StatelessWidget {
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                         sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (ctx, i) {
-                              final route = state.routes[i];
-                              final isSelected = i == state.selectedRouteIdx;
-                              return _RouteCard(
-                                route: route,
-                                transport: state.transport,
-                                isSelected: isSelected,
-                                onTap: () => onCardTap(i, route),
-                                onStart: isSelected ? () => onStartNav(route) : null,
-                              );
-                            },
-                            childCount: state.routes.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((ctx, i) {
+                            final route = state.routes[i];
+                            final isSelected = i == state.selectedRouteIdx;
+                            return _RouteCard(
+                              route: route,
+                              transport: state.transport,
+                              isSelected: isSelected,
+                              onTap: () => onCardTap(i, route),
+                              onStart: isSelected
+                                  ? () => onStartNav(route)
+                                  : null,
+                            );
+                          }, childCount: state.routes.length),
                         ),
                       ),
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(12, 4, 12, context.bottomPadding + generateBarHeight + 12),
+                          padding: EdgeInsets.fromLTRB(
+                            12,
+                            4,
+                            12,
+                            context.bottomPadding + generateBarHeight + 12,
+                          ),
                           child: state.isLoadingMore
                               ? Center(
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
                                     child: CircularProgressIndicator(
-                                        color: c.primary, strokeWidth: 2),
+                                      color: c.primary,
+                                      strokeWidth: 2,
+                                    ),
                                   ),
                                 )
                               : state.hasMore
-                                  ? GestureDetector(
-                                      onTap: onLoadMore,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        decoration: BoxDecoration(
-                                          color: c.surfaceAlt,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: c.outline),
+                              ? GestureDetector(
+                                  onTap: onLoadMore,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: c.surfaceAlt,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: c.outline),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.expand_more_rounded,
+                                          size: 18,
+                                          color: c.textMuted,
                                         ),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.expand_more_rounded,
-                                                size: 18, color: c.textMuted),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              '코스 더 보기 (${state.allRoutes.length - state.displayedRoutes.length}개 남음)',
-                                              style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: c.textMuted),
-                                            ),
-                                          ],
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '코스 더 보기 (${state.allRoutes.length - state.displayedRoutes.length}개 남음)',
+                                          style: AppTypography.label.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: c.textMuted,
+                                          ),
                                         ),
-                                      ),
-                                    )
-                                  : const SizedBox(height: 8),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox(height: 8),
                         ),
                       ),
                     ],
@@ -370,21 +466,30 @@ class _ModeBBottomPanel extends StatelessWidget {
                   // ── 빈 상태 (아무것도 선택 안 됨) ─────────────────
                   else
                     SliverFillRemaining(
-
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.touch_app_rounded, size: 36, color: c.textMuted),
+                            Icon(
+                              Icons.touch_app_rounded,
+                              size: 36,
+                              color: c.textMuted,
+                            ),
                             const SizedBox(height: 12),
-                            Text('태그를 선택해 스팟을 찾아보세요',
-                                style: TextStyle(
-                                    color: c.textMuted,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600)),
+                            Text(
+                              '태그를 선택해 스팟을 찾아보세요',
+                              style: AppTypography.label.copyWith(
+                                color: c.textMuted,
+                              ),
+                            ),
                             const SizedBox(height: 6),
-                            Text('또는 🔍 주변 코스로 기성 코스를 검색해보세요',
-                                style: TextStyle(fontSize: 11, color: c.textFaint)),
+                            Text(
+                              '또는 🔍 주변 코스로 기성 코스를 검색해보세요',
+                              style: AppTypography.tiny.copyWith(
+                                fontWeight: FontWeight.w400,
+                                color: c.textFaint,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -392,7 +497,6 @@ class _ModeBBottomPanel extends StatelessWidget {
                 ],
               ),
             ),
-
           ],
         ),
       ),
@@ -414,19 +518,26 @@ class _TransportToggle extends StatelessWidget {
     final c = context.colors;
     return Container(
       height: 36,
-      decoration: BoxDecoration(color: c.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-      child: Row(children: [
-        _ToggleItem(
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _ToggleItem(
             label: '걷기',
             icon: Icons.directions_walk_rounded,
             selected: value == 'walk',
-            onTap: () => onChanged('walk')),
-        _ToggleItem(
+            onTap: () => onChanged('walk'),
+          ),
+          _ToggleItem(
             label: '자전거',
             icon: Icons.directions_bike_rounded,
             selected: value == 'bike',
-            onTap: () => onChanged('bike')),
-      ]),
+            onTap: () => onChanged('bike'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -461,11 +572,13 @@ class _ToggleItem extends StatelessWidget {
             children: [
               Icon(icon, size: 15, color: selected ? c.text : c.textMuted),
               const SizedBox(width: 5),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: selected ? c.text : c.textMuted)),
+              Text(
+                label,
+                style: AppTypography.label.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: selected ? c.text : c.textMuted,
+                ),
+              ),
             ],
           ),
         ),
@@ -499,8 +612,13 @@ class _SpotTagRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('스팟 태그',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.textMuted)),
+        Text(
+          '스팟 태그',
+          style: AppTypography.tiny.copyWith(
+            fontWeight: FontWeight.w700,
+            color: c.textMuted,
+          ),
+        ),
         const SizedBox(height: 6),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -518,7 +636,9 @@ class _SpotTagRow extends StatelessWidget {
               _NearbyCoursesChip(
                 selected: nearbyCoursesActive,
                 isFetching: isFetching && nearbyCoursesActive,
-                onTap: isFetching && nearbyCoursesActive ? () {} : onNearbyCourseTap,
+                onTap: isFetching && nearbyCoursesActive
+                    ? () {}
+                    : onNearbyCourseTap,
               ),
             ],
           ),
@@ -556,10 +676,10 @@ class _SpotTagChip extends StatelessWidget {
         ),
         child: Text(
           '${tag.emoji} ${tag.label}',
-          style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: selected ? c.primary : c.textMuted),
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            color: selected ? c.primary : c.textMuted,
+          ),
         ),
       ),
     );
@@ -596,14 +716,17 @@ class _NearbyCoursesChip extends StatelessWidget {
             ? SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: c.accent),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: c.accent,
+                ),
               )
             : Text(
                 '🔍 주변 코스',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? c.accent : c.textMuted),
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: selected ? c.accent : c.textMuted,
+                ),
               ),
       ),
     );
@@ -645,15 +768,20 @@ class _SpotListItem extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: isSelected ? c.primary.withValues(alpha: 0.15) : c.surface,
+                color: isSelected
+                    ? c.primary.withValues(alpha: 0.15)
+                    : c.surface,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
                 child: Text(
                   _spotTypeEmoji(spot.type),
-                  style: const TextStyle(fontSize: 18),
+                  style: AppTypography.subtitle.copyWith(
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
             ),
@@ -664,17 +792,20 @@ class _SpotListItem extends StatelessWidget {
                 children: [
                   Text(
                     spot.name,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected ? c.primary : c.text),
+                    style: AppTypography.bodyMute.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? c.primary : c.text,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (spot.address != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       spot.address!,
-                      style: TextStyle(fontSize: 11, color: c.textMuted),
+                      style: AppTypography.tiny.copyWith(
+                        fontWeight: FontWeight.w400,
+                        color: c.textMuted,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -684,8 +815,7 @@ class _SpotListItem extends StatelessWidget {
                       spot.distanceFromUserM! < 1000
                           ? '${spot.distanceFromUserM}m'
                           : '${(spot.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
-                      style: TextStyle(
-                          fontSize: 11, color: c.primary, fontWeight: FontWeight.w600),
+                      style: AppTypography.tiny.copyWith(color: c.primary),
                     ),
                   ],
                 ],
@@ -697,7 +827,6 @@ class _SpotListItem extends StatelessWidget {
       ),
     );
   }
-
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -736,43 +865,63 @@ class _GeneratedCourseCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: c.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '⚡ 맞춤 코스',
+                    style: AppTypography.micro.copyWith(
+                      color: c.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                child: Text('⚡ 맞춤 코스',
-                    style: TextStyle(
-                        fontSize: 10, color: c.accent, fontWeight: FontWeight.w700)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(course.name,
-                    style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w800, color: c.text),
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    course.name,
+                    style: AppTypography.label.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: c.text,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
-            Row(children: [
-              MapInfoChip(
+            Row(
+              children: [
+                MapInfoChip(
                   icon: Icons.straighten_rounded,
-                  label: '${course.distanceKm.toStringAsFixed(1)}km'),
-              const SizedBox(width: 8),
-              MapInfoChip(
-                  icon: Icons.schedule_rounded, label: '${course.durationMinutes}분'),
-              const SizedBox(width: 8),
-              MapInfoChip(
+                  label: '${course.distanceKm.toStringAsFixed(1)}km',
+                ),
+                const SizedBox(width: 8),
+                MapInfoChip(
+                  icon: Icons.schedule_rounded,
+                  label: '${course.durationMinutes}분',
+                ),
+                const SizedBox(width: 8),
+                MapInfoChip(
                   icon: Icons.local_fire_department_rounded,
-                  label: '~${course.kcal}kcal'),
-              const Spacer(),
-              if (course.waypoints.isNotEmpty)
-                Text('${course.waypoints.where((w) => w.type != '출발지').length}개 스팟',
-                    style: TextStyle(
-                        fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w600)),
-            ]),
+                  label: '~${course.kcal}kcal',
+                ),
+                const Spacer(),
+                if (course.waypoints.isNotEmpty)
+                  Text(
+                    '${course.waypoints.where((w) => w.type != '출발지').length}개 스팟',
+                    style: AppTypography.micro.copyWith(color: c.textMuted),
+                  ),
+              ],
+            ),
             if (course.waypoints.where((w) => w.type != '출발지').isNotEmpty) ...[
               const SizedBox(height: 5),
               Text(
@@ -780,11 +929,11 @@ class _GeneratedCourseCard extends StatelessWidget {
                     .where((w) => w.type != '출발지')
                     .map((w) => w.name)
                     .join(' → '),
-                style: TextStyle(
-                    fontSize: 11,
-                    color: c.textMuted,
-                    fontWeight: FontWeight.w500,
-                    height: 1.3),
+                style: AppTypography.tiny.copyWith(
+                  color: c.textMuted,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -803,13 +952,19 @@ class _GeneratedCourseCard extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.navigation_rounded, size: 15, color: c.onPrimary),
+                      Icon(
+                        Icons.navigation_rounded,
+                        size: 15,
+                        color: c.onPrimary,
+                      ),
                       const SizedBox(width: 6),
-                      Text('안내 시작',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: c.onPrimary)),
+                      Text(
+                        '안내 시작',
+                        style: AppTypography.label.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: c.onPrimary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -861,35 +1016,45 @@ class _CourseGenerateBar extends StatelessWidget {
                   child: SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: c.textMuted),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: c.textMuted,
+                    ),
                   ),
                 )
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.auto_awesome_rounded, size: 16, color: c.onPrimary),
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: c.onPrimary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       cartCount > 0 ? '담은 스팟으로 코스 생성' : '스팟으로 코스 생성',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: c.onPrimary),
+                      style: AppTypography.body.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: c.onPrimary,
+                      ),
                     ),
                     if (cartCount > 0) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: c.onPrimary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '$cartCount개',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: c.onPrimary),
+                          style: AppTypography.tiny.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: c.onPrimary,
+                          ),
                         ),
                       ),
                     ],
@@ -906,10 +1071,7 @@ class _CourseGenerateBar extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════════════════
 
 class _ModeBKcalMiniBar extends StatelessWidget {
-  const _ModeBKcalMiniBar({
-    required this.todayKcal,
-    required this.targetKcal,
-  });
+  const _ModeBKcalMiniBar({required this.todayKcal, required this.targetKcal});
 
   final double todayKcal;
   final int targetKcal;
@@ -917,9 +1079,7 @@ class _ModeBKcalMiniBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final pct = targetKcal > 0
-        ? (todayKcal / targetKcal).clamp(0.0, 1.0)
-        : 0.0;
+    final pct = targetKcal > 0 ? (todayKcal / targetKcal).clamp(0.0, 1.0) : 0.0;
     final isDone = pct >= 1.0;
     final pctLabel = '${(pct * 100).toStringAsFixed(0)}%';
 
@@ -927,19 +1087,21 @@ class _ModeBKcalMiniBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: c.bg,
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
       ),
       child: Row(
         children: [
           Icon(
-            isDone ? Icons.check_circle_rounded : Icons.local_fire_department_rounded,
+            isDone
+                ? Icons.check_circle_rounded
+                : Icons.local_fire_department_rounded,
             size: 14,
             color: isDone ? c.success : c.primary,
           ),
           const SizedBox(width: 6),
-          Text('오늘 소모',
-              style: TextStyle(
-                  fontSize: 11, color: c.textMuted, fontWeight: FontWeight.w600)),
+          Text('오늘 소모', style: AppTypography.tiny.copyWith(color: c.textMuted)),
           const SizedBox(width: 6),
           Expanded(
             child: ClipRRect(
@@ -947,7 +1109,9 @@ class _ModeBKcalMiniBar extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: pct,
                 backgroundColor: c.surfaceAlt,
-                valueColor: AlwaysStoppedAnimation<Color>(isDone ? c.success : c.primary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isDone ? c.success : c.primary,
+                ),
                 minHeight: 5,
               ),
             ),
@@ -955,8 +1119,7 @@ class _ModeBKcalMiniBar extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             '${todayKcal.round()}/${targetKcal}kcal ($pctLabel)',
-            style: TextStyle(
-              fontSize: 10,
+            style: AppTypography.micro.copyWith(
               fontWeight: FontWeight.w700,
               color: isDone ? c.success : c.textMuted,
             ),
@@ -980,7 +1143,8 @@ class _CartFab extends StatefulWidget {
   State<_CartFab> createState() => _CartFabState();
 }
 
-class _CartFabState extends State<_CartFab> with SingleTickerProviderStateMixin {
+class _CartFabState extends State<_CartFab>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _scale;
 
@@ -1037,7 +1201,11 @@ class _CartFabState extends State<_CartFab> with SingleTickerProviderStateMixin 
           child: Stack(
             children: [
               Center(
-                child: Icon(Icons.shopping_cart_rounded, color: c.primary, size: 22),
+                child: Icon(
+                  Icons.shopping_cart_rounded,
+                  color: c.primary,
+                  size: 22,
+                ),
               ),
               if (widget.count > 0)
                 Positioned(
@@ -1053,10 +1221,10 @@ class _CartFabState extends State<_CartFab> with SingleTickerProviderStateMixin 
                     child: Center(
                       child: Text(
                         '${widget.count}',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: c.onPrimary),
+                        style: AppTypography.micro.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: c.onPrimary,
+                        ),
                       ),
                     ),
                   ),

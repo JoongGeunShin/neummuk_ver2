@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import '../providers/explore_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class AddFoodDialog extends ConsumerWidget {
   const AddFoodDialog({super.key, required this.query});
@@ -17,7 +18,10 @@ class AddFoodDialog extends ConsumerWidget {
 
     final screenH = MediaQuery.of(context).size.height;
     final keyboardH = MediaQuery.of(context).viewInsets.bottom;
-    final listMaxH = (screenH - keyboardH - 120 - 80).clamp(80.0, screenH * 0.4);
+    final listMaxH = (screenH - keyboardH - 120 - 80).clamp(
+      80.0,
+      screenH * 0.4,
+    );
 
     return Dialog(
       backgroundColor: c.surface,
@@ -35,17 +39,20 @@ class AddFoodDialog extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('"$query" 검색 결과',
-                          style: TextStyle(
-                              color: c.text,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800)),
+                      Text(
+                        '"$query" 검색 결과',
+                        style: AppTypography.bodyLg.copyWith(
+                          color: c.text,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text('추가할 음식을 선택하세요',
-                          style: TextStyle(
-                              color: c.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500)),
+                      Text(
+                        '추가할 음식을 선택하세요',
+                        style: AppTypography.caption.copyWith(
+                          color: c.textMuted,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -64,17 +71,20 @@ class AddFoodDialog extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
-                    child: CircularProgressIndicator(color: c.primary)),
+                  child: CircularProgressIndicator(color: c.primary),
+                ),
               )
             else if (state.apiCandidates.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Center(
-                  child: Text('요청하신 음식의 결과를 찾지 못했어요\n올바른 이름 또는 구체적으로 입력해주세요',
-                      style: TextStyle(
-                          color: c.textMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500)),
+                  child: Text(
+                    '요청하신 음식의 결과를 찾지 못했어요\n올바른 이름 또는 구체적으로 입력해주세요',
+                    style: AppTypography.label.copyWith(
+                      color: c.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               )
             else
@@ -98,13 +108,17 @@ class AddFoodDialog extends ConsumerWidget {
                             ? null
                             : () async {
                                 Navigator.of(context).pop();
-                                final ok = await notifier.saveSelectedFood(food);
+                                final ok = await notifier.saveSelectedFood(
+                                  food,
+                                );
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(ok
-                                          ? '"${food.displayName}" 추가됨'
-                                          : '추가에 실패했어요'),
+                                      content: Text(
+                                        ok
+                                            ? '"${food.displayName}" 추가됨'
+                                            : '추가에 실패했어요',
+                                      ),
                                       duration: const Duration(seconds: 2),
                                       behavior: SnackBarBehavior.floating,
                                     ),
@@ -159,10 +173,16 @@ class _CandidateTile extends StatelessWidget {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: c.primary),
+                            strokeWidth: 2,
+                            color: c.primary,
+                          ),
                         )
-                      : Text(food.emoji,
-                          style: const TextStyle(fontSize: 22)),
+                      : Text(
+                          food.emoji,
+                          style: AppTypography.titleSm.copyWith(
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -172,29 +192,36 @@ class _CandidateTile extends StatelessWidget {
                   children: [
                     Text(
                       food.displayName,
-                      style: TextStyle(
-                          color: c.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700),
+                      style: AppTypography.bodyMute.copyWith(
+                        color: c.text,
+                        fontWeight: FontWeight.w700,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Text(food.category,
-                            style: TextStyle(
-                                color: c.textMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
-                        Text('  ·  ',
-                            style:
-                                TextStyle(color: c.textFaint, fontSize: 11)),
-                        Text('1인분 ${food.nutrition.servingSizeG.round()}g',
-                            style: TextStyle(
-                                color: c.textFaint,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500)),
+                        Text(
+                          food.category,
+                          style: AppTypography.tiny.copyWith(
+                            color: c.textMuted,
+                          ),
+                        ),
+                        Text(
+                          '  ·  ',
+                          style: AppTypography.tiny.copyWith(
+                            fontWeight: FontWeight.w400,
+                            color: c.textFaint,
+                          ),
+                        ),
+                        Text(
+                          '1인분 ${food.nutrition.servingSizeG.round()}g',
+                          style: AppTypography.tiny.copyWith(
+                            color: c.textFaint,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -206,21 +233,23 @@ class _CandidateTile extends StatelessWidget {
                 children: [
                   Text(
                     '${food.nutrition.caloriesKcal.round()}',
-                    style: TextStyle(
-                        color: c.primary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800),
+                    style: AppTypography.bodyLg.copyWith(
+                      color: c.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  Text('kcal',
-                      style: TextStyle(
-                          color: c.textMuted,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    'kcal',
+                    style: AppTypography.micro.copyWith(color: c.textMuted),
+                  ),
                 ],
               ),
               const SizedBox(width: 4),
-              Icon(Icons.add_circle_outline_rounded,
-                  color: c.primary, size: 20),
+              Icon(
+                Icons.add_circle_outline_rounded,
+                color: c.primary,
+                size: 20,
+              ),
             ],
           ),
         ),

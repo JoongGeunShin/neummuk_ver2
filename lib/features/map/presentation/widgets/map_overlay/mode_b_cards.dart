@@ -39,85 +39,118 @@ class _RouteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Icon(
-                transport == 'walk' ? Icons.hiking_rounded : Icons.directions_bike_rounded,
-                size: 15,
-                color: isSelected ? c.primary : c.textMuted,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(route.name,
-                    style: TextStyle(
-                      fontSize: 14,
+            Row(
+              children: [
+                Icon(
+                  transport == 'walk'
+                      ? Icons.hiking_rounded
+                      : Icons.directions_bike_rounded,
+                  size: 15,
+                  color: isSelected ? c.primary : c.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    route.name,
+                    style: AppTypography.bodyMute.copyWith(
                       fontWeight: FontWeight.w800,
                       color: isSelected ? c.primary : c.text,
                       letterSpacing: -0.2,
                     ),
-                    overflow: TextOverflow.ellipsis),
-              ),
-              if (route.isLocal) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: c.primarySoft, borderRadius: BorderRadius.circular(4),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  child: Text('내 지역',
-                      style: TextStyle(
-                          fontSize: 10, color: c.primary, fontWeight: FontWeight.w700)),
                 ),
-              ] else if (route.region != null) ...[
-                const SizedBox(width: 6),
-                Text(route.region!,
-                    style: TextStyle(
-                        fontSize: 11, color: c.textMuted, fontWeight: FontWeight.w600)),
+                if (route.isLocal) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.primarySoft,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '내 지역',
+                      style: AppTypography.micro.copyWith(
+                        color: c.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ] else if (route.region != null) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    route.region!,
+                    style: AppTypography.tiny.copyWith(color: c.textMuted),
+                  ),
+                ],
+                if (route.gpxpath != null) ...[
+                  const SizedBox(width: 6),
+                  Icon(Icons.route_rounded, size: 13, color: c.textMuted),
+                ],
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, size: 16, color: c.textMuted),
               ],
-              if (route.gpxpath != null) ...[
-                const SizedBox(width: 6),
-                Icon(Icons.route_rounded, size: 13, color: c.textMuted),
-              ],
-              const SizedBox(width: 4),
-              Icon(Icons.chevron_right_rounded, size: 16, color: c.textMuted),
-            ]),
+            ),
             const SizedBox(height: 8),
-            Row(children: [
-              if (route.distanceFromUserM != null) ...[
-                MapInfoChip(
-                  icon: Icons.near_me_rounded,
-                  label: route.distanceFromUserM! < 1000
-                      ? '${route.distanceFromUserM}m'
-                      : '${(route.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
-                  color: c.primary,
-                ),
-                const SizedBox(width: 8),
-              ],
-              if (route.hasDetailInfo) ...[
-                MapInfoChip(
-                    icon: Icons.straighten_rounded,
-                    label: '${route.distanceKm.toStringAsFixed(1)}km'),
-                const SizedBox(width: 8),
-                MapInfoChip(
-                    icon: Icons.schedule_rounded, label: '${route.durationMinutes}분'),
-                const SizedBox(width: 8),
-                if (route.kcal > 0)
+            Row(
+              children: [
+                if (route.distanceFromUserM != null) ...[
                   MapInfoChip(
+                    icon: Icons.near_me_rounded,
+                    label: route.distanceFromUserM! < 1000
+                        ? '${route.distanceFromUserM}m'
+                        : '${(route.distanceFromUserM! / 1000).toStringAsFixed(1)}km',
+                    color: c.primary,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                if (route.hasDetailInfo) ...[
+                  MapInfoChip(
+                    icon: Icons.straighten_rounded,
+                    label: '${route.distanceKm.toStringAsFixed(1)}km',
+                  ),
+                  const SizedBox(width: 8),
+                  MapInfoChip(
+                    icon: Icons.schedule_rounded,
+                    label: '${route.durationMinutes}분',
+                  ),
+                  const SizedBox(width: 8),
+                  if (route.kcal > 0)
+                    MapInfoChip(
                       icon: Icons.local_fire_department_rounded,
-                      label: '~${route.kcal}kcal')
-                else
+                      label: '~${route.kcal}kcal',
+                    )
+                  else
+                    const MapInfoChip(
+                      icon: Icons.help_outline_rounded,
+                      label: '칼로리 미제공',
+                    ),
+                ] else if (route.source == 'tour_api') ...[
                   const MapInfoChip(
-                      icon: Icons.help_outline_rounded, label: '칼로리 미제공'),
-              ] else if (route.source == 'tour_api') ...[
-                const MapInfoChip(icon: Icons.straighten_rounded, label: '거리 미제공'),
-              ] else ...[
-                const MapInfoChip(icon: Icons.info_outline_rounded, label: '상세정보 없음'),
+                    icon: Icons.straighten_rounded,
+                    label: '거리 미제공',
+                  ),
+                ] else ...[
+                  const MapInfoChip(
+                    icon: Icons.info_outline_rounded,
+                    label: '상세정보 없음',
+                  ),
+                ],
+                if (route.tags.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    route.tags.first,
+                    style: AppTypography.tiny.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: c.textMuted,
+                    ),
+                  ),
+                ],
               ],
-              if (route.tags.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Text(route.tags.first,
-                    style: TextStyle(fontSize: 11, color: c.textMuted)),
-              ],
-            ]),
+            ),
             // 선택된 카드에 안내 시작 버튼
             if (isSelected && onStart != null) ...[
               const SizedBox(height: 10),
@@ -127,18 +160,25 @@ class _RouteCard extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: c.primary, borderRadius: BorderRadius.circular(10),
+                    color: c.primary,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.navigation_rounded, size: 15, color: c.onPrimary),
+                      Icon(
+                        Icons.navigation_rounded,
+                        size: 15,
+                        color: c.onPrimary,
+                      ),
                       const SizedBox(width: 6),
-                      Text('안내 시작',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: c.onPrimary)),
+                      Text(
+                        '안내 시작',
+                        style: AppTypography.label.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: c.onPrimary,
+                        ),
+                      ),
                     ],
                   ),
                 ),

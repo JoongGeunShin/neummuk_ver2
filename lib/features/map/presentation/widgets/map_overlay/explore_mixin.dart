@@ -75,7 +75,9 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     final radius = await _getVisibleRadiusMeters();
     if (!mounted) return;
     _fitCameraOnNextResult = value.isNotEmpty;
-    ref.read(mapSearchNotifierProvider.notifier).search(value, radiusMeters: radius);
+    ref
+        .read(mapSearchNotifierProvider.notifier)
+        .search(value, radiusMeters: radius);
   }
 
   Future<void> _reSearchThisArea() async {
@@ -87,7 +89,9 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
     _lastSearchLat = lat;
     _lastSearchLng = lng;
     setState(() => _showReSearchButton = false);
-    ref.read(mapSearchNotifierProvider.notifier).loadPlaces(lat, lng, radiusMeters: radius);
+    ref
+        .read(mapSearchNotifierProvider.notifier)
+        .loadPlaces(lat, lng, radiusMeters: radius);
   }
 
   Future<Map<PlaceSource, NOverlayImage>> _getMarkerIcons() async {
@@ -115,7 +119,11 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
 
   List<_Cluster> _clusterPlaces(List<PlaceEntity> places, double zoom) {
     // 겹침이 심한 경우에만 클러스터링: 셀 크기를 줄여 개별 마커 우선 표시
-    final cellDeg = zoom >= 14 ? 0.001 : zoom >= 12 ? 0.005 : 0.03;
+    final cellDeg = zoom >= 14
+        ? 0.001
+        : zoom >= 12
+        ? 0.005
+        : 0.03;
     final groups = <String, List<PlaceEntity>>{};
     for (final p in places) {
       final gx = (p.longitude / cellDeg).floor();
@@ -123,8 +131,10 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
       groups.putIfAbsent('$gx,$gy', () => []).add(p);
     }
     return groups.values.map((pts) {
-      final lat = pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
-      final lng = pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
+      final lat =
+          pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
+      final lng =
+          pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
       return _Cluster(NLatLng(lat, lng), pts);
     }).toList();
   }
@@ -155,7 +165,11 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
       if (cluster.places.length >= 5) {
         final clusterIcon = await _getClusterIcon(cluster.places.length);
         if (!mounted) return;
-        final marker = NMarker(id: 'cluster_$ci', position: cluster.center, icon: clusterIcon);
+        final marker = NMarker(
+          id: 'cluster_$ci',
+          position: cluster.center,
+          icon: clusterIcon,
+        );
         marker.setOnTapListener((_) {
           if (!mounted) return;
           setState(() {
@@ -172,7 +186,11 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
           position: NLatLng(place.latitude, place.longitude),
           icon: icons[place.source],
           caption: NOverlayCaption(
-              text: place.name, textSize: 12, color: color, haloColor: Colors.black87),
+            text: place.name,
+            textSize: 12,
+            color: color,
+            haloColor: Colors.black87,
+          ),
           captionOffset: 4,
           isHideCollidedCaptions: true,
         );
@@ -212,13 +230,14 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
 
     final children = <Widget>[
       Positioned(
-        top: 0, left: 0, right: 0,
+        top: 0,
+        left: 0,
+        right: 0,
         child: _ExploreTopPanel(
           searchController: _searchCtrl,
           categories: categories,
           selectedCategory: exploreState.selectedCategory,
-          onClose: () =>
-              context.canPop() ? context.pop() : context.go('/home'),
+          onClose: () => context.canPop() ? context.pop() : context.go('/home'),
           onSearch: (v) {
             _resetExploreMapFocus();
             _onSearchSubmit(v);
@@ -227,40 +246,60 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
             _resetExploreMapFocus();
             final radius = await _getVisibleRadiusMeters();
             if (!mounted) return;
-            ref.read(mapSearchNotifierProvider.notifier)
+            ref
+                .read(mapSearchNotifierProvider.notifier)
                 .selectCategory(cat, radiusMeters: radius);
           },
         ),
       ),
       if (exploreState.isLoading)
         Positioned(
-          top: _topPanelHeight(context) + 12, left: 0, right: 0,
+          top: _topPanelHeight(context) + 12,
+          left: 0,
+          right: 0,
           child: const Center(child: MapLoadingChip('스팟 탐색 중...')),
         ),
       if (_showReSearchButton && !exploreState.isLoading)
         Positioned(
-          top: _topPanelHeight(context) + 12, left: 0, right: 0,
+          top: _topPanelHeight(context) + 12,
+          left: 0,
+          right: 0,
           child: Center(
             child: GestureDetector(
               onTap: _reSearchThisArea,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 9,
+                ),
                 decoration: BoxDecoration(
                   color: _kPanel,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: Colors.white24),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.refresh_rounded, size: 15, color: Colors.white70),
+                    Icon(
+                      Icons.refresh_rounded,
+                      size: 15,
+                      color: Colors.white70,
+                    ),
                     SizedBox(width: 6),
-                    Text('이 지역 재검색',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                    Text(
+                      '이 지역 재검색',
+                      style: AppTypography.label.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -269,35 +308,53 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
         ),
       if (exploreState.places.isNotEmpty)
         Positioned(
-          right: 12, top: _topPanelHeight(context) + 12,
+          right: 12,
+          top: _topPanelHeight(context) + 12,
           child: _MapLegend(),
         ),
       if (exploreState.places.isNotEmpty &&
           !_showExploreList &&
           exploreState.selectedPlace == null)
         Positioned(
-          bottom: bottomPad + 16, left: 0, right: 0,
+          bottom: bottomPad + 16,
+          left: 0,
+          right: 0,
           child: Center(
             child: GestureDetector(
               onTap: () => setState(() => _showExploreList = true),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 9,
+                ),
                 decoration: BoxDecoration(
                   color: _kPanel,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: Colors.white24),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 3)),
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
+                    ),
                   ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.format_list_bulleted_rounded, size: 15, color: _kWhite87),
+                    const Icon(
+                      Icons.format_list_bulleted_rounded,
+                      size: 15,
+                      color: _kWhite87,
+                    ),
                     const SizedBox(width: 6),
-                    Text('목록보기 ${exploreState.places.length}',
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700, color: _kWhite87)),
+                    Text(
+                      '목록보기 ${exploreState.places.length}',
+                      style: AppTypography.label.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: _kWhite87,
+                      ),
+                    ),
                   ],
                 ),
               ),

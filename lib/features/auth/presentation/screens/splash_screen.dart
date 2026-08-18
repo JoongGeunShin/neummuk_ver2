@@ -8,6 +8,7 @@ import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../../../mode_a/presentation/providers/mode_a_nav_provider.dart';
 import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -145,11 +146,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 28),
-              const Text(
+              Text(
                 '내움먹',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
+                style: AppTypography.display.copyWith(
                   color: Colors.white,
                   letterSpacing: -1.0,
                   height: 1.0,
@@ -158,9 +157,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               const SizedBox(height: 8),
               Text(
                 '내가 움직이는 이유는, 먹기 위해서',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                style: AppTypography.bodyMute.copyWith(
                   color: Colors.white.withValues(alpha: 0.5),
                   letterSpacing: -0.2,
                 ),

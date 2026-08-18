@@ -44,7 +44,9 @@ class _ModeARoutePanel extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: kMapPanel,
-        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+        ],
       ),
       child: SafeArea(
         bottom: false,
@@ -54,22 +56,37 @@ class _ModeARoutePanel extends StatelessWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
               margin: const EdgeInsets.fromLTRB(10, 0, 10, 0),
-              child: Row(children: [
-                MapControlButton(
-                  onTap: onBack,
-                  child: const Icon(Icons.arrow_back_rounded, size: 20, color: kMapWhite87),
-                ),
-                const SizedBox(width: 10),
-                const Text('경로 찾기',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kMapWhite87)),
-                const Spacer(),
-                _KcalWidget(routeKcal: state.routeResult?.kcalBurn),
-                const SizedBox(width: 4),
-                MapControlButton(
-                  onTap: onResetAll,
-                  child: const Icon(Icons.delete_sweep_rounded, size: 18, color: kMapWhite45),
-                ),
-              ]),
+              child: Row(
+                children: [
+                  MapControlButton(
+                    onTap: onBack,
+                    child: const Icon(
+                      Icons.arrow_back_rounded,
+                      size: 20,
+                      color: kMapWhite87,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '경로 찾기',
+                    style: AppTypography.bodyLg.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: kMapWhite87,
+                    ),
+                  ),
+                  const Spacer(),
+                  _KcalWidget(routeKcal: state.routeResult?.kcalBurn),
+                  const SizedBox(width: 4),
+                  MapControlButton(
+                    onTap: onResetAll,
+                    child: const Icon(
+                      Icons.delete_sweep_rounded,
+                      size: 18,
+                      color: kMapWhite45,
+                    ),
+                  ),
+                ],
+              ),
             ),
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -83,38 +100,57 @@ class _ModeARoutePanel extends StatelessWidget {
                   MapFieldRow(
                     dot: const MapWaypointDot(type: MapWaypointDotType.origin),
                     child: locating
-                        ? const Row(children: [
-                            SizedBox(
-                              width: 14, height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: kMapWhite45),
-                            ),
-                            SizedBox(width: 8),
-                            Text('위치 확인 중...',
-                                style: TextStyle(
-                                    color: kMapWhite45, fontSize: 14, fontWeight: FontWeight.w500)),
-                          ])
-                        : Row(children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: onTapOrigin,
-                                behavior: HitTestBehavior.opaque,
-                                child: Text(
-                                  state.from.isEmpty ? '출발지를 설정해주세요' : state.from,
-                                  style: TextStyle(
-                                    color: state.from.isEmpty ? kMapWhite45 : kMapWhite87,
-                                    fontSize: 14, fontWeight: FontWeight.w600,
+                        ? Row(
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: kMapWhite45,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                '위치 확인 중...',
+                                style: AppTypography.bodyMute.copyWith(
+                                  color: kMapWhite45,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: onTapOrigin,
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Text(
+                                    state.from.isEmpty
+                                        ? '출발지를 설정해주세요'
+                                        : state.from,
+                                    style: AppTypography.bodyMute.copyWith(
+                                      color: state.from.isEmpty
+                                          ? kMapWhite45
+                                          : kMapWhite87,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            GestureDetector(
-                              onTap: onGpsOrigin,
-                              child: const Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: Icon(Icons.my_location_rounded, size: 18, color: kMapWhite45),
+                              GestureDetector(
+                                onTap: onGpsOrigin,
+                                child: const Padding(
+                                  padding: EdgeInsets.only(left: 8),
+                                  child: Icon(
+                                    Icons.my_location_rounded,
+                                    size: 18,
+                                    color: kMapWhite45,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ]),
+                            ],
+                          ),
                   ),
                   const Divider(color: Colors.white12, height: 1, indent: 16),
                   MapFieldRow(
@@ -122,22 +158,30 @@ class _ModeARoutePanel extends StatelessWidget {
                     child: GestureDetector(
                       onTap: onTapDest,
                       behavior: HitTestBehavior.opaque,
-                      child: Row(children: [
-                        Expanded(
-                          child: Text(
-                            state.to.isEmpty ? '어디로 갈까요?' : state.to,
-                            style: TextStyle(
-                              color: state.to.isEmpty ? kMapWhite45 : kMapWhite87,
-                              fontSize: 14, fontWeight: FontWeight.w600,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              state.to.isEmpty ? '어디로 갈까요?' : state.to,
+                              style: AppTypography.bodyMute.copyWith(
+                                color: state.to.isEmpty
+                                    ? kMapWhite45
+                                    : kMapWhite87,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                        if (state.to.isNotEmpty)
-                          GestureDetector(
-                            onTap: onClearDest,
-                            child: const Icon(Icons.cancel_rounded, size: 16, color: kMapWhite45),
-                          ),
-                      ]),
+                          if (state.to.isNotEmpty)
+                            GestureDetector(
+                              onTap: onClearDest,
+                              child: const Icon(
+                                Icons.cancel_rounded,
+                                size: 16,
+                                color: kMapWhite45,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   if (state.waypoints.isNotEmpty)
@@ -152,30 +196,49 @@ class _ModeARoutePanel extends StatelessWidget {
                         return Column(
                           key: ValueKey('wp_$i'),
                           children: [
-                            const Divider(color: Colors.white12, height: 1, indent: 16),
+                            const Divider(
+                              color: Colors.white12,
+                              height: 1,
+                              indent: 16,
+                            ),
                             MapFieldRow(
-                              dot: const MapWaypointDot(type: MapWaypointDotType.waypoint),
-                              child: Row(children: [
-                                Expanded(
-                                  child: Text(wp.name,
-                                      style: const TextStyle(
-                                          color: kMapWhite87, fontSize: 14,
-                                          fontWeight: FontWeight.w600)),
-                                ),
-                                ReorderableDragStartListener(
-                                  index: i,
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 6),
-                                    child: Icon(Icons.drag_handle_rounded,
-                                        size: 18, color: kMapWhite45),
+                              dot: const MapWaypointDot(
+                                type: MapWaypointDotType.waypoint,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      wp.name,
+                                      style: AppTypography.bodyMute.copyWith(
+                                        color: kMapWhite87,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                GestureDetector(
-                                  onTap: () => onRemoveWaypoint(i),
-                                  child: const Icon(Icons.close_rounded,
-                                      size: 16, color: kMapWhite45),
-                                ),
-                              ]),
+                                  ReorderableDragStartListener(
+                                    index: i,
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                      child: Icon(
+                                        Icons.drag_handle_rounded,
+                                        size: 18,
+                                        color: kMapWhite45,
+                                      ),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () => onRemoveWaypoint(i),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      size: 16,
+                                      color: kMapWhite45,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         );
@@ -197,21 +260,35 @@ class _ModeARoutePanel extends StatelessWidget {
                         onTap: () => onSetTransport(id),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
-                            color: on ? kMapPrimary.withValues(alpha: 0.9) : kMapPanelAlt,
+                            color: on
+                                ? kMapPrimary.withValues(alpha: 0.9)
+                                : kMapPanelAlt,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: on ? kMapPrimary : Colors.white24),
+                            border: Border.all(
+                              color: on ? kMapPrimary : Colors.white24,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(icon, size: 13, color: on ? Colors.white : kMapWhite45),
+                              Icon(
+                                icon,
+                                size: 13,
+                                color: on ? Colors.white : kMapWhite45,
+                              ),
                               const SizedBox(width: 3),
-                              Text(label,
-                                  style: TextStyle(
-                                      fontSize: 10, fontWeight: FontWeight.w700,
-                                      color: on ? Colors.white : kMapWhite45)),
+                              Text(
+                                label,
+                                style: AppTypography.micro.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: on ? Colors.white : kMapWhite45,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -223,7 +300,10 @@ class _ModeARoutePanel extends StatelessWidget {
                     onTap: onSearch,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: onSearch != null ? kMapPrimary : kMapPanelAlt,
                         borderRadius: BorderRadius.circular(20),
@@ -231,13 +311,23 @@ class _ModeARoutePanel extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.route_rounded, size: 14,
-                              color: onSearch != null ? Colors.white : kMapWhite45),
+                          Icon(
+                            Icons.route_rounded,
+                            size: 14,
+                            color: onSearch != null
+                                ? Colors.white
+                                : kMapWhite45,
+                          ),
                           const SizedBox(width: 5),
-                          Text('코스 생성',
-                              style: TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w700,
-                                  color: onSearch != null ? Colors.white : kMapWhite45)),
+                          Text(
+                            '코스 생성',
+                            style: AppTypography.label.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: onSearch != null
+                                  ? Colors.white
+                                  : kMapWhite45,
+                            ),
+                          ),
                         ],
                       ),
                     ),

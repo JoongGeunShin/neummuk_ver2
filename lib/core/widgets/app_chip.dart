@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/context_ext.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class AppChip extends StatelessWidget {
   const AppChip({
@@ -41,9 +42,8 @@ class AppChip extends StatelessWidget {
             ],
             Text(
               label,
-              style: TextStyle(
+              style: AppTypography.label.copyWith(
                 color: fg,
-                fontSize: 13,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.1,
               ),

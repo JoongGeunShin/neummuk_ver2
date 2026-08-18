@@ -41,7 +41,11 @@ class _ExploreTopPanel extends StatelessWidget {
                 children: [
                   MapControlButton(
                     onTap: onClose,
-                    child: const Icon(Icons.close_rounded, size: 20, color: _kWhite87),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: _kWhite87,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -55,38 +59,54 @@ class _ExploreTopPanel extends StatelessWidget {
                         controller: searchController,
                         textInputAction: TextInputAction.search,
                         onSubmitted: onSearch,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white),
+                        style: AppTypography.bodyMute.copyWith(
+                          color: Colors.white,
+                        ),
                         decoration: InputDecoration(
                           filled: false,
                           hintText: '음식점, 관광지, 백화점 검색',
-                          hintStyle: const TextStyle(
-                              fontSize: 14, color: Colors.white38, fontWeight: FontWeight.w400),
-                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: _kWhite45),
+                          hintStyle: AppTypography.bodyMute.copyWith(
+                            color: Colors.white38,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            size: 20,
+                            color: _kWhite45,
+                          ),
                           suffixIcon: IconButton(
-                            icon: const Icon(Icons.search_rounded, size: 18, color: _kWhite45),
+                            icon: const Icon(
+                              Icons.search_rounded,
+                              size: 18,
+                              color: _kWhite45,
+                            ),
                             onPressed: () => onSearch(searchController.text),
                           ),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 11,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: kMapPrimary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
+                    child: Text(
                       'NAVER',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: kMapPrimary,
-                          letterSpacing: 0.3),
+                      style: AppTypography.micro.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: kMapPrimary,
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
                 ],
@@ -106,8 +126,10 @@ class _ExploreTopPanel extends StatelessWidget {
                     onTap: () => onCategoryTap(cat),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected ? Colors.white : _kPanelAlt,
                         borderRadius: BorderRadius.circular(20),
@@ -117,9 +139,7 @@ class _ExploreTopPanel extends StatelessWidget {
                       ),
                       child: Text(
                         cat,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                        style: AppTypography.label.copyWith(
                           color: isSelected ? Colors.black87 : kMapWhite45,
                         ),
                       ),
@@ -183,9 +203,7 @@ class _LegendItem extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 5),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w600, color: _kWhite87)),
+        Text(label, style: AppTypography.tiny.copyWith(color: _kWhite87)),
       ],
     );
   }

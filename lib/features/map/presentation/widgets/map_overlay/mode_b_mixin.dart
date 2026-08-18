@@ -22,13 +22,13 @@ double _fastDistM(double lat1, double lng1, double lat2, double lng2) =>
 
 /// 스팟 타입 → 대표 이모지 (마커/리스트 공용)
 String _spotTypeEmoji(String type) => switch (type) {
-      'tourist_sight' => '🏛️',
-      'culture' => '🎭',
-      'event' => '🎉',
-      'sports' => '⛹️',
-      'shopping' => '🛍️',
-      _ => '📍',
-    };
+  'tourist_sight' => '🏛️',
+  'culture' => '🎭',
+  'event' => '🎉',
+  'sports' => '⛹️',
+  'shopping' => '🛍️',
+  _ => '📍',
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -54,9 +54,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   /// _ModeBNavOverlayMixin에서 구현 — 이번 GPS 틱의 도로 스냅 기준 진행률 캐시
   /// (폴리라인 트리밍이 provider와 동일한 최근접점/이탈거리를 사용하도록 공유)
-  ({int nearestIdx, double distToRoadM, double remainingSegM})? get _lastGeneratedRoadProgress;
+  ({int nearestIdx, double distToRoadM, double remainingSegM})?
+  get _lastGeneratedRoadProgress;
   set _lastGeneratedRoadProgress(
-      ({int nearestIdx, double distToRoadM, double remainingSegM})? value);
+    ({int nearestIdx, double distToRoadM, double remainingSegM})? value,
+  );
 
   /// 생성 코스 구간별 도로 폴리라인 (인덱스 N = 이전 waypoint → waypoint[N])
   List<List<NLatLng>> _segmentPolylines = [];
@@ -95,7 +97,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   Position? get _position;
 
   // nav mixin에서 구현
-  Future<void> _startModeBNavigation(TouristRouteEntity route, List<NLatLng> gpxPoints, {List<double> segmentDistancesM = const []});
+  Future<void> _startModeBNavigation(
+    TouristRouteEntity route,
+    List<NLatLng> gpxPoints, {
+    List<double> segmentDistancesM = const [],
+  });
   void _navigateToSpotFromWaypoint(SpotWaypoint wp);
 
   // ── 생성 코스 자동 재경로 ─────────────────────────────────────
@@ -106,7 +112,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     int currentWpIdx,
   ) async {
     if (!mounted || currentWpIdx >= route.waypoints.length) return;
-    if (_segmentPolylines.isEmpty || currentWpIdx >= _segmentPolylines.length) return;
+    if (_segmentPolylines.isEmpty || currentWpIdx >= _segmentPolylines.length)
+      return;
 
     try {
       final wp = route.waypoints[currentWpIdx];
@@ -134,7 +141,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       final newSeg = _segmentPolylines[currentWpIdx];
       final newSegTurns = newSeg.isNotEmpty
           ? computeTurnPoints(
-              newSeg.map((pt) => (lat: pt.latitude, lng: pt.longitude)).toList(),
+              newSeg
+                  .map((pt) => (lat: pt.latitude, lng: pt.longitude))
+                  .toList(),
               legIdx: currentWpIdx,
             )
           : <TurnPoint>[];
@@ -176,7 +185,10 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     required List<SpotWaypoint> waypoints,
   }) async {
     final tmapPass = await _fetchSegmentsBySource(
-      startLat: startLat, startLng: startLng, waypoints: waypoints, source: 'tmap',
+      startLat: startLat,
+      startLng: startLng,
+      waypoints: waypoints,
+      source: 'tmap',
     );
     if (tmapPass.allSucceeded) {
       _segmentPolylines = tmapPass.segments;
@@ -186,7 +198,10 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
     debugPrint('[ModeB] TMAP으로 코스 전체 구간을 채우지 못해 Kakao로 코스 전체 재시도');
     final kakaoPass = await _fetchSegmentsBySource(
-      startLat: startLat, startLng: startLng, waypoints: waypoints, source: 'kakao',
+      startLat: startLat,
+      startLng: startLng,
+      waypoints: waypoints,
+      source: 'kakao',
     );
     // kakaoPass도 일부 구간이 실패하면 그 구간은 직선으로 채워져 있다(마지막 안전망) —
     // 그래도 TMAP 결과와 섞지 않고 Kakao 패스 하나로 통일해 사용한다.
@@ -196,7 +211,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   /// [source]("tmap" | "kakao") 하나만으로 전 구간을 시도한다. 실패한 구간은
   /// 직선으로 채우되 [allSucceeded]로 실제 전체 성공 여부를 함께 반환한다.
-  Future<({List<List<NLatLng>> segments, bool allSucceeded})> _fetchSegmentsBySource({
+  Future<({List<List<NLatLng>> segments, bool allSucceeded})>
+  _fetchSegmentsBySource({
     required double startLat,
     required double startLng,
     required List<SpotWaypoint> waypoints,
@@ -209,7 +225,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     for (final wp in waypoints) {
       final pts = source == 'tmap'
           ? await _fetchPedestrianRoute(
-              startLat: prevLat, startLng: prevLng,
+              startLat: prevLat,
+              startLng: prevLng,
               waypointCoords: [(lat: wp.lat, lng: wp.lng)],
             )
           : await _fetchKakaoMobilityRoute(prevLat, prevLng, wp.lat, wp.lng);
@@ -228,15 +245,26 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   /// 요청 출발점과 API가 반환한 첫 포인트가 10m 이상 떨어져 있으면 출발점을
   /// 맨 앞에 이어붙인다 (도로 스냅 지점과 실제 출발 위치 사이 끊김 방지).
-  List<NLatLng> _withSnapPrefix(double fromLat, double fromLng, List<NLatLng> pts) {
+  List<NLatLng> _withSnapPrefix(
+    double fromLat,
+    double fromLng,
+    List<NLatLng> pts,
+  ) {
     final snapDist = Geolocator.distanceBetween(
-        fromLat, fromLng, pts.first.latitude, pts.first.longitude);
+      fromLat,
+      fromLng,
+      pts.first.latitude,
+      pts.first.longitude,
+    );
     return snapDist > 10 ? [NLatLng(fromLat, fromLng), ...pts] : pts;
   }
 
   // ── 구간별 폴리라인 그리기 ────────────────────────────────────────
 
-  Future<void> _drawSegmentsOnMap(int currentWpIdx, {bool showAll = false}) async {
+  Future<void> _drawSegmentsOnMap(
+    int currentWpIdx, {
+    bool showAll = false,
+  }) async {
     final ctrl = _ctrl;
     if (ctrl == null || !mounted || _segmentPolylines.isEmpty) return;
 
@@ -252,12 +280,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     _lastTrimOffRoute = false;
 
     for (var i = 0; i < _segmentPolylines.length; i++) {
-      await ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_$i'),
-      ).catchError((_) {});
-      await ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_done_$i'),
-      ).catchError((_) {});
+      await ctrl
+          .deleteOverlay(
+            NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_$i'),
+          )
+          .catchError((_) {});
+      await ctrl
+          .deleteOverlay(
+            NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_done_$i'),
+          )
+          .catchError((_) {});
     }
 
     if (!mounted) return;
@@ -275,8 +307,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           color: isCurrent
               ? accentColor
               : (isDone
-                  ? completedColor.withValues(alpha: 0.7)
-                  : upcomingColor.withValues(alpha: 0.8)),
+                    ? completedColor.withValues(alpha: 0.7)
+                    : upcomingColor.withValues(alpha: 0.8)),
           width: isCurrent ? 5 : 3,
           lineCap: NLineCap.round,
           lineJoin: NLineJoin.round,
@@ -434,9 +466,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final ctrl = _ctrl;
     if (ctrl == null) return;
     for (var i = 0; i < kCartMaxSpots; i++) {
-      await ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.marker, id: 'cart_$i'),
-      ).catchError((_) {});
+      await ctrl
+          .deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: 'cart_$i'))
+          .catchError((_) {});
     }
     if (!mounted || items.isEmpty) return;
     await _addCartMarkersToMap(items);
@@ -462,19 +494,21 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           ? icons['selected']
           : (r.type == '자전거' ? icons['bike'] : icons['walk']);
 
-      await ctrl.addOverlay(NMarker(
-        id: 'route_$i',
-        position: NLatLng(r.startLat!, r.startLng!),
-        icon: icon,
-        caption: NOverlayCaption(
-          text: r.name,
-          textSize: 11,
-          color: isSelected ? c.accent : c.primary,
-          haloColor: Colors.black87,
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'route_$i',
+          position: NLatLng(r.startLat!, r.startLng!),
+          icon: icon,
+          caption: NOverlayCaption(
+            text: r.name,
+            textSize: 11,
+            color: isSelected ? c.accent : c.primary,
+            haloColor: Colors.black87,
+          ),
+          captionOffset: 4,
+          isHideCollidedCaptions: true,
         ),
-        captionOffset: 4,
-        isHideCollidedCaptions: true,
-      ));
+      );
 
       // 생성된 코스의 경유지 스팟 마커
       if (isSelected && r.isGenerated) {
@@ -537,11 +571,15 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     if (spots.isNotEmpty) {
       final coords = spots.map((s) => NLatLng(s.lat, s.lng)).toList();
       if (coords.length == 1) {
-        await ctrl.updateCamera(NCameraUpdate.scrollAndZoomTo(
-          target: coords.first, zoom: 15,
-        ));
+        await ctrl.updateCamera(
+          NCameraUpdate.scrollAndZoomTo(target: coords.first, zoom: 15),
+        );
       } else {
-        await MapCameraUtils.fitPoints(ctrl, coords, padding: const EdgeInsets.all(80));
+        await MapCameraUtils.fitPoints(
+          ctrl,
+          coords,
+          padding: const EdgeInsets.all(80),
+        );
       }
     }
   }
@@ -554,19 +592,21 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     if (ctrl == null) return;
     for (var i = 0; i < waypoints.length; i++) {
       final wp = waypoints[i];
-      await ctrl.addOverlay(NMarker(
-        id: 'spot_wp_$i',
-        position: NLatLng(wp.lat, wp.lng),
-        icon: icon,
-        caption: NOverlayCaption(
-          text: wp.name,
-          textSize: 10,
-          color: context.colors.pinSight,
-          haloColor: Colors.black87,
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'spot_wp_$i',
+          position: NLatLng(wp.lat, wp.lng),
+          icon: icon,
+          caption: NOverlayCaption(
+            text: wp.name,
+            textSize: 10,
+            color: context.colors.pinSight,
+            haloColor: Colors.black87,
+          ),
+          captionOffset: 4,
+          isHideCollidedCaptions: true,
         ),
-        captionOffset: 4,
-        isHideCollidedCaptions: true,
-      ));
+      );
     }
   }
 
@@ -606,19 +646,21 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
       if (!mounted) return;
 
-      await ctrl.addOverlay(NMarker(
-        id: 'prev_spot_$i',
-        position: NLatLng(wp.lat, wp.lng),
-        icon: icon,
-        caption: NOverlayCaption(
-          text: captionText,
-          textSize: 11,
-          color: captionColor,
-          haloColor: Colors.black87,
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'prev_spot_$i',
+          position: NLatLng(wp.lat, wp.lng),
+          icon: icon,
+          caption: NOverlayCaption(
+            text: captionText,
+            textSize: 11,
+            color: captionColor,
+            haloColor: Colors.black87,
+          ),
+          captionOffset: 4,
+          isHideCollidedCaptions: false,
         ),
-        captionOffset: 4,
-        isHideCollidedCaptions: false,
-      ));
+      );
     }
   }
 
@@ -653,10 +695,10 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       final captionColor = isCurrent
           ? context.colors.warn
           : isOrigin
-              ? context.colors.pinUser
-              : isDone
-                  ? Colors.white30
-                  : context.colors.pinSight;
+          ? context.colors.pinUser
+          : isDone
+          ? Colors.white30
+          : context.colors.pinSight;
       final captionText = isCurrent ? '📍 ${wp.name}' : wp.name;
 
       final marker = NMarker(
@@ -768,7 +810,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       lng = center.lng;
     }
     final cartItems = ref.read(cartProvider);
-    await ref.read(routeSearchProvider.notifier).generateCourseFromSpots(
+    await ref
+        .read(routeSearchProvider.notifier)
+        .generateCourseFromSpots(
           food,
           lat: lat,
           lng: lng,
@@ -816,18 +860,21 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         final roadDistKm = roadDistM / 1000;
         final isBike = course.type == '자전거';
         final speedKmh = isBike ? 15.0 : 4.0;
-        final metrics = ref.read(userProfileProvider).valueOrNull?.toBodyMetrics() ??
+        final metrics =
+            ref.read(userProfileProvider).valueOrNull?.toBodyMetrics() ??
             BodyMetrics.defaultMetrics;
         final hours = roadDistKm / speedKmh;
-        ref.read(routeSearchProvider.notifier).updateGeneratedCourseMetrics(
-          distanceKm: double.parse(roadDistKm.toStringAsFixed(2)),
-          durationMinutes: (hours * 60).round().clamp(1, 9999),
-          kcal: AppConstants.calculateKcal(
-            transport: isBike ? 'bike' : 'walk',
-            metrics: metrics,
-            durationSeconds: (hours * 3600).round(),
-          ).round(),
-        );
+        ref
+            .read(routeSearchProvider.notifier)
+            .updateGeneratedCourseMetrics(
+              distanceKm: double.parse(roadDistKm.toStringAsFixed(2)),
+              durationMinutes: (hours * 60).round().clamp(1, 9999),
+              kcal: AppConstants.calculateKcal(
+                transport: isBike ? 'bike' : 'walk',
+                metrics: metrics,
+                durationSeconds: (hours * 3600).round(),
+              ).round(),
+            );
       }
 
       // 탐색 미리보기: 구간별 폴리라인 개별 표시 (중복 구간 방향 인식용)
@@ -837,34 +884,44 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           final pts = _segmentPolylines[i];
           if (pts.length < 2) continue;
           previewPts.addAll(pts);
-          await ctrl.addOverlay(NPolylineOverlay(
-            id: 'seg_prev_$i',
-            coords: pts,
-            color: accentColor,
-            width: 5,
-            lineCap: NLineCap.round,
-            lineJoin: NLineJoin.round,
-          ));
+          await ctrl.addOverlay(
+            NPolylineOverlay(
+              id: 'seg_prev_$i',
+              coords: pts,
+              color: accentColor,
+              width: 5,
+              lineCap: NLineCap.round,
+              lineJoin: NLineJoin.round,
+            ),
+          );
         }
       }
 
       final drawCoords = previewPts.isNotEmpty
           ? previewPts
-          : [NLatLng(originLat, originLng),
-             ...course.waypoints.map((w) => NLatLng(w.lat, w.lng))];
+          : [
+              NLatLng(originLat, originLng),
+              ...course.waypoints.map((w) => NLatLng(w.lat, w.lng)),
+            ];
 
       if (previewPts.isEmpty) {
-        await ctrl.addOverlay(NPolylineOverlay(
-          id: 'seg_prev_0',
-          coords: drawCoords,
-          color: accentColor,
-          width: 5,
-          lineCap: NLineCap.round,
-          lineJoin: NLineJoin.round,
-        ));
+        await ctrl.addOverlay(
+          NPolylineOverlay(
+            id: 'seg_prev_0',
+            coords: drawCoords,
+            color: accentColor,
+            width: 5,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ),
+        );
       }
 
-      await MapCameraUtils.fitPoints(ctrl, drawCoords, padding: const EdgeInsets.all(80));
+      await MapCameraUtils.fitPoints(
+        ctrl,
+        drawCoords,
+        padding: const EdgeInsets.all(80),
+      );
     } catch (e) {
       if (fetchCompleter != null && !fetchCompleter.isCompleted) {
         fetchCompleter.completeError(e);
@@ -922,10 +979,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             ? intermediates
             : List.generate(
                 maxPass,
-                (i) => intermediates[
-                  (i * (intermediates.length - 1) ~/ (maxPass - 1))
-                      .clamp(0, intermediates.length - 1)
-                ],
+                (i) =>
+                    intermediates[(i *
+                            (intermediates.length - 1) ~/
+                            (maxPass - 1))
+                        .clamp(0, intermediates.length - 1)],
               );
         bodyParts.add(
           'passList=${capped.map((w) => '${w.lng},${w.lat}').join('_')}',
@@ -948,7 +1006,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           .timeout(const Duration(seconds: 10));
 
       if (res.statusCode != 200) {
-        debugPrint('[TMAP] status=${res.statusCode} body=${res.body.length > 300 ? res.body.substring(0, 300) : res.body}');
+        debugPrint(
+          '[TMAP] status=${res.statusCode} body=${res.body.length > 300 ? res.body.substring(0, 300) : res.body}',
+        );
         return [];
       }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -963,10 +1023,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         final coords = geometry['coordinates'] as List?;
         if (coords == null) continue;
         for (final c in coords) {
-          points.add(NLatLng(
-            (c[1] as num).toDouble(),
-            (c[0] as num).toDouble(),
-          ));
+          points.add(
+            NLatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+          );
         }
       }
       debugPrint('[TMAP] points=${points.length}');
@@ -1002,10 +1061,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     await ctrl.clearOverlays(type: NOverlayType.polylineOverlay);
 
     if (route.hasCoordinate) {
-      await ctrl.updateCamera(NCameraUpdate.scrollAndZoomTo(
-        target: NLatLng(route.startLat!, route.startLng!),
-        zoom: 14,
-      ));
+      await ctrl.updateCamera(
+        NCameraUpdate.scrollAndZoomTo(
+          target: NLatLng(route.startLat!, route.startLng!),
+          zoom: 14,
+        ),
+      );
     }
 
     if (route.isGenerated) {
@@ -1020,14 +1081,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         if (!mounted || points.length < 2) return;
         final c = context.colors;
         final routeColor = route.type == '자전거' ? c.warn : c.primary;
-        await ctrl.addOverlay(NPolylineOverlay(
-          id: 'route_path',
-          coords: points,
-          color: routeColor,
-          width: 5,
-          lineCap: NLineCap.round,
-          lineJoin: NLineJoin.round,
-        ));
+        await ctrl.addOverlay(
+          NPolylineOverlay(
+            id: 'route_path',
+            coords: points,
+            color: routeColor,
+            width: 5,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ),
+        );
         await MapCameraUtils.fitPoints(ctrl, points);
         if (mounted) await _drawRouteArrows(points, routeColor, 'gpx');
       } finally {
@@ -1045,8 +1108,11 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     final pos = _position;
 
     if (_sheetBCtrl.isAttached) {
-      _sheetBCtrl.animateTo(0.13,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      _sheetBCtrl.animateTo(
+        0.13,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
 
     await ctrl?.clearOverlays(type: NOverlayType.marker);
@@ -1090,14 +1156,20 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             // 나머지 구간이 Kakao로 채워진 코스에서 이 구간만 TMAP으로 성공해
             // 소스가 섞이는 것을 방지한다.
             final pts = await _fetchApproachRoute(
-              fromLat: startLat, fromLng: startLng,
-              toLat: firstWp.lat, toLng: firstWp.lng,
+              fromLat: startLat,
+              fromLng: startLng,
+              toLat: firstWp.lat,
+              toLng: firstWp.lng,
               preferredSource: _generatedCourseRouteSource,
             );
             // 두 API 모두 실패하면 직선으로 대체한다 — 비워두면 미리보기 시점의
             // stale한 세그먼트 0(옛 위치 기준)이 그대로 남는 문제가 재발한다.
-            _segmentPolylines[0] =
-                pts.isNotEmpty ? pts : [NLatLng(startLat, startLng), NLatLng(firstWp.lat, firstWp.lng)];
+            _segmentPolylines[0] = pts.isNotEmpty
+                ? pts
+                : [
+                    NLatLng(startLat, startLng),
+                    NLatLng(firstWp.lat, firstWp.lng),
+                  ];
           } finally {
             if (mounted) setState(() => _gpxLoading = false);
           }
@@ -1121,8 +1193,10 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         try {
           final results = await Future.wait<List<NLatLng>>([
             _fetchApproachRoute(
-              fromLat: pos.latitude, fromLng: pos.longitude,
-              toLat: route.startLat!, toLng: route.startLng!,
+              fromLat: pos.latitude,
+              fromLng: pos.longitude,
+              toLat: route.startLat!,
+              toLng: route.startLng!,
             ),
             route.gpxpath != null
                 ? _fetchGpxPoints(route.gpxpath!)
@@ -1148,13 +1222,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     }
 
     // 생성 코스: 도로 폴리라인 기반 구간 거리 계산 (nav 남은 거리 정확도 향상)
-    final segDists = route.isGenerated &&
-            _segmentPolylines.length == route.waypoints.length
+    final segDists =
+        route.isGenerated && _segmentPolylines.length == route.waypoints.length
         ? _segmentPolylines.map(_totalPolylineLength).toList()
         : <double>[];
 
-    await _startModeBNavigation(route, gpxPoints,
-        segmentDistancesM: segDists);
+    await _startModeBNavigation(route, gpxPoints, segmentDistancesM: segDists);
   }
 
   // ── 접근 경로 (OSRM 우선 → Kakao Mobility fallback) ────────────
@@ -1181,17 +1254,29 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       }
     }
 
-    final kakaoPts = await _fetchKakaoMobilityRoute(fromLat, fromLng, toLat, toLng);
-    return kakaoPts.isNotEmpty ? _withSnapPrefix(fromLat, fromLng, kakaoPts) : kakaoPts;
+    final kakaoPts = await _fetchKakaoMobilityRoute(
+      fromLat,
+      fromLng,
+      toLat,
+      toLng,
+    );
+    return kakaoPts.isNotEmpty
+        ? _withSnapPrefix(fromLat, fromLng, kakaoPts)
+        : kakaoPts;
   }
 
   Future<List<NLatLng>> _fetchKakaoMobilityRoute(
-    double fromLat, double fromLng, double toLat, double toLng,
+    double fromLat,
+    double fromLng,
+    double toLat,
+    double toLng,
   ) async {
     try {
       final key = AppEnv.kakaoRestApiKey;
       if (key.isEmpty) return [];
-      final uri = Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions');
+      final uri = Uri.parse(
+        '${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions',
+      );
       final res = await http
           .post(
             uri,
@@ -1219,10 +1304,9 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         for (final road in ((section as Map)['roads'] as List? ?? [])) {
           final vx = (road as Map)['vertexes'] as List? ?? [];
           for (var i = 0; i < vx.length - 1; i += 2) {
-            points.add(NLatLng(
-              (vx[i + 1] as num).toDouble(),
-              (vx[i] as num).toDouble(),
-            ));
+            points.add(
+              NLatLng((vx[i + 1] as num).toDouble(), (vx[i] as num).toDouble()),
+            );
           }
         }
       }
@@ -1237,14 +1321,17 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
   Future<List<NLatLng>> _fetchGpxPoints(String gpxUrl) async {
     try {
-      final res =
-          await http.get(Uri.parse(gpxUrl)).timeout(const Duration(seconds: 15));
+      final res = await http
+          .get(Uri.parse(gpxUrl))
+          .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final body = res.body;
-      final pattern =
-          RegExp(r'<(?:trkpt|rtept)\s[^>]*lat="([^"]+)"[^>]*lon="([^"]+)"');
-      final patternAlt =
-          RegExp(r'<(?:trkpt|rtept)\s[^>]*lon="([^"]+)"[^>]*lat="([^"]+)"');
+      final pattern = RegExp(
+        r'<(?:trkpt|rtept)\s[^>]*lat="([^"]+)"[^>]*lon="([^"]+)"',
+      );
+      final patternAlt = RegExp(
+        r'<(?:trkpt|rtept)\s[^>]*lon="([^"]+)"[^>]*lat="([^"]+)"',
+      );
       final points = <NLatLng>[];
       for (final m in pattern.allMatches(body)) {
         final lat = double.tryParse(m.group(1) ?? '');
@@ -1286,17 +1373,23 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   }
 
   ({NLatLng pos, double bearing})? _pointAtDistance(
-      List<NLatLng> pts, double dist) {
+    List<NLatLng> pts,
+    double dist,
+  ) {
     var acc = 0.0;
     for (var i = 1; i < pts.length; i++) {
       final seg = _distLL(pts[i - 1], pts[i]);
       if (acc + seg >= dist) {
         final t = (dist - acc) / seg;
-        final lat = pts[i - 1].latitude +
-            t * (pts[i].latitude - pts[i - 1].latitude);
-        final lng = pts[i - 1].longitude +
+        final lat =
+            pts[i - 1].latitude + t * (pts[i].latitude - pts[i - 1].latitude);
+        final lng =
+            pts[i - 1].longitude +
             t * (pts[i].longitude - pts[i - 1].longitude);
-        return (pos: NLatLng(lat, lng), bearing: _bearingLL(pts[i - 1], pts[i]));
+        return (
+          pos: NLatLng(lat, lng),
+          bearing: _bearingLL(pts[i - 1], pts[i]),
+        );
       }
       acc += seg;
     }
@@ -1330,13 +1423,15 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       );
       if (!mounted) break;
 
-      await ctrl.addOverlay(NMarker(
-        id: '${idPrefix}_arrow_$arrowIdx',
-        position: result.pos,
-        icon: icon,
-        anchor: const NPoint(0.5, 0.5),
-        isHideCollidedMarkers: false,
-      ));
+      await ctrl.addOverlay(
+        NMarker(
+          id: '${idPrefix}_arrow_$arrowIdx',
+          position: result.pos,
+          icon: icon,
+          anchor: const NPoint(0.5, 0.5),
+          isHideCollidedMarkers: false,
+        ),
+      );
       arrowIdx++;
     }
   }
@@ -1351,15 +1446,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     // 이전에 그려둔 턴 마커를 전부 지운다 — 내용 기반 ID(turnMarkerId)를 추적하므로
     // 개수 추정 없이 정확히 그 마커들만 지울 수 있다.
     for (final id in _drawnTurnMarkerIds) {
-      await ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.marker, id: id),
-      ).catchError((_) {});
+      await ctrl
+          .deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: id))
+          .catchError((_) {});
     }
     _drawnTurnMarkerIds.clear();
     if (!mounted) return;
 
     for (final turn in turns) {
-      if (turn.type == TurnType.straight || turn.type == TurnType.arrival) continue;
+      if (turn.type == TurnType.straight || turn.type == TurnType.arrival)
+        continue;
 
       final icon = await NOverlayImage.fromWidget(
         widget: _TurnDirectionMarker(type: turn.type),
@@ -1369,13 +1465,15 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       if (!mounted) break;
 
       final id = turnMarkerId(turn);
-      await ctrl.addOverlay(NMarker(
-        id: id,
-        position: NLatLng(turn.lat, turn.lng),
-        icon: icon,
-        anchor: const NPoint(0.5, 0.5),
-        isHideCollidedMarkers: false,
-      ));
+      await ctrl.addOverlay(
+        NMarker(
+          id: id,
+          position: NLatLng(turn.lat, turn.lng),
+          icon: icon,
+          anchor: const NPoint(0.5, 0.5),
+          isHideCollidedMarkers: false,
+        ),
+      );
       _drawnTurnMarkerIds.add(id);
     }
   }
@@ -1403,7 +1501,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       final isOffRoute = navState.isOffRoute;
 
       // 인덱스도 이탈 상태도 바뀌지 않았으면 갱신 불필요
-      if (startIdx == _lastTrimGpxIdx && isOffRoute == _lastTrimOffRoute) return;
+      if (startIdx == _lastTrimGpxIdx && isOffRoute == _lastTrimOffRoute)
+        return;
       if (startIdx <= 0) return;
 
       final pts = navState.gpxPoints;
@@ -1424,9 +1523,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         if (isOffRoute != _lastTrimOffRoute) cached.setColor(polylineColor);
       } else {
         // 첫 호출: 기존 오버레이 교체 후 인스턴스 캐시
-        await ctrl.deleteOverlay(
-          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'route_path'),
-        ).catchError((_) {});
+        await ctrl
+            .deleteOverlay(
+              NOverlayInfo(
+                type: NOverlayType.polylineOverlay,
+                id: 'route_path',
+              ),
+            )
+            .catchError((_) {});
         if (!mounted) return;
         final poly = NPolylineOverlay(
           id: 'route_path',
@@ -1452,9 +1556,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           if (doneCached != null) {
             doneCached.setCoords(donePts);
           } else {
-            await ctrl.deleteOverlay(
-              NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'route_done'),
-            ).catchError((_) {});
+            await ctrl
+                .deleteOverlay(
+                  NOverlayInfo(
+                    type: NOverlayType.polylineOverlay,
+                    id: 'route_done',
+                  ),
+                )
+                .catchError((_) {});
             if (!mounted) return;
             final donePoly = NPolylineOverlay(
               id: 'route_done',
@@ -1472,12 +1581,13 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
 
       _lastTrimGpxIdx = startIdx;
       _lastTrimOffRoute = isOffRoute;
-
     } else if (route.isGenerated && _segmentPolylines.isNotEmpty) {
       // 생성 코스는 단계별/전체보기 모드와 무관하게 seg_N 폴리라인이 항상 표시되므로
       // (_toggleNavStepMode 참고) 단계별 모드에서도 트리밍을 계속 갱신해야 한다.
-      final currentIdx =
-          navState.currentWaypointIdx.clamp(0, _segmentPolylines.length - 1);
+      final currentIdx = navState.currentWaypointIdx.clamp(
+        0,
+        _segmentPolylines.length - 1,
+      );
       final pts = _segmentPolylines[currentIdx];
       if (pts.isEmpty) return;
 
@@ -1488,7 +1598,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       final nearestIdx = progress.nearestIdx.clamp(0, pts.length - 1);
       final isOffRoute = progress.distToRoadM > AppConstants.offRouteThresholdM;
 
-      if (nearestIdx == _lastTrimSegIdx && isOffRoute == _lastTrimOffRoute) return;
+      if (nearestIdx == _lastTrimSegIdx && isOffRoute == _lastTrimOffRoute)
+        return;
       if (nearestIdx <= 0) return;
       if (nearestIdx >= pts.length - 1) return;
 
@@ -1502,9 +1613,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
         if (nearestIdx != _lastTrimSegIdx) cached.setCoords(trimmed);
         if (isOffRoute != _lastTrimOffRoute) cached.setColor(polylineColor);
       } else {
-        await ctrl.deleteOverlay(
-          NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_$currentIdx'),
-        ).catchError((_) {});
+        await ctrl
+            .deleteOverlay(
+              NOverlayInfo(
+                type: NOverlayType.polylineOverlay,
+                id: 'seg_$currentIdx',
+              ),
+            )
+            .catchError((_) {});
         if (!mounted) return;
         final poly = NPolylineOverlay(
           id: 'seg_$currentIdx',
@@ -1526,9 +1642,14 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           if (doneCached != null) {
             doneCached.setCoords(donePts);
           } else {
-            await ctrl.deleteOverlay(
-              NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'seg_done_$currentIdx'),
-            ).catchError((_) {});
+            await ctrl
+                .deleteOverlay(
+                  NOverlayInfo(
+                    type: NOverlayType.polylineOverlay,
+                    id: 'seg_done_$currentIdx',
+                  ),
+                )
+                .catchError((_) {});
             if (!mounted) return;
             final donePoly = NPolylineOverlay(
               id: 'seg_done_$currentIdx',
@@ -1573,11 +1694,12 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
     if (mode != MapMode.modeB) return const [];
 
     final navState = ref.read(modeBNavProvider);
-    final showNavTopBar = food == null &&
-        navState.isNavigating &&
-        navState.foodName.isNotEmpty;
+    final showNavTopBar =
+        food == null && navState.isNavigating && navState.foodName.isNotEmpty;
 
-    final walkKcal = ref.watch(walkSessionProvider.select((s) => s.caloriesKcal));
+    final walkKcal = ref.watch(
+      walkSessionProvider.select((s) => s.caloriesKcal),
+    );
     final cartItems = ref.watch(cartProvider);
     final cartCount = cartItems.length;
 
@@ -1592,10 +1714,7 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ModeBTopBar(food: food, onBack: _modeBSafeBack),
-              _ModeBKcalMiniBar(
-                todayKcal: walkKcal,
-                targetKcal: food.kcal,
-              ),
+              _ModeBKcalMiniBar(todayKcal: walkKcal, targetKcal: food.kcal),
             ],
           ),
         )
@@ -1656,12 +1775,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
               food: food,
               cartCount: cartCount,
               isLocating: locating,
-              onLoadMore: () => ref.read(routeSearchProvider.notifier).loadMore(),
+              onLoadMore: () =>
+                  ref.read(routeSearchProvider.notifier).loadMore(),
               onTransportChange: (v) async {
                 final notifier = ref.read(routeSearchProvider.notifier);
-                notifier.setTransport(v, food,
-                    lat: _position?.latitude ?? 37.5635,
-                    lng: _position?.longitude ?? 126.9869);
+                notifier.setTransport(
+                  v,
+                  food,
+                  lat: _position?.latitude ?? 37.5635,
+                  lng: _position?.longitude ?? 126.9869,
+                );
                 // 맞춤 코스 프리뷰 초기화
                 _segmentPolylines = [];
                 _generatedCourseRouteSource = null;
@@ -1723,40 +1846,53 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             children: [
               const SizedBox(height: 10),
               Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
-                    color: c.outline, borderRadius: BorderRadius.circular(2)),
+                  color: c.outline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Row(
                   children: [
-                    Text('코스 장바구니',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: c.text)),
+                    Text(
+                      '코스 장바구니',
+                      style: AppTypography.bodyLg.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: c.text,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: c.primarySoft, borderRadius: BorderRadius.circular(10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
                       ),
-                      child: Text('${items.length}개',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: c.primary)),
+                      decoration: BoxDecoration(
+                        color: c.primarySoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${items.length}개',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: c.primary,
+                        ),
+                      ),
                     ),
                     const Spacer(),
                     if (items.isNotEmpty)
                       GestureDetector(
                         onTap: () => ref.read(cartProvider.notifier).clear(),
-                        child: Text('전체 삭제',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: c.textMuted,
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          '전체 삭제',
+                          style: AppTypography.caption.copyWith(
+                            color: c.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -1764,34 +1900,68 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
               if (items.isEmpty)
                 Padding(
                   padding: EdgeInsets.fromLTRB(0, 32, 0, bottomPad + 32),
-                  child: Text('아직 담은 스팟이 없어요',
-                      style: TextStyle(color: c.textMuted, fontSize: 14)),
+                  child: Text(
+                    '아직 담은 스팟이 없어요',
+                    style: AppTypography.bodyMute.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: c.textMuted,
+                    ),
+                  ),
                 )
               else
                 Flexible(
                   child: ListView.separated(
                     padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPad + 16),
                     itemCount: items.length,
-                    separatorBuilder: (_, __) => Divider(color: c.outline, height: 1),
+                    separatorBuilder: (_, __) =>
+                        Divider(color: c.outline, height: 1),
                     itemBuilder: (_, i) {
                       final spot = items[i];
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                        leading: Container(
-                          width: 38, height: 38,
-                          decoration: BoxDecoration(
-                            color: c.surfaceAlt, borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(child: Text(_spotTypeEmoji(spot.type), style: const TextStyle(fontSize: 18))),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
                         ),
-                        title: Text(spot.name,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
+                        leading: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: c.surfaceAlt,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              _spotTypeEmoji(spot.type),
+                              style: AppTypography.subtitle.copyWith(
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          spot.name,
+                          style: AppTypography.label.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: c.text,
+                          ),
+                        ),
                         subtitle: spot.address != null
-                            ? Text(spot.address!, style: TextStyle(fontSize: 11, color: c.textMuted))
+                            ? Text(
+                                spot.address!,
+                                style: AppTypography.tiny.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  color: c.textMuted,
+                                ),
+                              )
                             : null,
                         trailing: GestureDetector(
-                          onTap: () => ref.read(cartProvider.notifier).remove(spot.id),
-                          child: Icon(Icons.remove_circle_outline_rounded, color: c.textMuted, size: 20),
+                          onTap: () =>
+                              ref.read(cartProvider.notifier).remove(spot.id),
+                          child: Icon(
+                            Icons.remove_circle_outline_rounded,
+                            color: c.textMuted,
+                            size: 20,
+                          ),
                         ),
                       );
                     },
@@ -1803,7 +1973,6 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
       ),
     );
   }
-
 }
 
 class _StepNumberBadge extends StatelessWidget {
@@ -1826,9 +1995,8 @@ class _StepNumberBadge extends StatelessWidget {
       child: Center(
         child: Text(
           '$number',
-          style: const TextStyle(
+          style: AppTypography.label.copyWith(
             color: Colors.white,
-            fontSize: 13,
             fontWeight: FontWeight.w900,
             height: 1,
           ),

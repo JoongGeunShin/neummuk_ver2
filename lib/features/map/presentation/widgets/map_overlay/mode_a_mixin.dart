@@ -11,6 +11,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   int _modeAGuideMarkerCount = 0;
   bool _modeAMapFocus = false;
   bool _routePanelEditing = false;
+
   /// 도착 다이얼로그 응답 대기 중 — true인 동안은 네비 종료 리스너가
   /// routeResult를 지우지 않는다(다이얼로그가 식당 목록을 참조해야 하므로).
   bool _modeAArrivalDialogPending = false;
@@ -51,7 +52,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   List<TurnPoint> get _allModeATurnMarkers;
   Future<void> _drawModeATurnMarkers(List<TurnPoint> turns);
   Future<void> _clearModeAWalkTurnMarkers();
-  Future<void> _drawModeASegmentsOnMap(RouteResultEntity route, int currentLegIdx);
+  Future<void> _drawModeASegmentsOnMap(
+    RouteResultEntity route,
+    int currentLegIdx,
+  );
   Future<bool> _showModeAExitNavConfirmDialog();
 
   // ── Map focus toggle ───────────────────────────────────────────
@@ -93,7 +97,11 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       context: context,
     );
     if (!mounted) return {};
-    _routeMarkerIcons = {'origin': originIcon, 'dest': destIcon, 'waypoint': wpIcon};
+    _routeMarkerIcons = {
+      'origin': originIcon,
+      'dest': destIcon,
+      'waypoint': wpIcon,
+    };
     return _routeMarkerIcons!;
   }
 
@@ -104,50 +112,64 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     const ids = ['wp_origin', 'wp_dest', 'wp_0', 'wp_1', 'wp_2'];
     for (final id in ids) {
       try {
-        await ctrl.deleteOverlay(NOverlayInfo(type: NOverlayType.marker, id: id));
+        await ctrl.deleteOverlay(
+          NOverlayInfo(type: NOverlayType.marker, id: id),
+        );
       } catch (_) {}
     }
     final icons = await _getRouteMarkerIcons();
     if (!mounted) return;
     if (s.originLat != null && s.originLng != null) {
-      await ctrl.addOverlay(NMarker(
-        id: 'wp_origin',
-        position: NLatLng(s.originLat!, s.originLng!),
-        icon: icons['origin'],
-        caption: NOverlayCaption(
-          text: s.from, textSize: 11,
-          color: c.success, haloColor: Colors.black87,
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'wp_origin',
+          position: NLatLng(s.originLat!, s.originLng!),
+          icon: icons['origin'],
+          caption: NOverlayCaption(
+            text: s.from,
+            textSize: 11,
+            color: c.success,
+            haloColor: Colors.black87,
+          ),
+          captionOffset: 4,
+          isHideCollidedCaptions: true,
         ),
-        captionOffset: 4,
-        isHideCollidedCaptions: true,
-      ));
+      );
     }
     if (s.destLat != null && s.destLng != null) {
-      await ctrl.addOverlay(NMarker(
-        id: 'wp_dest',
-        position: NLatLng(s.destLat!, s.destLng!),
-        icon: icons['dest'],
-        caption: NOverlayCaption(
-          text: s.to, textSize: 11,
-          color: c.danger, haloColor: Colors.black87,
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'wp_dest',
+          position: NLatLng(s.destLat!, s.destLng!),
+          icon: icons['dest'],
+          caption: NOverlayCaption(
+            text: s.to,
+            textSize: 11,
+            color: c.danger,
+            haloColor: Colors.black87,
+          ),
+          captionOffset: 4,
+          isHideCollidedCaptions: true,
         ),
-        captionOffset: 4,
-        isHideCollidedCaptions: true,
-      ));
+      );
     }
     for (var i = 0; i < s.waypoints.length; i++) {
       final wp = s.waypoints[i];
-      await ctrl.addOverlay(NMarker(
-        id: 'wp_$i',
-        position: NLatLng(wp.latitude, wp.longitude),
-        icon: icons['waypoint'],
-        caption: NOverlayCaption(
-          text: wp.name, textSize: 11,
-          color: c.accent, haloColor: Colors.black87,
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'wp_$i',
+          position: NLatLng(wp.latitude, wp.longitude),
+          icon: icons['waypoint'],
+          caption: NOverlayCaption(
+            text: wp.name,
+            textSize: 11,
+            color: c.accent,
+            haloColor: Colors.black87,
+          ),
+          captionOffset: 4,
+          isHideCollidedCaptions: true,
         ),
-        captionOffset: 4,
-        isHideCollidedCaptions: true,
-      ));
+      );
     }
   }
 
@@ -183,9 +205,14 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
     // 이전 대중교통 구간 폴리라인 제거
     for (var i = 0; i < _transitSegPolylineCount; i++) {
-      ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'transit_seg_$i'),
-      ).catchError((_) {});
+      ctrl
+          .deleteOverlay(
+            NOverlayInfo(
+              type: NOverlayType.polylineOverlay,
+              id: 'transit_seg_$i',
+            ),
+          )
+          .catchError((_) {});
     }
     _transitSegPolylineCount = 0;
 
@@ -197,9 +224,14 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     // 실행되지 않으므로, 전송수단과 무관하게 여기서 항상 지운다.
     _clearModeATransitStepMarkers();
 
-    await ctrl.deleteOverlay(
-      const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'mode_a_route'),
-    ).catchError((_) {});
+    await ctrl
+        .deleteOverlay(
+          const NOverlayInfo(
+            type: NOverlayType.polylineOverlay,
+            id: 'mode_a_route',
+          ),
+        )
+        .catchError((_) {});
     if (result == null || result.routePoints.isEmpty) {
       unawaited(_clearModeAWalkTurnMarkers());
       return;
@@ -241,14 +273,16 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
       if (!anyDrawn) {
         // stepPoints 없는 폴백: 단색 폴리라인
-        await ctrl.addOverlay(NPolylineOverlay(
-          id: 'mode_a_route',
-          coords: coords,
-          color: _kTransit,
-          width: 5,
-          lineCap: NLineCap.round,
-          lineJoin: NLineJoin.round,
-        ));
+        await ctrl.addOverlay(
+          NPolylineOverlay(
+            id: 'mode_a_route',
+            coords: coords,
+            color: _kTransit,
+            width: 5,
+            lineCap: NLineCap.round,
+            lineJoin: NLineJoin.round,
+          ),
+        );
         await _drawModeARouteArrows(coords, _kTransit);
       }
       if (result.transitSteps.isNotEmpty) {
@@ -258,14 +292,16 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       // Mode B와 동일한 accent 색상 — 내비 시작 시 _drawModeASegmentsOnMap가
       // 구간별(ma_seg_$i)로 다시 그리므로 이 프리뷰 폴리라인은 미리보기 전용이다.
       final color = c.accent;
-      await ctrl.addOverlay(NPolylineOverlay(
-        id: 'mode_a_route',
-        coords: coords,
-        color: color,
-        width: 5,
-        lineCap: NLineCap.round,
-        lineJoin: NLineJoin.round,
-      ));
+      await ctrl.addOverlay(
+        NPolylineOverlay(
+          id: 'mode_a_route',
+          coords: coords,
+          color: color,
+          width: 5,
+          lineCap: NLineCap.round,
+          lineJoin: NLineJoin.round,
+        ),
+      );
       await _drawModeARouteArrows(coords, color);
       await _drawModeAGuideMarkers(result.guides, result.transport);
     }
@@ -291,7 +327,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   /// 앱 강제종료 후 재실행 복원 전용 — 안내 중이던 Mode A 경로를 지도에 다시 그린다
   /// (네트워크 호출 없이 순수 드로잉만. Mode B의 _restoreGeneratedCourseNav와 동격).
   Future<void> _restoreModeANavOnMap(
-      RouteResultEntity route, ModeANavState navState) async {
+    RouteResultEntity route,
+    ModeANavState navState,
+  ) async {
     if (route.transport == 'transit') {
       // _drawModeAPolyline이 턴마커·트랜짓 스텝 마커까지 함께 그려준다.
       await _drawModeAPolyline(route);
@@ -302,8 +340,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         unawaited(_drawModeATurnMarkers(_allModeATurnMarkers));
       }
       if (route.segmentPolylines.isNotEmpty) {
-        final legIdx =
-            navState.currentLegIdx.clamp(0, route.segmentPolylines.length - 1);
+        final legIdx = navState.currentLegIdx.clamp(
+          0,
+          route.segmentPolylines.length - 1,
+        );
         await _drawModeASegmentsOnMap(route, legIdx);
       }
     }
@@ -322,7 +362,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   // ── 대중교통 폴리라인 실시간 트리밍 (완전 실시간, 스로틀 없음) ──────────────
 
   Future<void> _trimModeATransitPolylines(
-      Position p, ModeANavState navState) async {
+    Position p,
+    ModeANavState navState,
+  ) async {
     if (_isTrimmingTransit) return;
     _isTrimmingTransit = true;
     try {
@@ -348,7 +390,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         final pts = step.stepPoints;
         if (pts.length >= 2) {
           // 이미 지나간 인덱스부터 앞으로 탐색 (단조 증가만 허용)
-          var nearestIdx = _lastTransitNearestPt < 0 ? 0
+          var nearestIdx = _lastTransitNearestPt < 0
+              ? 0
               : _lastTransitNearestPt.clamp(0, pts.length - 1);
           if (stepIdx != _lastTransitTrimStep) nearestIdx = 0;
 
@@ -356,8 +399,15 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           double bestDist = double.infinity;
           for (int i = nearestIdx; i < searchEnd; i++) {
             final d = _fastDistM(
-                p.latitude, p.longitude, pts[i].latitude, pts[i].longitude);
-            if (d < bestDist) { bestDist = d; nearestIdx = i; }
+              p.latitude,
+              p.longitude,
+              pts[i].latitude,
+              pts[i].longitude,
+            );
+            if (d < bestDist) {
+              bestDist = d;
+              nearestIdx = i;
+            }
           }
 
           if (nearestIdx != _lastTransitNearestPt ||
@@ -386,25 +436,42 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     var total = 0.0;
     for (var i = 1; i < pts.length; i++) {
       total += haversineDistanceM(
-          pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude);
+        pts[i - 1].latitude,
+        pts[i - 1].longitude,
+        pts[i].latitude,
+        pts[i].longitude,
+      );
     }
     return total;
   }
 
   static ({NLatLng pos, double bearing})? _modeAPointAtDist(
-      List<NLatLng> pts, double dist) {
+    List<NLatLng> pts,
+    double dist,
+  ) {
     var acc = 0.0;
     for (var i = 1; i < pts.length; i++) {
       final seg = haversineDistanceM(
-          pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude);
+        pts[i - 1].latitude,
+        pts[i - 1].longitude,
+        pts[i].latitude,
+        pts[i].longitude,
+      );
       if (acc + seg >= dist) {
         final t = (dist - acc) / seg;
-        final lat = pts[i - 1].latitude + t * (pts[i].latitude - pts[i - 1].latitude);
-        final lng = pts[i - 1].longitude + t * (pts[i].longitude - pts[i - 1].longitude);
+        final lat =
+            pts[i - 1].latitude + t * (pts[i].latitude - pts[i - 1].latitude);
+        final lng =
+            pts[i - 1].longitude +
+            t * (pts[i].longitude - pts[i - 1].longitude);
         return (
           pos: NLatLng(lat, lng),
           bearing: bearingDeg(
-              pts[i - 1].latitude, pts[i - 1].longitude, pts[i].latitude, pts[i].longitude),
+            pts[i - 1].latitude,
+            pts[i - 1].longitude,
+            pts[i].latitude,
+            pts[i].longitude,
+          ),
         );
       }
       acc += seg;
@@ -418,15 +485,19 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     final ctrl = _ctrl;
     if (ctrl == null) return;
     for (var i = 0; i < _modeAArrowCount; i++) {
-      ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.marker, id: 'mode_a_arrow_$i'),
-      ).catchError((_) {});
+      ctrl
+          .deleteOverlay(
+            NOverlayInfo(type: NOverlayType.marker, id: 'mode_a_arrow_$i'),
+          )
+          .catchError((_) {});
     }
     _modeAArrowCount = 0;
     for (var i = 0; i < _modeAGuideMarkerCount; i++) {
-      ctrl.deleteOverlay(
-        NOverlayInfo(type: NOverlayType.marker, id: 'mode_a_guide_$i'),
-      ).catchError((_) {});
+      ctrl
+          .deleteOverlay(
+            NOverlayInfo(type: NOverlayType.marker, id: 'mode_a_guide_$i'),
+          )
+          .catchError((_) {});
     }
     _modeAGuideMarkerCount = 0;
   }
@@ -456,13 +527,15 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       );
       if (!mounted) break;
 
-      await ctrl.addOverlay(NMarker(
-        id: 'mode_a_arrow_$idx',
-        position: result.pos,
-        icon: icon,
-        anchor: const NPoint(0.5, 0.5),
-        isHideCollidedMarkers: false,
-      ));
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'mode_a_arrow_$idx',
+          position: result.pos,
+          icon: icon,
+          anchor: const NPoint(0.5, 0.5),
+          isHideCollidedMarkers: false,
+        ),
+      );
       idx++;
     }
     _modeAArrowCount = idx;
@@ -470,7 +543,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
   // ── 교차로 방향 마커 (Kakao 안내 포인트 기반) ─────────────────────
 
-  Future<void> _drawModeAGuideMarkers(List<RouteGuide> guides, String transport) async {
+  Future<void> _drawModeAGuideMarkers(
+    List<RouteGuide> guides,
+    String transport,
+  ) async {
     final ctrl = _ctrl;
     if (ctrl == null || guides.isEmpty || !mounted) return;
 
@@ -488,19 +564,24 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
 
       final icon = await NOverlayImage.fromWidget(
         widget: _ModeAGuidePin(
-            type: guide.type, guidance: guide.guidance, color: accentColor),
+          type: guide.type,
+          guidance: guide.guidance,
+          color: accentColor,
+        ),
         size: const Size(28, 28),
         context: context,
       );
       if (!mounted) break;
 
-      await ctrl.addOverlay(NMarker(
-        id: 'mode_a_guide_$idx',
-        position: NLatLng(guide.latitude, guide.longitude),
-        icon: icon,
-        anchor: const NPoint(0.5, 0.5),
-        isHideCollidedMarkers: false,
-      ));
+      await ctrl.addOverlay(
+        NMarker(
+          id: 'mode_a_guide_$idx',
+          position: NLatLng(guide.latitude, guide.longitude),
+          icon: icon,
+          anchor: const NPoint(0.5, 0.5),
+          isHideCollidedMarkers: false,
+        ),
+      );
       idx++;
     }
     _modeAGuideMarkerCount = idx;
@@ -512,8 +593,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     try {
       final pos = _position ?? await fetchMapPosition();
       if (!mounted || pos == null) return;
-      ref.read(modeAProvider.notifier).setOriginGps(
-            pos.latitude, pos.longitude, '현재 위치');
+      ref
+          .read(modeAProvider.notifier)
+          .setOriginGps(pos.latitude, pos.longitude, '현재 위치');
       await _ctrl?.updateCamera(
         NCameraUpdate.scrollAndZoomTo(
           target: NLatLng(pos.latitude, pos.longitude),
@@ -544,23 +626,29 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         canAddWaypoint: modeAState.waypoints.length < 3,
         onSetOrigin: () {
           Navigator.pop(context);
-          ref.read(modeAProvider.notifier).setOriginGps(
-                latLng.latitude, latLng.longitude, locationName);
+          ref
+              .read(modeAProvider.notifier)
+              .setOriginGps(latLng.latitude, latLng.longitude, locationName);
           ref.read(mapModeProvider.notifier).set(MapMode.modeA);
         },
         onSetDest: () {
           Navigator.pop(context);
-          ref.read(modeAProvider.notifier).setDestCoords(
-                latLng.latitude, latLng.longitude, locationName);
+          ref
+              .read(modeAProvider.notifier)
+              .setDestCoords(latLng.latitude, latLng.longitude, locationName);
           ref.read(mapModeProvider.notifier).set(MapMode.modeA);
         },
         onAddWaypoint: () {
           Navigator.pop(context);
-          ref.read(modeAProvider.notifier).addWaypoint(RouteWaypoint(
-                name: locationName,
-                latitude: latLng.latitude,
-                longitude: latLng.longitude,
-              ));
+          ref
+              .read(modeAProvider.notifier)
+              .addWaypoint(
+                RouteWaypoint(
+                  name: locationName,
+                  latitude: latLng.latitude,
+                  longitude: latLng.longitude,
+                ),
+              );
           ref.read(mapModeProvider.notifier).set(MapMode.modeA);
         },
       ),
@@ -591,26 +679,44 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       builder: (ctx) => AlertDialog(
         backgroundColor: kMapPanel,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [
-          Icon(Icons.flag_rounded, color: kMapPrimary, size: 22),
-          SizedBox(width: 8),
-          Text('목적지에 도착했어요!',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-        ]),
+        title: Row(
+          children: [
+            Icon(Icons.flag_rounded, color: kMapPrimary, size: 22),
+            SizedBox(width: 8),
+            Text(
+              '목적지에 도착했어요!',
+              style: AppTypography.bodyLg.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
         content: Text(
           '수고하셨어요. 실제로 $arrivalKcal kcal를 소모했어요.\n주변 맛집을 보실까요?',
-          style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+          style: AppTypography.label.copyWith(
+            fontWeight: FontWeight.w400,
+            color: Colors.white70,
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('괜찮아요',
-                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600)),
+            child: const Text(
+              '괜찮아요',
+              style: TextStyle(
+                color: Colors.white54,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('볼래요',
-                style: TextStyle(color: kMapPrimary, fontWeight: FontWeight.w800)),
+            child: const Text(
+              '볼래요',
+              style: TextStyle(color: kMapPrimary, fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -635,10 +741,16 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               source: PlaceSource.kakaoLocal,
             ),
         ];
-        ref.read(mapSearchNotifierProvider.notifier).setPlaces(
+        ref
+            .read(mapSearchNotifierProvider.notifier)
+            .setPlaces(
               places,
-              centerLat: s.restaurants.isNotEmpty ? s.restaurants.first.latitude : null,
-              centerLng: s.restaurants.isNotEmpty ? s.restaurants.first.longitude : null,
+              centerLat: s.restaurants.isNotEmpty
+                  ? s.restaurants.first.latitude
+                  : null,
+              centerLng: s.restaurants.isNotEmpty
+                  ? s.restaurants.first.longitude
+                  : null,
             );
         ref.read(modeAProvider.notifier).clearRouteResult();
         ref.read(mapModeProvider.notifier).set(MapMode.explore);
@@ -659,11 +771,15 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         state: ref.read(modeAProvider),
         onAdd: (candidate) {
           Navigator.pop(ctx);
-          ref.read(modeAProvider.notifier).addWaypoint(RouteWaypoint(
-                name: candidate.name,
-                latitude: candidate.latitude,
-                longitude: candidate.longitude,
-              ));
+          ref
+              .read(modeAProvider.notifier)
+              .addWaypoint(
+                RouteWaypoint(
+                  name: candidate.name,
+                  latitude: candidate.latitude,
+                  longitude: candidate.longitude,
+                ),
+              );
         },
         onLoadMore: (extra) =>
             ref.read(modeAProvider.notifier).loadWaypointCandidates(extra),
@@ -693,7 +809,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     for (var i = 0; i < _nearbyMarkerCount; i++) {
       try {
         await ctrl.deleteOverlay(
-            NOverlayInfo(type: NOverlayType.marker, id: 'nearby_$i'));
+          NOverlayInfo(type: NOverlayType.marker, id: 'nearby_$i'),
+        );
       } catch (_) {}
     }
     _nearbyMarkerCount = 0;
@@ -716,7 +833,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           for (var i = 0; i < s.restaurants.length; i++)
             (
               id: 'nearby_$i',
-              pos: NLatLng(s.restaurants[i].latitude, s.restaurants[i].longitude),
+              pos: NLatLng(
+                s.restaurants[i].latitude,
+                s.restaurants[i].longitude,
+              ),
               name: s.restaurants[i].name,
               item: s.restaurants[i] as Object,
             ),
@@ -730,8 +850,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               (
                 id: 'nearby_$i',
                 pos: NLatLng(
-                    s.nearbyDurunubi[i].startLat!,
-                    s.nearbyDurunubi[i].startLng!),
+                  s.nearbyDurunubi[i].startLat!,
+                  s.nearbyDurunubi[i].startLng!,
+                ),
                 name: s.nearbyDurunubi[i].name,
                 item: s.nearbyDurunubi[i] as Object,
               ),
@@ -742,7 +863,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           for (var i = 0; i < s.nearbyPlaces.length; i++)
             (
               id: 'nearby_$i',
-              pos: NLatLng(s.nearbyPlaces[i].latitude, s.nearbyPlaces[i].longitude),
+              pos: NLatLng(
+                s.nearbyPlaces[i].latitude,
+                s.nearbyPlaces[i].longitude,
+              ),
               name: s.nearbyPlaces[i].name,
               item: s.nearbyPlaces[i] as Object,
             ),
@@ -794,7 +918,8 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     // - 안내 중이면 절대 표시 안 함
     // - 경로 결과 없음(입력 중) → 표시
     // - 결과 있음 → 사용자가 명시적으로 수정 버튼 눌렀을 때만
-    final showRoutePanel = !navState.isNavigating &&
+    final showRoutePanel =
+        !navState.isNavigating &&
         (modeAState.routeResult == null || _routePanelEditing);
 
     // 안내 중에는 지도 포커스(UI 숨김) 비활성
@@ -804,49 +929,71 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       // ── 경로 입력 패널 ──────────────────────────────────────
       if (showRoutePanel)
         Positioned(
-          top: 0, left: 0, right: 0,
+          top: 0,
+          left: 0,
+          right: 0,
           child: _ModeARoutePanel(
             state: modeAState,
             locating: _locating,
             onTapOrigin: () {
               ScaffoldMessenger.of(context).clearSnackBars();
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: const Row(children: [
-                  Icon(Icons.touch_app_rounded, color: Colors.white, size: 16),
-                  SizedBox(width: 8),
-                  Text('출발지를 설정해주세요',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                ]),
-                duration: const Duration(seconds: 2),
-                backgroundColor: kMapPanel,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(
+                        Icons.touch_app_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      SizedBox(width: 8),
+                      Text('출발지를 설정해주세요', style: AppTypography.label),
+                    ],
+                  ),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: kMapPanel,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                ),
+              );
               ref.read(mapModeProvider.notifier).set(MapMode.explore);
             },
             onGpsOrigin: _fetchGpsOriginForModeA,
             onTapDest: () {
               ScaffoldMessenger.of(context).clearSnackBars();
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: const Row(children: [
-                  Icon(Icons.touch_app_rounded, color: Colors.white, size: 16),
-                  SizedBox(width: 8),
-                  Text('도착지를 설정해주세요',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                ]),
-                duration: const Duration(seconds: 2),
-                backgroundColor: kMapPanel,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(
+                        Icons.touch_app_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      SizedBox(width: 8),
+                      Text('도착지를 설정해주세요', style: AppTypography.label),
+                    ],
+                  ),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: kMapPanel,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                ),
+              );
               ref.read(mapModeProvider.notifier).set(MapMode.explore);
             },
             onClearDest: () =>
                 ref.read(modeAProvider.notifier).setDestCoords(null, null, ''),
-            onSetTransport: (t) => ref.read(modeAProvider.notifier).setTransport(t),
-            onRemoveWaypoint: (i) => ref.read(modeAProvider.notifier).removeWaypoint(i),
+            onSetTransport: (t) =>
+                ref.read(modeAProvider.notifier).setTransport(t),
+            onRemoveWaypoint: (i) =>
+                ref.read(modeAProvider.notifier).removeWaypoint(i),
             onReorderWaypoints: (o, n) =>
                 ref.read(modeAProvider.notifier).reorderWaypoint(o, n),
             onSearch: (modeAState.originLat == null || modeAState.to.isEmpty)
@@ -878,17 +1025,25 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: Colors.white24),
                 boxShadow: const [
-                  BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+                  BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.edit_rounded, size: 14, color: _kWhite87),
                   SizedBox(width: 6),
-                  Text('경로 수정',
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700, color: _kWhite87)),
+                  Text(
+                    '경로 수정',
+                    style: AppTypography.label.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _kWhite87,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -901,9 +1056,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           right: 12,
           top: MediaQuery.paddingOf(context).top + 12,
           child: _KcalWidget(
-              routeKcal: modeAState.hasArrived
-                  ? modeAState.arrivalKcal?.round()
-                  : modeAState.routeResult?.kcalBurn),
+            routeKcal: modeAState.hasArrived
+                ? modeAState.arrivalKcal?.round()
+                : modeAState.routeResult?.kcalBurn,
+          ),
         ),
 
       // ── 결과 시트 (안내 중 아닐 때, 경로 수정 중이 아닐 때) ──────
@@ -922,22 +1078,29 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             state: modeAState,
             onRestaurantTap: (r) => context.push('/place-detail', extra: r),
             onStartNavigation: () {
-              ref.read(modeANavProvider.notifier).start(modeAState.routeResult!);
+              ref
+                  .read(modeANavProvider.notifier)
+                  .start(modeAState.routeResult!);
             },
             onLoadCandidates: (extra) =>
                 ref.read(modeAProvider.notifier).loadWaypointCandidates(extra),
             onAddWaypointCandidate: (candidate) {
-              ref.read(modeAProvider.notifier).addWaypoint(RouteWaypoint(
-                name: candidate.name,
-                latitude: candidate.latitude,
-                longitude: candidate.longitude,
-              ));
+              ref
+                  .read(modeAProvider.notifier)
+                  .addWaypoint(
+                    RouteWaypoint(
+                      name: candidate.name,
+                      latitude: candidate.latitude,
+                      longitude: candidate.longitude,
+                    ),
+                  );
               _showWaypointCandidateSheet(context);
             },
             onSwitchTab: (tab) =>
                 ref.read(modeAProvider.notifier).switchNearbyTab(tab),
             onPlaceTap: (place) => context.push('/place-detail', extra: place),
-            onDurunubiTap: (course) => context.push('/place-detail', extra: course),
+            onDurunubiTap: (course) =>
+                context.push('/place-detail', extra: course),
           ),
         ),
 
@@ -946,7 +1109,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         if (modeAState.routeResult!.transport == 'transit') ...[
           // 대중교통: overview ↔ step-by-step 두 단계
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: _modeATransitNavStepMode
                 ? _NavTransitCard(
                     navState: navState,
@@ -962,7 +1127,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
                   ),
           ),
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _ModeAWalkNavBottomStrip(
               navState: navState,
               transport: 'transit',
@@ -976,29 +1143,31 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
         ] else ...[
           // 도보/자전거: overview ↔ step-by-step 두 단계
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: _modeANavStepMode
                 ? _ModeAWalkNavTurnCard(
                     navState: navState,
                     transport: modeAState.routeResult!.transport,
                     turnPoint: _getModeACurrentTurn(),
                     distanceLabel: _getModeADistToNextTurnLabel(
-                        modeAState.routeResult!.routePoints),
-                    onOverview: () =>
-                        setState(() => _modeANavStepMode = false),
+                      modeAState.routeResult!.routePoints,
+                    ),
+                    onOverview: () => setState(() => _modeANavStepMode = false),
                   )
                 : _ModeAWalkNavOverviewCard(
                     navState: navState,
                     destName: modeAState.to,
                     transport: modeAState.routeResult!.transport,
-                    totalDistanceM:
-                        modeAState.routeResult!.distanceKm * 1000,
-                    onStepMode: () =>
-                        setState(() => _modeANavStepMode = true),
+                    totalDistanceM: modeAState.routeResult!.distanceKm * 1000,
+                    onStepMode: () => setState(() => _modeANavStepMode = true),
                   ),
           ),
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _ModeAWalkNavBottomStrip(
               navState: navState,
               transport: modeAState.routeResult!.transport,
@@ -1018,7 +1187,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
           child: Container(
             color: Colors.black38,
             child: const Center(
-              child: CircularProgressIndicator(color: kMapPrimary, strokeWidth: 2),
+              child: CircularProgressIndicator(
+                color: kMapPrimary,
+                strokeWidth: 2,
+              ),
             ),
           ),
         ),

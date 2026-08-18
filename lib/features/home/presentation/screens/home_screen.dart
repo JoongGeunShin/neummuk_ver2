@@ -11,6 +11,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../event/presentation/providers/event_provider.dart';
 import '../../../event/presentation/widgets/event_card.dart';
 import '../../../walk/presentation/providers/walk_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -67,9 +68,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final walk = ref.watch(walkSessionProvider.select(
-      (s) => (steps: s.steps, caloriesKcal: s.caloriesKcal, distanceM: s.distanceM),
-    ));
+    final walk = ref.watch(
+      walkSessionProvider.select(
+        (s) => (
+          steps: s.steps,
+          caloriesKcal: s.caloriesKcal,
+          distanceM: s.distanceM,
+        ),
+      ),
+    );
 
     final screenSize = MediaQuery.sizeOf(context);
     final bottomNavH = context.hp(12);
@@ -107,8 +114,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   children: [
                                     Text(
                                       '내움먹',
-                                      style: TextStyle(
-                                        fontSize: 11,
+                                      style: AppTypography.tiny.copyWith(
                                         fontWeight: FontWeight.w700,
                                         color: c.textMuted,
                                         letterSpacing: 0.2,
@@ -116,8 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     ),
                                     Text(
                                       '죄책감 없이 먹어볼까요?',
-                                      style: TextStyle(
-                                        fontSize: 16,
+                                      style: AppTypography.bodyLg.copyWith(
                                         fontWeight: FontWeight.w800,
                                         color: c.text,
                                         letterSpacing: -0.2,
@@ -183,8 +188,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     _mode = 'B';
                                   });
                                 }
-                              }
-                              else if (details.primaryVelocity! > 0) {
+                              } else if (details.primaryVelocity! > 0) {
                                 if (_mode != 'A') {
                                   setState(() {
                                     _mode = 'A';
@@ -255,12 +259,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             const SizedBox(width: 4),
                                             Text(
                                               'MODE $_mode',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.white,
-                                                letterSpacing: 0.2,
-                                              ),
+                                              style: AppTypography.tiny
+                                                  .copyWith(
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
+                                                    letterSpacing: 0.2,
+                                                  ),
                                             ),
                                           ],
                                         ),
@@ -283,10 +287,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         _mode == 'A'
                                             ? '이동 칼로리 ±20% 범위 맛집 추천'
                                             : '음식 칼로리를 상쇄할 관광 루트 추천',
-                                        style: const TextStyle(
-                                          fontSize: 13,
+                                        style: AppTypography.label.copyWith(
                                           color: Colors.white,
-                                          fontWeight: FontWeight.w600,
                                           height: 1.4,
                                         ),
                                       ),
@@ -295,11 +297,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         children: [
                                           Text(
                                             _mode == 'A' ? '경로 입력하기' : '음식 고르기',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white,
-                                            ),
+                                            style: AppTypography.bodyMute
+                                                .copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                ),
                                           ),
                                           const SizedBox(width: 6),
                                           const Icon(
@@ -451,8 +453,7 @@ class _EventsSection extends ConsumerWidget {
               children: [
                 Text(
                   '행사 · 공연 · 축제',
-                  style: TextStyle(
-                    fontSize: 17,
+                  style: AppTypography.h3.copyWith(
                     fontWeight: FontWeight.w800,
                     color: c.text,
                     letterSpacing: -0.2,
@@ -535,11 +536,7 @@ class _EventsEmpty extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '근처 행사 정보가 없습니다',
-            style: TextStyle(
-              color: c.textMuted,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppTypography.label.copyWith(color: c.textMuted),
           ),
         ],
       ),
@@ -632,8 +629,7 @@ class _ToggleChip extends StatelessWidget {
             ],
             Text(
               label,
-              style: TextStyle(
-                fontSize: 11,
+              style: AppTypography.tiny.copyWith(
                 fontWeight: FontWeight.w700,
                 color: textColor,
               ),
@@ -683,9 +679,8 @@ class _QuickStat extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               label,
-              style: TextStyle(
+              style: AppTypography.micro.copyWith(
                 color: c.textMuted,
-                fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,
               ),
@@ -698,9 +693,8 @@ class _QuickStat extends StatelessWidget {
                 Flexible(
                   child: Text(
                     value,
-                    style: TextStyle(
+                    style: AppTypography.subtitle.copyWith(
                       color: c.text,
-                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
                     ),
@@ -709,9 +703,8 @@ class _QuickStat extends StatelessWidget {
                 ),
                 Text(
                   unit,
-                  style: TextStyle(
+                  style: AppTypography.micro.copyWith(
                     color: c.textMuted,
-                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

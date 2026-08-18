@@ -17,14 +17,18 @@ class _NavTransitCard extends StatelessWidget {
 
   Color _stepColor(TransitStep step, BuildContext context) {
     final c = context.colors;
-    return step.isWalk ? kMapWhite45 : step.isBus ? kMapPrimary : c.pinUser;
+    return step.isWalk
+        ? kMapWhite45
+        : step.isBus
+        ? kMapPrimary
+        : c.pinUser;
   }
 
   IconData _stepIcon(TransitStep step) => step.isWalk
       ? Icons.directions_walk_rounded
       : step.isBus
-          ? Icons.directions_bus_rounded
-          : Icons.directions_subway_rounded;
+      ? Icons.directions_bus_rounded
+      : Icons.directions_subway_rounded;
 
   @override
   Widget build(BuildContext context) {
@@ -32,182 +36,258 @@ class _NavTransitCard extends StatelessWidget {
     final topPad = MediaQuery.paddingOf(context).top;
     if (steps.isEmpty) return _buildFallback(topPad);
 
-    final idx     = navState.currentTransitStepIdx.clamp(0, steps.length - 1);
+    final idx = navState.currentTransitStepIdx.clamp(0, steps.length - 1);
     final current = steps[idx];
-    final next    = idx + 1 < steps.length ? steps[idx + 1] : null;
-    final color   = _stepColor(current, context);
+    final next = idx + 1 < steps.length ? steps[idx + 1] : null;
+    final color = _stepColor(current, context);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(12, topPad + 8, 12, 0),
       child: Container(
-      decoration: BoxDecoration(
-        color: kMapPanel,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
-        boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
+        decoration: BoxDecoration(
+          color: kMapPanel,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(_stepIcon(current), size: 28, color: color),
                   ),
-                  child: Icon(_stepIcon(current), size: 28, color: color),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (current.isVehicle && current.lineInfo != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (current.isVehicle && current.lineInfo != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              current.lineInfo!,
+                              style: AppTypography.caption.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: color,
+                              ),
+                            ),
                           ),
-                          child: Text(current.lineInfo!,
-                              style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+                          const SizedBox(height: 4),
+                        ],
+                        Text(
+                          current.actionLabel,
+                          style: AppTypography.body.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: kMapWhite87,
+                            letterSpacing: -0.3,
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                      ],
-                      Text(current.actionLabel,
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w800, color: kMapWhite87,
-                              letterSpacing: -0.3, height: 1.3),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        Text(current.distanceLabel,
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w900,
-                                color: color, letterSpacing: -0.5, height: 1)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '· ${current.sectionTimeMin}분'
-                          '${current.isVehicle && current.stationCount > 0 ? ' · ${current.stationCount}정류장' : ''}',
-                          style: const TextStyle(
-                              fontSize: 12, color: kMapWhite45, fontWeight: FontWeight.w600),
-                        ),
-                      ]),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white10, borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text('${idx + 1}/${steps.length}',
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w700, color: kMapWhite45)),
-                    ),
-                    const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: onOverview,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                        Row(
                           children: [
-                            Icon(Icons.map_outlined, size: 16, color: color),
-                            const SizedBox(height: 2),
                             Text(
-                              '개요',
-                              style: TextStyle(
-                                fontSize: 9,
+                              current.distanceLabel,
+                              style: AppTypography.subtitle.copyWith(
+                                fontWeight: FontWeight.w900,
                                 color: color,
-                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                                height: 1,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '· ${current.sectionTimeMin}분'
+                              '${current.isVehicle && current.stationCount > 0 ? ' · ${current.stationCount}정류장' : ''}',
+                              style: AppTypography.caption.copyWith(
+                                color: kMapWhite45,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${idx + 1}/${steps.length}',
+                          style: AppTypography.tiny.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: kMapWhite45,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: onOverview,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map_outlined, size: 16, color: color),
+                              const SizedBox(height: 2),
+                              Text(
+                                '개요',
+                                style: AppTypography.nano.copyWith(
+                                  color: color,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (next != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                decoration: BoxDecoration(
+                  color: kMapPanelAlt,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _stepIcon(next),
+                      size: 14,
+                      color: _stepColor(next, context),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '다음  ',
+                      style: AppTypography.tiny.copyWith(color: kMapWhite45),
+                    ),
+                    if (next.isVehicle && next.lineInfo != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _stepColor(
+                            next,
+                            context,
+                          ).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          next.lineInfo!,
+                          style: AppTypography.micro.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: _stepColor(next, context),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        next.actionLabel,
+                        style: AppTypography.caption.copyWith(
+                          color: kMapWhite87,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          if (next != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              decoration: BoxDecoration(
-                color: kMapPanelAlt,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-              ),
-              child: Row(children: [
-                Icon(_stepIcon(next), size: 14, color: _stepColor(next, context)),
-                const SizedBox(width: 6),
-                const Text('다음  ',
-                    style: TextStyle(fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600)),
-                if (next.isVehicle && next.lineInfo != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _stepColor(next, context).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(next.lineInfo!,
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.w800, color: _stepColor(next, context))),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                decoration: BoxDecoration(
+                  color: kMapPanelAlt,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(20),
                   ),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: Text(next.actionLabel,
-                      style: const TextStyle(
-                          fontSize: 12, color: kMapWhite87, fontWeight: FontWeight.w600),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
-              ]),
-            )
-          else
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              decoration: BoxDecoration(
-                color: kMapPanelAlt,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.flag_rounded,
+                      size: 14,
+                      color: context.colors.danger,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${route.toName} 도착 예정',
+                        style: AppTypography.caption.copyWith(
+                          color: kMapWhite87,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${navState.remainingLabel} · ${navState.remainingMinutes}분',
+                      style: AppTypography.tiny.copyWith(color: kMapWhite45),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(children: [
-                Icon(Icons.flag_rounded, size: 14, color: context.colors.danger),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text('${route.toName} 도착 예정',
-                      style: const TextStyle(
-                          fontSize: 12, color: kMapWhite87, fontWeight: FontWeight.w600),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-                Text('${navState.remainingLabel} · ${navState.remainingMinutes}분',
-                    style: const TextStyle(
-                        fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600)),
-              ]),
-            ),
-        ],
-      ),
-    ),  // Container
-    );  // Padding
+          ],
+        ),
+      ), // Container
+    ); // Padding
   }
 
   Widget _buildFallback(double topPad) {
@@ -218,37 +298,59 @@ class _NavTransitCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: kMapPanel,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: kMapPrimary.withValues(alpha: 0.6), width: 1.5),
+          border: Border.all(
+            color: kMapPrimary.withValues(alpha: 0.6),
+            width: 1.5,
+          ),
           boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
-        child: Row(children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-              color: kMapPrimary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: kMapPrimary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.directions_bus_rounded,
+                size: 26,
+                color: kMapPrimary,
+              ),
             ),
-            child: const Icon(Icons.directions_bus_rounded, size: 26, color: kMapPrimary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('경로를 따라 이동하세요',
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700, color: kMapWhite87)),
-                const SizedBox(height: 2),
-                Text('${navState.remainingLabel} 남음 · ${navState.remainingMinutes}분',
-                    style: const TextStyle(
-                        fontSize: 12, color: kMapWhite45, fontWeight: FontWeight.w600)),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '경로를 따라 이동하세요',
+                    style: AppTypography.bodyMute.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: kMapWhite87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${navState.remainingLabel} 남음 · ${navState.remainingMinutes}분',
+                    style: AppTypography.caption.copyWith(
+                      color: kMapWhite45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -282,28 +384,29 @@ class _TransitStepDot extends StatelessWidget {
   }
 
   IconData get _icon => switch (trafficType) {
-        0 => Icons.flag_rounded,
-        1 => Icons.directions_subway_rounded,
-        2 => Icons.directions_bus_rounded,
-        _ => Icons.directions_walk_rounded,
-      };
+    0 => Icons.flag_rounded,
+    1 => Icons.directions_subway_rounded,
+    2 => Icons.directions_bus_rounded,
+    _ => Icons.directions_walk_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
     final baseColor = _color(context);
-    final color    = isDone ? baseColor.withValues(alpha: 0.35) : baseColor;
-    final bgColor  = isDone
+    final color = isDone ? baseColor.withValues(alpha: 0.35) : baseColor;
+    final bgColor = isDone
         ? Colors.white.withValues(alpha: 0.06)
         : color.withValues(alpha: isActive ? 0.25 : 0.15);
     final iconColor = isDone ? color.withValues(alpha: 0.5) : Colors.white;
-    final iconSize  = isActive ? 22.0 : 16.0;
+    final iconSize = isActive ? 22.0 : 16.0;
 
     return Stack(
       alignment: Alignment.center,
       children: [
         if (isActive)
           Container(
-            width: 52, height: 52,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color.withValues(alpha: 0.2),
@@ -320,7 +423,13 @@ class _TransitStepDot extends StatelessWidget {
               width: isActive ? 2.5 : 1.5,
             ),
             boxShadow: isActive
-                ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8, spreadRadius: 1)]
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.5),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ]
                 : null,
           ),
           child: Icon(_icon, size: iconSize, color: iconColor),
@@ -336,12 +445,19 @@ class _TransitStepDot extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(4),
-                boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 3)],
+                boxShadow: const [
+                  BoxShadow(color: Colors.black45, blurRadius: 3),
+                ],
               ),
               child: Text(
-                lineInfo!.length > 6 ? '${lineInfo!.substring(0, 6)}..' : lineInfo!,
-                style: const TextStyle(
-                    fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1),
+                lineInfo!.length > 6
+                    ? '${lineInfo!.substring(0, 6)}..'
+                    : lineInfo!,
+                style: AppTypography.pico.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
               ),
             ),
           ),

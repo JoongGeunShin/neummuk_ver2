@@ -8,6 +8,7 @@ import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../domain/entities/event_detail_entity.dart';
 import '../providers/event_detail_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class EventDetailScreen extends ConsumerWidget {
   const EventDetailScreen({
@@ -48,7 +49,10 @@ class _LoadingView extends StatelessWidget {
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: _FloatBtn(icon: Icons.arrow_back_rounded, onTap: () => context.pop()),
+            child: _FloatBtn(
+              icon: Icons.arrow_back_rounded,
+              onTap: () => context.pop(),
+            ),
           ),
         ),
         const Center(child: CircularProgressIndicator()),
@@ -68,14 +72,22 @@ class _ErrorView extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: _FloatBtn(icon: Icons.arrow_back_rounded, onTap: () => context.pop()),
+              child: _FloatBtn(
+                icon: Icons.arrow_back_rounded,
+                onTap: () => context.pop(),
+              ),
             ),
           ),
           const Spacer(),
           Icon(Icons.error_outline_rounded, size: 48, color: c.textFaint),
           const SizedBox(height: 12),
-          Text('정보를 불러오지 못했습니다',
-              style: TextStyle(color: c.textMuted, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(
+            '정보를 불러오지 못했습니다',
+            style: AppTypography.bodyMute.copyWith(
+              color: c.textMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const Spacer(),
         ],
       ),
@@ -103,10 +115,15 @@ class _DetailBody extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Stack(
                 children: [
-                  _HeaderImage(imageUrl: detail.effectiveImageUrl, height: context.hp(36)),
+                  _HeaderImage(
+                    imageUrl: detail.effectiveImageUrl,
+                    height: context.hp(36),
+                  ),
                   // 상단 버튼 오버레이
                   Positioned(
-                    top: 0, left: 0, right: 0,
+                    top: 0,
+                    left: 0,
+                    right: 0,
                     child: SafeArea(
                       bottom: false,
                       child: Padding(
@@ -121,7 +138,8 @@ class _DetailBody extends ConsumerWidget {
                             if (detail.tel?.isNotEmpty == true)
                               _FloatBtn(
                                 icon: Icons.phone_rounded,
-                                onTap: () => _copyToClipboard(context, detail.tel!),
+                                onTap: () =>
+                                    _copyToClipboard(context, detail.tel!),
                               ),
                           ],
                         ),
@@ -134,7 +152,11 @@ class _DetailBody extends ConsumerWidget {
 
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
-                  context.wp(5), context.hp(2.5), context.wp(5), 0),
+                context.wp(5),
+                context.hp(2.5),
+                context.wp(5),
+                0,
+              ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   // 제목 + 등급 배지
@@ -144,8 +166,7 @@ class _DetailBody extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           detail.title,
-                          style: TextStyle(
-                            fontSize: 22,
+                          style: AppTypography.titleSm.copyWith(
                             fontWeight: FontWeight.w800,
                             color: c.text,
                             letterSpacing: -0.5,
@@ -157,15 +178,16 @@ class _DetailBody extends ConsumerWidget {
                         const SizedBox(width: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: c.primarySoft,
                             borderRadius: BorderRadius.circular(100),
                           ),
                           child: Text(
                             detail.festivalgrade!,
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: AppTypography.tiny.copyWith(
                               fontWeight: FontWeight.w800,
                               color: c.primary,
                             ),
@@ -190,10 +212,7 @@ class _DetailBody extends ConsumerWidget {
                       text: detail.eventplace!,
                     ),
                   if (detail.addr?.isNotEmpty == true)
-                    _InfoRow(
-                      icon: Icons.map_outlined,
-                      text: detail.addr!,
-                    ),
+                    _InfoRow(icon: Icons.map_outlined, text: detail.addr!),
                   if (detail.tel?.isNotEmpty == true)
                     _InfoRow(
                       icon: Icons.phone_rounded,
@@ -210,14 +229,22 @@ class _DetailBody extends ConsumerWidget {
                     SizedBox(height: context.hp(2.5)),
                     _SectionTitle('행사 안내'),
                     const SizedBox(height: 10),
-                    _InfoCard(children: [
-                      if (detail.playtime?.isNotEmpty == true)
-                        _InfoCardRow(label: '공연시간', value: detail.playtime!),
-                      if (detail.spendtime?.isNotEmpty == true)
-                        _InfoCardRow(label: '관람소요시간', value: detail.spendtime!),
-                      if (detail.agelimit?.isNotEmpty == true)
-                        _InfoCardRow(label: '관람가능연령', value: detail.agelimit!),
-                    ]),
+                    _InfoCard(
+                      children: [
+                        if (detail.playtime?.isNotEmpty == true)
+                          _InfoCardRow(label: '공연시간', value: detail.playtime!),
+                        if (detail.spendtime?.isNotEmpty == true)
+                          _InfoCardRow(
+                            label: '관람소요시간',
+                            value: detail.spendtime!,
+                          ),
+                        if (detail.agelimit?.isNotEmpty == true)
+                          _InfoCardRow(
+                            label: '관람가능연령',
+                            value: detail.agelimit!,
+                          ),
+                      ],
+                    ),
                   ],
 
                   // 프로그램
@@ -241,12 +268,20 @@ class _DetailBody extends ConsumerWidget {
                     SizedBox(height: context.hp(2.5)),
                     _SectionTitle('예매 · 할인'),
                     const SizedBox(height: 10),
-                    _InfoCard(children: [
-                      if (detail.bookingplace?.isNotEmpty == true)
-                        _InfoCardRow(label: '예매처', value: detail.bookingplace!),
-                      if (detail.discountinfo?.isNotEmpty == true)
-                        _InfoCardRow(label: '할인정보', value: detail.discountinfo!),
-                    ]),
+                    _InfoCard(
+                      children: [
+                        if (detail.bookingplace?.isNotEmpty == true)
+                          _InfoCardRow(
+                            label: '예매처',
+                            value: detail.bookingplace!,
+                          ),
+                        if (detail.discountinfo?.isNotEmpty == true)
+                          _InfoCardRow(
+                            label: '할인정보',
+                            value: detail.discountinfo!,
+                          ),
+                      ],
+                    ),
                   ],
 
                   // 홈페이지 링크
@@ -270,8 +305,10 @@ class _DetailBody extends ConsumerWidget {
                   ],
 
                   SizedBox(
-                      height: context.hp((hasDest ? 7 : 0) + (hasLink ? 12 : 5)) +
-                          context.bottomPadding),
+                    height:
+                        context.hp((hasDest ? 7 : 0) + (hasLink ? 12 : 5)) +
+                        context.bottomPadding,
+                  ),
                 ]),
               ),
             ),
@@ -281,7 +318,9 @@ class _DetailBody extends ConsumerWidget {
         // 하단 CTA — 도착지 설정 + 홈페이지
         if (hasDest || hasLink)
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: _BottomCta(
               children: [
                 if (hasDest)
@@ -289,7 +328,10 @@ class _DetailBody extends ConsumerWidget {
                     onTap: () {
                       final notifier = ref.read(modeAProvider.notifier);
                       notifier.setDestCoords(
-                          detail.lat!, detail.lng!, detail.title);
+                        detail.lat!,
+                        detail.lng!,
+                        detail.title,
+                      );
                       ref.read(mapModeProvider.notifier).set(MapMode.modeA);
                       if (ref.read(modeAProvider).originLat != null) {
                         notifier.search();
@@ -348,17 +390,17 @@ class _HeaderImage extends StatelessWidget {
   }
 
   Widget _placeholder(dynamic c, double h) => Container(
-        height: h,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [c.primarySoft, c.secondarySoft],
-          ),
-        ),
-        child: Icon(Icons.festival_rounded, size: 64, color: c.primary),
-      );
+    height: h,
+    width: double.infinity,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [c.primarySoft, c.secondarySoft],
+      ),
+    ),
+    child: Icon(Icons.festival_rounded, size: 64, color: c.primary),
+  );
 }
 
 class _FloatBtn extends StatelessWidget {
@@ -368,14 +410,17 @@ class _FloatBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44, height: 44,
-          decoration:
-              const BoxDecoration(shape: BoxShape.circle, color: Colors.black54),
-          child: Icon(icon, color: Colors.white, size: 22),
-        ),
-      );
+    onTap: onTap,
+    child: Container(
+      width: 44,
+      height: 44,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.black54,
+      ),
+      child: Icon(icon, color: Colors.white, size: 22),
+    ),
+  );
 }
 
 class _InfoRow extends StatelessWidget {
@@ -406,10 +451,8 @@ class _InfoRow extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: TextStyle(
+                style: AppTypography.label.copyWith(
                   color: color ?? c.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
                   height: 1.4,
                 ),
               ),
@@ -427,14 +470,13 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w800,
-          color: context.colors.text,
-          letterSpacing: -0.2,
-        ),
-      );
+    title,
+    style: AppTypography.bodyLg.copyWith(
+      fontWeight: FontWeight.w800,
+      color: context.colors.text,
+      letterSpacing: -0.2,
+    ),
+  );
 }
 
 class _InfoCard extends StatelessWidget {
@@ -476,9 +518,8 @@ class _InfoCardRow extends StatelessWidget {
             width: 90,
             child: Text(
               label,
-              style: TextStyle(
+              style: AppTypography.caption.copyWith(
                 color: c.textMuted,
-                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -486,12 +527,7 @@ class _InfoCardRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                color: c.text,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                height: 1.4,
-              ),
+              style: AppTypography.label.copyWith(color: c.text, height: 1.4),
             ),
           ),
         ],
@@ -517,9 +553,8 @@ class _TextBlock extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: AppTypography.label.copyWith(
           color: c.text,
-          fontSize: 13,
           fontWeight: FontWeight.w500,
           height: 1.6,
         ),
@@ -552,9 +587,8 @@ class _LinkBlock extends StatelessWidget {
             Expanded(
               child: Text(
                 url,
-                style: TextStyle(
+                style: AppTypography.caption.copyWith(
                   color: c.primary,
-                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   decoration: TextDecoration.underline,
                   decorationColor: c.primary,
@@ -584,17 +618,18 @@ class _BottomCta extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            c.bg.withValues(alpha: 0),
-            c.bg.withValues(alpha: 0.95),
-          ],
+          colors: [c.bg.withValues(alpha: 0), c.bg.withValues(alpha: 0.95)],
         ),
       ),
       child: SafeArea(
         top: false,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-              context.wp(5), 12, context.wp(5), context.hp(2)),
+            context.wp(5),
+            12,
+            context.wp(5),
+            context.hp(2),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -626,16 +661,15 @@ class _SetDestCta extends StatelessWidget {
           color: c.primary,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.place_rounded, color: Colors.white, size: 18),
             SizedBox(width: 8),
             Text(
               '모드A 도착지로 설정',
-              style: TextStyle(
+              style: AppTypography.body.copyWith(
                 color: Colors.white,
-                fontSize: 15,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -671,9 +705,8 @@ class _HomepageCta extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               '홈페이지 주소 복사',
-              style: TextStyle(
+              style: AppTypography.body.copyWith(
                 color: c.text,
-                fontSize: 15,
                 fontWeight: FontWeight.w800,
               ),
             ),

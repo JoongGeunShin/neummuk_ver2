@@ -2,12 +2,16 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_colors.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class AppTheme {
   AppTheme._();
 
   static ThemeData darkTheme = _buildTheme(AppColors.dark(), Brightness.dark);
-  static ThemeData lightTheme = _buildTheme(AppColors.light(), Brightness.light);
+  static ThemeData lightTheme = _buildTheme(
+    AppColors.light(),
+    Brightness.light,
+  );
 
   static ThemeData _buildTheme(AppColors c, Brightness brightness) {
     final colorScheme = ColorScheme(
@@ -36,9 +40,8 @@ class AppTheme {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
         iconTheme: IconThemeData(color: c.text),
-        titleTextStyle: TextStyle(
+        titleTextStyle: AppTypography.bodyLg.copyWith(
           color: c.text,
-          fontSize: 16,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.1,
         ),
@@ -70,8 +73,10 @@ class AppTheme {
           borderSide: BorderSide(color: c.primary, width: 1.5),
         ),
         hintStyle: TextStyle(color: c.textMuted, fontWeight: FontWeight.w600),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {

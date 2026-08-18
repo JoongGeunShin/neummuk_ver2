@@ -26,7 +26,10 @@ class TourApiDetailDatasource {
   static const _base = AppConstants.tourApiBaseUrl;
 
   /// TourAPI contentId 기반 상세 정보 (detailCommon2 + detailInfo2 + detailImage2) 병렬 호출
-  Future<SpotDetailData?> fetchDetail(String contentId, int contentTypeId) async {
+  Future<SpotDetailData?> fetchDetail(
+    String contentId,
+    int contentTypeId,
+  ) async {
     final key = AppEnv.dataGoKey;
     if (key.isEmpty) return null;
 
@@ -68,23 +71,29 @@ class TourApiDetailDatasource {
   }
 
   /// 카카오 스팟 이름+좌표로 TourAPI 키워드 검색 → 이미지 URL 반환 (없으면 null)
-  Future<String?> findImageByKeyword(String name, double lat, double lng) async {
+  Future<String?> findImageByKeyword(
+    String name,
+    double lat,
+    double lng,
+  ) async {
     final key = AppEnv.dataGoKey;
     if (key.isEmpty) return null;
 
     try {
-      final uri = Uri.parse('$_base/searchKeyword2').replace(queryParameters: {
-        'serviceKey': key,
-        'keyword': name,
-        'mapX': '$lng',
-        'mapY': '$lat',
-        'radius': '500',
-        'numOfRows': '1',
-        'pageNo': '1',
-        'MobileOS': 'ETC',
-        'MobileApp': 'neummuk',
-        '_type': 'json',
-      });
+      final uri = Uri.parse('$_base/searchKeyword2').replace(
+        queryParameters: {
+          'serviceKey': key,
+          'keyword': name,
+          'mapX': '$lng',
+          'mapY': '$lat',
+          'radius': '500',
+          'numOfRows': '1',
+          'pageNo': '1',
+          'MobileOS': 'ETC',
+          'MobileApp': 'neummuk',
+          '_type': 'json',
+        },
+      );
 
       final res = await http.get(uri).timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return null;
@@ -107,19 +116,24 @@ class TourApiDetailDatasource {
   }
 
   Future<Map<String, dynamic>?> _fetchCommon(
-      String key, String contentId, int typeId) async {
+    String key,
+    String contentId,
+    int typeId,
+  ) async {
     try {
       // detailCommon2는 v4.3 기준 contentTypeId / defaultYN / firstImageYN /
       // addrinfoYN / overviewYN 등 옵션 파라미터를 하나라도 넘기면
       // INVALID_REQUEST_PARAMETER_ERROR로 아이템이 통째로 비어 온다. 필수
       // 파라미터만 전달할 것 (tour_api_event_detail_datasource.dart와 동일 이슈).
-      final uri = Uri.parse('$_base/detailCommon2').replace(queryParameters: {
-        'serviceKey': key,
-        'contentId': contentId,
-        'MobileOS': 'ETC',
-        'MobileApp': 'neummuk',
-        '_type': 'json',
-      });
+      final uri = Uri.parse('$_base/detailCommon2').replace(
+        queryParameters: {
+          'serviceKey': key,
+          'contentId': contentId,
+          'MobileOS': 'ETC',
+          'MobileApp': 'neummuk',
+          '_type': 'json',
+        },
+      );
 
       final res = await http.get(uri).timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
@@ -139,16 +153,21 @@ class TourApiDetailDatasource {
   }
 
   Future<String?> _fetchOperatingInfo(
-      String key, String contentId, int typeId) async {
+    String key,
+    String contentId,
+    int typeId,
+  ) async {
     try {
-      final uri = Uri.parse('$_base/detailInfo2').replace(queryParameters: {
-        'serviceKey': key,
-        'contentId': contentId,
-        'contentTypeId': '$typeId',
-        'MobileOS': 'ETC',
-        'MobileApp': 'neummuk',
-        '_type': 'json',
-      });
+      final uri = Uri.parse('$_base/detailInfo2').replace(
+        queryParameters: {
+          'serviceKey': key,
+          'contentId': contentId,
+          'contentTypeId': '$typeId',
+          'MobileOS': 'ETC',
+          'MobileApp': 'neummuk',
+          '_type': 'json',
+        },
+      );
 
       final res = await http.get(uri).timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return null;
@@ -171,15 +190,17 @@ class TourApiDetailDatasource {
 
   Future<List<String>> _fetchImages(String key, String contentId) async {
     try {
-      final uri = Uri.parse('$_base/detailImage2').replace(queryParameters: {
-        'serviceKey': key,
-        'contentId': contentId,
-        'imageYN': 'Y',
-        'numOfRows': '5',
-        'MobileOS': 'ETC',
-        'MobileApp': 'neummuk',
-        '_type': 'json',
-      });
+      final uri = Uri.parse('$_base/detailImage2').replace(
+        queryParameters: {
+          'serviceKey': key,
+          'contentId': contentId,
+          'imageYN': 'Y',
+          'numOfRows': '5',
+          'MobileOS': 'ETC',
+          'MobileApp': 'neummuk',
+          '_type': 'json',
+        },
+      );
 
       final res = await http.get(uri).timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return [];

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/context_ext.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class CalorieBar extends StatelessWidget {
   const CalorieBar({
@@ -20,9 +21,19 @@ class CalorieBar extends StatelessWidget {
     final foodPct = kcalFood / max;
     return Column(
       children: [
-        _BarRow(label: '🔥 소모', value: kcalBurn, pct: burnPct, height: barHeight),
+        _BarRow(
+          label: '🔥 소모',
+          value: kcalBurn,
+          pct: burnPct,
+          height: barHeight,
+        ),
         const SizedBox(height: 12),
-        _BarRow(label: '🍽️ 섭취', value: kcalFood, pct: foodPct, height: barHeight),
+        _BarRow(
+          label: '🍽️ 섭취',
+          value: kcalFood,
+          pct: foodPct,
+          height: barHeight,
+        ),
       ],
     );
   }
@@ -50,12 +61,20 @@ class _BarRow extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: c.text)),
-            Text('$value kcal',
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: c.textMuted)),
+            Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: c.text,
+              ),
+            ),
+            Text(
+              '$value kcal',
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: c.textMuted,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/context_ext.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class SegmentOption {
   const SegmentOption({required this.value, required this.label, this.icon});
@@ -80,9 +81,8 @@ class SegmentedControl extends StatelessWidget {
                         Flexible(
                           child: Text(
                             opt.label,
-                            style: TextStyle(
+                            style: AppTypography.label.copyWith(
                               color: on ? c.onPrimary : c.textMuted,
-                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               letterSpacing: -0.1,
                             ),

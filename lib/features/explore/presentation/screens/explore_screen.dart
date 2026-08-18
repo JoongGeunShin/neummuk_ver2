@@ -8,6 +8,7 @@ import '../providers/explore_provider.dart';
 import '../widgets/add_food_dialog.dart';
 import '../widgets/popular_section.dart';
 import '../widgets/search_results.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
@@ -31,8 +32,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final state = ref.watch(exploreProvider);
     final notifier = ref.read(exploreProvider.notifier);
 
-    final categories =
-        state.categories.isEmpty ? const ['전체'] : state.categories;
+    final categories = state.categories.isEmpty
+        ? const ['전체']
+        : state.categories;
 
     return DoubleBackToExit(
       child: Scaffold(
@@ -47,19 +49,25 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 children: [
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                        context.wp(2), context.hp(1), context.wp(3), 0),
+                      context.wp(2),
+                      context.hp(1),
+                      context.wp(3),
+                      0,
+                    ),
                     child: Row(
                       children: [
                         IconButton(
                           onPressed: () => context.go('/home'),
-                          icon: Icon(Icons.arrow_back_ios_new_rounded,
-                              color: c.text, size: 20),
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: c.text,
+                            size: 20,
+                          ),
                         ),
                         Text(
                           '탐색',
-                          style: TextStyle(
+                          style: AppTypography.subtitle.copyWith(
                             color: c.text,
-                            fontSize: 18,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
                           ),
@@ -76,8 +84,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                       children: [
                         Container(
                           height: 48,
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
                           decoration: BoxDecoration(
                             color: c.surfaceAlt,
                             borderRadius: BorderRadius.circular(14),
@@ -85,26 +92,28 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.search_rounded,
-                                  color: c.textMuted, size: 20),
+                              Icon(
+                                Icons.search_rounded,
+                                color: c.textMuted,
+                                size: 20,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: TextField(
                                   controller: _searchCtrl,
                                   onChanged: notifier.setQuery,
                                   textInputAction: TextInputAction.search,
-                                  onSubmitted: (_) =>
-                                      notifier.submitSearch(),
-                                  style: TextStyle(
-                                      color: c.text,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600),
+                                  onSubmitted: (_) => notifier.submitSearch(),
+                                  style: AppTypography.body.copyWith(
+                                    color: c.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                   decoration: InputDecoration(
-                                    hintText:
-                                        '음식 이름으로 검색',
+                                    hintText: '음식 이름으로 검색',
                                     hintStyle: TextStyle(
-                                        color: c.textMuted,
-                                        fontWeight: FontWeight.w500),
+                                      color: c.textMuted,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                     border: InputBorder.none,
                                     enabledBorder: InputBorder.none,
                                     focusedBorder: InputBorder.none,
@@ -119,8 +128,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                     _searchCtrl.clear();
                                     notifier.setQuery('');
                                   },
-                                  child: Icon(Icons.close_rounded,
-                                      color: c.textMuted, size: 18),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    color: c.textMuted,
+                                    size: 18,
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
                                 GestureDetector(
@@ -134,8 +146,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                             color: c.primary,
                                           ),
                                         )
-                                      : Icon(Icons.search_rounded,
-                                          color: c.primary, size: 20),
+                                      : Icon(
+                                          Icons.search_rounded,
+                                          color: c.primary,
+                                          size: 20,
+                                        ),
                                 ),
                               ],
                             ],
@@ -152,8 +167,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                             itemBuilder: (ctx, i) => AppChip(
                               label: categories[i],
                               active: state.category == categories[i],
-                              onTap: () =>
-                                  notifier.setCategory(categories[i]),
+                              onTap: () => notifier.setCategory(categories[i]),
                             ),
                           ),
                         ),
@@ -170,16 +184,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               child: AbsorbPointer(
                 absorbing: state.isLoadingCandidates,
                 child: state.isLoading
-                    ? Center(
-                        child: CircularProgressIndicator(color: c.primary))
+                    ? Center(child: CircularProgressIndicator(color: c.primary))
                     : state.isSearchMode
-                        ? SearchResults(
-                            foods: state.results,
-                            query: state.query,
-                            onAddNew: () => _showAddFoodDialog(
-                                context, ref, state.query),
-                          )
-                        : PopularSection(foods: state.popularFoods),
+                    ? SearchResults(
+                        foods: state.results,
+                        query: state.query,
+                        onAddNew: () =>
+                            _showAddFoodDialog(context, ref, state.query),
+                      )
+                    : PopularSection(foods: state.popularFoods),
               ),
             ),
           ],

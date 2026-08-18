@@ -6,6 +6,7 @@ import '../../../../core/utils/context_ext.dart';
 import '../../../../features/mode_b/domain/entities/food_entity.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import '../providers/explore_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 /// 음식 상세 영양성분 바텀시트.
 /// 핸들 → 음식 헤더 → 열량 강조 → 6대 영양소 → Mode B 연결 버튼
@@ -15,7 +16,10 @@ class FoodDetailBottomSheet extends ConsumerWidget {
   final FoodCatalogEntity food;
 
   static Future<FoodEntity?> show(
-      BuildContext context, WidgetRef ref, FoodCatalogEntity food) {
+    BuildContext context,
+    WidgetRef ref,
+    FoodCatalogEntity food,
+  ) {
     ref.read(exploreProvider.notifier).onFoodTapped(food);
     return showModalBottomSheet<FoodEntity>(
       context: context,
@@ -48,7 +52,11 @@ class FoodDetailBottomSheet extends ConsumerWidget {
           controller: scrollCtrl,
           // kBottomNavigationBarHeight(56) 추가로 앱 하단 네비게이션바 위에 버튼 노출
           padding: EdgeInsets.fromLTRB(
-              20, 0, 20, context.bottomPadding + kBottomNavigationBarHeight + 20),
+            20,
+            0,
+            20,
+            context.bottomPadding + kBottomNavigationBarHeight + 20,
+          ),
           children: [
             // 핸들
             Center(
@@ -87,9 +95,8 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                     children: [
                       Text(
                         food.displayName,
-                        style: TextStyle(
+                        style: AppTypography.h2.copyWith(
                           color: c.text,
-                          fontSize: 20,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.4,
                         ),
@@ -99,15 +106,16 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: c.primarySoft,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               food.category,
-                              style: TextStyle(
-                                fontSize: 11,
+                              style: AppTypography.tiny.copyWith(
                                 fontWeight: FontWeight.w700,
                                 color: c.primary,
                               ),
@@ -116,9 +124,8 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                           const SizedBox(width: 6),
                           Text(
                             '1인분 기준 ${n.servingSizeG.toStringAsFixed(0)}g',
-                            style: TextStyle(
+                            style: AppTypography.caption.copyWith(
                               color: c.textMuted,
-                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -147,32 +154,35 @@ class FoodDetailBottomSheet extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.local_fire_department_rounded,
-                      color: c.primary, size: 28),
+                  Icon(
+                    Icons.local_fire_department_rounded,
+                    color: c.primary,
+                    size: 28,
+                  ),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('총 열량',
-                          style: TextStyle(
-                              color: c.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        '총 열량',
+                        style: AppTypography.caption.copyWith(
+                          color: c.textMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       RichText(
                         text: TextSpan(
-                          style: TextStyle(
-                              color: c.primary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 28),
+                          style: AppTypography.headline.copyWith(
+                            color: c.primary,
+                          ),
                           children: [
-                            TextSpan(
-                                text: n.caloriesKcal.toStringAsFixed(0)),
+                            TextSpan(text: n.caloriesKcal.toStringAsFixed(0)),
                             TextSpan(
                               text: ' kcal',
-                              style: TextStyle(
-                                  fontSize: 14,
-                                  color: c.textMuted,
-                                  fontWeight: FontWeight.w700),
+                              style: AppTypography.bodyMute.copyWith(
+                                color: c.textMuted,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ],
                         ),
@@ -183,22 +193,24 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('걸어서 소모',
-                          style: TextStyle(
-                              color: c.textMuted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        '걸어서 소모',
+                        style: AppTypography.tiny.copyWith(color: c.textMuted),
+                      ),
                       Row(
                         children: [
-                          Icon(Icons.directions_walk_rounded,
-                              size: 16, color: c.secondary),
+                          Icon(
+                            Icons.directions_walk_rounded,
+                            size: 16,
+                            color: c.secondary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '약 ${NumberFormat('#,###').format(walkSteps)}보',
-                            style: TextStyle(
-                                color: c.secondary,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800),
+                            style: AppTypography.bodyLg.copyWith(
+                              color: c.secondary,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ],
                       ),
@@ -211,11 +223,13 @@ class FoodDetailBottomSheet extends ConsumerWidget {
             const SizedBox(height: 20),
 
             // 6대 영양소
-            Text('영양성분',
-                style: TextStyle(
-                    color: c.text,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800)),
+            Text(
+              '영양성분',
+              style: AppTypography.body.copyWith(
+                color: c.text,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 10),
             GridView.count(
               crossAxisCount: 3,
@@ -226,30 +240,37 @@ class FoodDetailBottomSheet extends ConsumerWidget {
               childAspectRatio: 1.4,
               children: [
                 _NutrientTile(
-                    label: '탄수화물',
-                    value: '${n.carbsG.toStringAsFixed(1)}g'),
+                  label: '탄수화물',
+                  value: '${n.carbsG.toStringAsFixed(1)}g',
+                ),
                 _NutrientTile(
-                    label: '당류',
-                    value: '${n.sugarG.toStringAsFixed(1)}g'),
+                  label: '당류',
+                  value: '${n.sugarG.toStringAsFixed(1)}g',
+                ),
                 _NutrientTile(
-                    label: '단백질',
-                    value: '${n.proteinG.toStringAsFixed(1)}g'),
+                  label: '단백질',
+                  value: '${n.proteinG.toStringAsFixed(1)}g',
+                ),
                 _NutrientTile(
-                    label: '지방',
-                    value: '${n.fatG.toStringAsFixed(1)}g'),
+                  label: '지방',
+                  value: '${n.fatG.toStringAsFixed(1)}g',
+                ),
                 _NutrientTile(
-                    label: '나트륨',
-                    value: '${n.sodiumMg.toStringAsFixed(0)}mg'),
+                  label: '나트륨',
+                  value: '${n.sodiumMg.toStringAsFixed(0)}mg',
+                ),
                 if (n.saturatedFatG != null)
                   _NutrientTile(
-                      label: '포화지방',
-                      value: '${n.saturatedFatG!.toStringAsFixed(1)}g')
+                    label: '포화지방',
+                    value: '${n.saturatedFatG!.toStringAsFixed(1)}g',
+                  )
                 else
                   _NutrientTile(
-                      label: '콜레스테롤',
-                      value: n.cholesterolMg != null
-                          ? '${n.cholesterolMg!.toStringAsFixed(0)}mg'
-                          : '-'),
+                    label: '콜레스테롤',
+                    value: n.cholesterolMg != null
+                        ? '${n.cholesterolMg!.toStringAsFixed(0)}mg'
+                        : '-',
+                  ),
               ],
             ),
 
@@ -276,22 +297,25 @@ class FoodDetailBottomSheet extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                        color: c.primaryGlow,
-                        blurRadius: 16,
-                        offset: const Offset(0, 6)),
+                      color: c.primaryGlow,
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.directions_walk_rounded,
-                        color: Colors.white, size: 20),
+                    Icon(
+                      Icons.directions_walk_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       '이 음식 소모하는 루트 찾기',
-                      style: TextStyle(
+                      style: AppTypography.body.copyWith(
                         color: Colors.white,
-                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
                       ),
@@ -307,13 +331,15 @@ class FoodDetailBottomSheet extends ConsumerWidget {
   }
 
   int _walkMinutes(double kcal) {
-    final hours = kcal / (AppConstants.metValues['walk']! * AppConstants.defaultWeightKg);
+    final hours =
+        kcal / (AppConstants.metValues['walk']! * AppConstants.defaultWeightKg);
     return (hours * 60).round().clamp(1, 999);
   }
 
   // MET_walk=3.5, 기본 체중 65kg, 속도 4km/h, 보폭 70.6cm (170cm × 0.415)
   int _walkSteps(double kcal) {
-    final hours = kcal / (AppConstants.metValues['walk']! * AppConstants.defaultWeightKg);
+    final hours =
+        kcal / (AppConstants.metValues['walk']! * AppConstants.defaultWeightKg);
     final distanceM = 4000.0 * hours;
     const strideM = 0.706;
     final raw = (distanceM / strideM).round();
@@ -346,18 +372,22 @@ class _NutrientTile extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: c.textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: AppTypography.micro.copyWith(
+              color: c.textMuted,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value,
-              style: TextStyle(
-                  color: c.text,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3)),
+          Text(
+            value,
+            style: AppTypography.bodyMute.copyWith(
+              color: c.text,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
+          ),
         ],
       ),
     );

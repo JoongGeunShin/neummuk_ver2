@@ -5,6 +5,7 @@ import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/brand_logo.dart';
 import '../providers/auth_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class LoginScreen extends ConsumerWidget {
   const LoginScreen({super.key});
@@ -27,14 +28,23 @@ class LoginScreen extends ConsumerWidget {
       });
     });
 
-    final tags = ['🚶 도보 235 kcal', '🍜 명동교자 520 kcal', '🏞 남산 둘레길', '🥓 삼겹살 −90분'];
+    final tags = [
+      '🚶 도보 235 kcal',
+      '🍜 명동교자 520 kcal',
+      '🏞 남산 둘레길',
+      '🥓 삼겹살 −90분',
+    ];
 
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-              context.wp(6), context.hp(5), context.wp(6), context.hp(4)),
+            context.wp(6),
+            context.hp(5),
+            context.wp(6),
+            context.hp(4),
+          ),
           child: Column(
             children: [
               Expanded(
@@ -70,22 +80,29 @@ class LoginScreen extends ConsumerWidget {
                       spacing: 8,
                       runSpacing: 8,
                       alignment: WrapAlignment.center,
-                      children: tags.map((s) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: c.surfaceAlt,
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: c.outline),
-                        ),
-                        child: Text(
-                          s,
-                          style: TextStyle(
-                            fontSize: context.wp(3),
-                            fontWeight: FontWeight.w600,
-                            color: c.textMuted,
-                          ),
-                        ),
-                      )).toList(),
+                      children: tags
+                          .map(
+                            (s) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: c.surfaceAlt,
+                                borderRadius: BorderRadius.circular(100),
+                                border: Border.all(color: c.outline),
+                              ),
+                              child: Text(
+                                s,
+                                style: TextStyle(
+                                  fontSize: context.wp(3),
+                                  fontWeight: FontWeight.w600,
+                                  color: c.textMuted,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
                     ),
                   ],
                 ),
@@ -159,30 +176,23 @@ void _showPassLoginDialog(BuildContext context, WidgetRef ref) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(
         '로그인 없이 계속할까요?',
-        style: TextStyle(
+        style: AppTypography.h3.copyWith(
           color: c.text,
-          fontSize: 17,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.3,
         ),
       ),
       content: Text(
         '회원가입 없이도 앱을 사용할 수 있어요.\n단, 활동 기록이 저장되지 않고\n추정 칼로리로 계산됩니다.',
-        style: TextStyle(
-          color: c.textMuted,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          height: 1.6,
-        ),
+        style: AppTypography.bodyMute.copyWith(color: c.textMuted, height: 1.6),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(),
           child: Text(
             '로그인하기',
-            style: TextStyle(
+            style: AppTypography.bodyMute.copyWith(
               color: c.textMuted,
-              fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -194,9 +204,8 @@ void _showPassLoginDialog(BuildContext context, WidgetRef ref) {
           },
           child: Text(
             '계속하기',
-            style: TextStyle(
+            style: AppTypography.bodyMute.copyWith(
               color: c.primary,
-              fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
           ),

@@ -9,37 +9,37 @@ import 'event_api_shared.dart';
 class TourApiEventDetailDatasource {
   /// detailCommon2 + detailIntro2 병렬 조회
   Future<EventDetailEntity> fetchDetail(
-      String contentId, {
-      String? fallbackImageUrl,
-    }) async {
+    String contentId, {
+    String? fallbackImageUrl,
+  }) async {
     final key = AppEnv.dataGoKey;
 
     // detailCommon2는 v4.3 기준 contentTypeId / defaultYN / firstImageYN /
     // mapinfoYN / overviewYN 등 옵션 파라미터를 하나라도 넘기면
     // INVALID_REQUEST_PARAMETER_ERROR로 아이템이 통째로 비어 온다(mapx/mapy 포함
     // 전 필드 유실 — 도착지 버튼이 안 보이던 원인). 필수 파라미터만 전달할 것.
-    final commonUri =
-        Uri.parse('${AppConstants.tourApiBaseUrl}/detailCommon2').replace(
-      queryParameters: {
-        'serviceKey': key,
-        'contentId': contentId,
-        'MobileOS': 'ETC',
-        'MobileApp': 'neummuk',
-        '_type': 'json',
-      },
-    );
+    final commonUri = Uri.parse('${AppConstants.tourApiBaseUrl}/detailCommon2')
+        .replace(
+          queryParameters: {
+            'serviceKey': key,
+            'contentId': contentId,
+            'MobileOS': 'ETC',
+            'MobileApp': 'neummuk',
+            '_type': 'json',
+          },
+        );
 
-    final introUri =
-        Uri.parse('${AppConstants.tourApiBaseUrl}/detailIntro2').replace(
-      queryParameters: {
-        'serviceKey': key,
-        'contentId': contentId,
-        'contentTypeId': '${EventApiConstants.contentTypeId}',
-        'MobileOS': 'ETC',
-        'MobileApp': 'neummuk',
-        '_type': 'json',
-      },
-    );
+    final introUri = Uri.parse('${AppConstants.tourApiBaseUrl}/detailIntro2')
+        .replace(
+          queryParameters: {
+            'serviceKey': key,
+            'contentId': contentId,
+            'contentTypeId': '${EventApiConstants.contentTypeId}',
+            'MobileOS': 'ETC',
+            'MobileApp': 'neummuk',
+            '_type': 'json',
+          },
+        );
 
     try {
       final results = await Future.wait([
@@ -53,7 +53,9 @@ class TourApiEventDetailDatasource {
       final common = _item(commonBody);
       final intro = _item(introBody);
 
-      debugPrint('[EventDetail] contentId=$contentId common=${common != null} intro=${intro != null}');
+      debugPrint(
+        '[EventDetail] contentId=$contentId common=${common != null} intro=${intro != null}',
+      );
 
       return EventDetailEntity(
         contentId: contentId,
@@ -102,7 +104,8 @@ class TourApiEventDetailDatasource {
   Map<String, dynamic>? _item(Map<String, dynamic>? body) {
     final raw = body?['response']?['body']?['items']?['item'];
     if (raw == null) return null;
-    if (raw is List) return raw.isNotEmpty ? raw.first as Map<String, dynamic> : null;
+    if (raw is List)
+      return raw.isNotEmpty ? raw.first as Map<String, dynamic> : null;
     return Map<String, dynamic>.from(raw as Map);
   }
 

@@ -8,6 +8,7 @@ import '../../../../core/widgets/region_selector.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../onboarding/domain/entities/user_profile_entity.dart';
 import '../../presentation/providers/user_provider.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class UserEditScreen extends ConsumerStatefulWidget {
   const UserEditScreen({super.key});
@@ -38,9 +39,15 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     ('female', '여성', Icons.female_rounded),
   ];
   static const _cats = [
-    ('한식', '🍱'), ('분식', '🌶️'), ('중식', '🥟'),
-    ('일식', '🍣'), ('양식', '🍝'), ('카페', '☕'),
-    ('디저트', '🍰'), ('아시안', '🍛'), ('고기', '🥩'),
+    ('한식', '🍱'),
+    ('분식', '🌶️'),
+    ('중식', '🥟'),
+    ('일식', '🍣'),
+    ('양식', '🍝'),
+    ('카페', '☕'),
+    ('디저트', '🍰'),
+    ('아시안', '🍛'),
+    ('고기', '🥩'),
   ];
 
   void _initFrom(UserProfileEntity? profile) {
@@ -60,7 +67,9 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     if (user == null) return;
     setState(() => _saving = true);
     try {
-      await ref.read(userRepositoryProvider).saveUserProfile(
+      await ref
+          .read(userRepositoryProvider)
+          .saveUserProfile(
             user,
             UserProfileEntity(
               heightCm: _heightCm,
@@ -110,20 +119,29 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
           children: [
             // Header
             Padding(
-              padding: EdgeInsets.fromLTRB(context.wp(2), context.hp(1), context.wp(5), 0),
+              padding: EdgeInsets.fromLTRB(
+                context.wp(2),
+                context.hp(1),
+                context.wp(5),
+                0,
+              ),
               child: Row(
                 children: [
                   IconButton(
                     onPressed: () => context.pop(),
-                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: c.text, size: 20),
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: c.text,
+                      size: 20,
+                    ),
                   ),
                   Text(
                     '프로필 수정',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: c.text,
-                        letterSpacing: -0.3),
+                    style: AppTypography.subtitle.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: c.text,
+                      letterSpacing: -0.3,
+                    ),
                   ),
                 ],
               ),
@@ -133,7 +151,11 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
-                    context.wp(5), context.hp(2), context.wp(5), context.hp(2)),
+                  context.wp(5),
+                  context.hp(2),
+                  context.wp(5),
+                  context.hp(2),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -182,9 +204,13 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                     SizedBox(height: context.hp(2.5)),
 
                     // Sex
-                    Text('성별',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
+                    Text(
+                      '성별',
+                      style: AppTypography.label.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: c.text,
+                      ),
+                    ),
                     SizedBox(height: context.hp(1)),
                     Row(
                       children: _sexOptions.map((t) {
@@ -201,20 +227,26 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                                 color: on ? c.primarySoft : c.surface,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                    color: on ? c.primary : c.outline,
-                                    width: on ? 2 : 1),
+                                  color: on ? c.primary : c.outline,
+                                  width: on ? 2 : 1,
+                                ),
                               ),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(icon,
-                                      size: 20, color: on ? c.primary : c.textMuted),
+                                  Icon(
+                                    icon,
+                                    size: 20,
+                                    color: on ? c.primary : c.textMuted,
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text(label,
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: on ? c.primary : c.textMuted)),
+                                  Text(
+                                    label,
+                                    style: AppTypography.caption.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: on ? c.primary : c.textMuted,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -243,20 +275,26 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                                 color: on ? c.primarySoft : c.surface,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                    color: on ? c.primary : c.outline,
-                                    width: on ? 2 : 1),
+                                  color: on ? c.primary : c.outline,
+                                  width: on ? 2 : 1,
+                                ),
                               ),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(icon,
-                                      size: 20, color: on ? c.primary : c.textMuted),
+                                  Icon(
+                                    icon,
+                                    size: 20,
+                                    color: on ? c.primary : c.textMuted,
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text(label,
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: on ? c.primary : c.textMuted)),
+                                  Text(
+                                    label,
+                                    style: AppTypography.caption.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: on ? c.primary : c.textMuted,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -303,19 +341,21 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                               color: on ? c.primarySoft : c.surface,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                  color: on ? c.primary : c.outline,
-                                  width: on ? 2 : 1),
+                                color: on ? c.primary : c.outline,
+                                width: on ? 2 : 1,
+                              ),
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(emoji,
-                                    style: TextStyle(fontSize: context.wp(7))),
+                                Text(
+                                  emoji,
+                                  style: TextStyle(fontSize: context.wp(7)),
+                                ),
                                 const SizedBox(height: 6),
                                 Text(
                                   id,
-                                  style: TextStyle(
-                                    fontSize: 13,
+                                  style: AppTypography.label.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: on ? c.primary : c.text,
                                   ),
@@ -335,7 +375,11 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
             // Save button
             Padding(
               padding: EdgeInsets.fromLTRB(
-                  context.wp(5), 0, context.wp(5), context.hp(3)),
+                context.wp(5),
+                0,
+                context.wp(5),
+                context.hp(3),
+              ),
               child: _saving
                   ? const Center(child: CircularProgressIndicator())
                   : AppButton(
@@ -361,8 +405,11 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: TextStyle(
-          fontSize: 15, fontWeight: FontWeight.w800, color: c.text, letterSpacing: -0.2),
+      style: AppTypography.body.copyWith(
+        fontWeight: FontWeight.w800,
+        color: c.text,
+        letterSpacing: -0.2,
+      ),
     );
   }
 }
@@ -397,17 +444,21 @@ class _SliderRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: c.text)),
+            Text(
+              label,
+              style: AppTypography.label.copyWith(
+                fontWeight: FontWeight.w700,
+                color: c.text,
+              ),
+            ),
             const Spacer(),
             Text(
               '${value.toStringAsFixed(decimals)} $unit',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: c.primary,
-                  letterSpacing: -0.5),
+              style: AppTypography.subtitle.copyWith(
+                fontWeight: FontWeight.w800,
+                color: c.primary,
+                letterSpacing: -0.5,
+              ),
             ),
           ],
         ),
@@ -432,12 +483,14 @@ class _SliderRow extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${min.toInt()}',
-                style: TextStyle(
-                    fontSize: 11, color: c.textFaint, fontWeight: FontWeight.w600)),
-            Text('${max.toInt()}',
-                style: TextStyle(
-                    fontSize: 11, color: c.textFaint, fontWeight: FontWeight.w600)),
+            Text(
+              '${min.toInt()}',
+              style: AppTypography.tiny.copyWith(color: c.textFaint),
+            ),
+            Text(
+              '${max.toInt()}',
+              style: AppTypography.tiny.copyWith(color: c.textFaint),
+            ),
           ],
         ),
       ],

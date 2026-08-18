@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/map_widgets.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 // ─── Sheet drag handle ────────────────────────────────────────────────────────
 
@@ -61,10 +62,7 @@ class MapFieldRow extends StatelessWidget {
 enum MapWaypointDotType { origin, dest, waypoint }
 
 class MapWaypointDot extends StatelessWidget {
-  const MapWaypointDot({
-    super.key,
-    this.type = MapWaypointDotType.origin,
-  });
+  const MapWaypointDot({super.key, this.type = MapWaypointDotType.origin});
 
   final MapWaypointDotType type;
 
@@ -72,24 +70,24 @@ class MapWaypointDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (type) {
       MapWaypointDotType.dest => const Icon(
-          Icons.place_rounded,
-          size: 14,
-          color: Color(0xFFFF4D6D),
-        ),
+        Icons.place_rounded,
+        size: 14,
+        color: Color(0xFFFF4D6D),
+      ),
       MapWaypointDotType.waypoint => const Icon(
-          Icons.add_location_alt_rounded,
-          size: 14,
-          color: Color(0xFFFFC56E),
-        ),
+        Icons.add_location_alt_rounded,
+        size: 14,
+        color: Color(0xFFFFC56E),
+      ),
       MapWaypointDotType.origin => Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF7C8AFF),
-            border: Border.all(color: Colors.white54, width: 1.5),
-          ),
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF7C8AFF),
+          border: Border.all(color: Colors.white54, width: 1.5),
         ),
+      ),
     };
   }
 }
@@ -129,8 +127,7 @@ class MapLocationActionBtn extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 12,
+                style: AppTypography.caption.copyWith(
                   fontWeight: FontWeight.w700,
                   color: kMapWhite87,
                 ),
@@ -167,7 +164,10 @@ class MapInfoChip extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c),
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            color: c,
+          ),
         ),
       ],
     );
@@ -190,19 +190,15 @@ class MapMarkerDot extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2.5),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: star
-          ? const Center(
+          ? Center(
               child: Text(
                 '★',
-                style: TextStyle(
-                  fontSize: 14,
+                style: AppTypography.bodyMute.copyWith(
+                  fontWeight: FontWeight.w400,
                   color: Colors.white,
                   height: 1,
                 ),
@@ -233,18 +229,13 @@ class MapRouteMarkerDot extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2.5),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Center(
         child: Text(
           label,
-          style: const TextStyle(
-            fontSize: 13,
+          style: AppTypography.label.copyWith(
             fontWeight: FontWeight.w800,
             color: Colors.white,
             height: 1,

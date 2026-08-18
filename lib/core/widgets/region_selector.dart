@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/region_data.dart';
 import '../../core/utils/context_ext.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 /// 지역 선택 위젯.
 /// [value]: 현재 선택된 지역 리스트 (예: ['전체'], ['서울', '경기/성남시'])
@@ -96,13 +97,13 @@ class _RegionSelectorState extends State<RegionSelector> {
               color: _isAll ? c.primary : c.surface,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                  color: _isAll ? c.primary : c.outline,
-                  width: _isAll ? 0 : 1),
+                color: _isAll ? c.primary : c.outline,
+                width: _isAll ? 0 : 1,
+              ),
             ),
             child: Text(
               '전체',
-              style: TextStyle(
-                fontSize: 14,
+              style: AppTypography.bodyMute.copyWith(
                 fontWeight: FontWeight.w700,
                 color: _isAll ? c.onPrimary : c.textMuted,
               ),
@@ -113,9 +114,13 @@ class _RegionSelectorState extends State<RegionSelector> {
         SizedBox(height: context.hp(2)),
 
         // ── 특별시 · 광역시 ────────────────────────────────
-        Text('특별시 · 광역시',
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, color: c.textFaint)),
+        Text(
+          '특별시 · 광역시',
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w600,
+            color: c.textFaint,
+          ),
+        ),
         SizedBox(height: context.hp(0.8)),
         Wrap(
           spacing: 8,
@@ -132,9 +137,13 @@ class _RegionSelectorState extends State<RegionSelector> {
         SizedBox(height: context.hp(2)),
 
         // ── 도 ──────────────────────────────────────────────
-        Text('도',
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, color: c.textFaint)),
+        Text(
+          '도',
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w600,
+            color: c.textFaint,
+          ),
+        ),
         SizedBox(height: context.hp(0.8)),
         Wrap(
           spacing: 8,
@@ -167,28 +176,36 @@ class _RegionSelectorState extends State<RegionSelector> {
               children: [
                 Row(
                   children: [
-                    Text('$province 시/군',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: c.primary)),
+                    Text(
+                      '$province 시/군',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: c.primary,
+                      ),
+                    ),
                     const SizedBox(width: 6),
                     if (isWholeProvince)
-                      Text('(전체 선택됨)',
-                          style: TextStyle(fontSize: 11, color: c.textFaint))
+                      Text(
+                        '(전체 선택됨)',
+                        style: AppTypography.tiny.copyWith(
+                          fontWeight: FontWeight.w400,
+                          color: c.textFaint,
+                        ),
+                      )
                     else
                       GestureDetector(
                         onTap: () {
                           setState(() => _sel[province] = null);
                           widget.onChanged(RegionData.toList(_sel));
                         },
-                        child: Text('전체 선택',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: c.primary,
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.underline,
-                                decorationColor: c.primary)),
+                        child: Text(
+                          '전체 선택',
+                          style: AppTypography.tiny.copyWith(
+                            color: c.primary,
+                            decoration: TextDecoration.underline,
+                            decorationColor: c.primary,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -197,13 +214,16 @@ class _RegionSelectorState extends State<RegionSelector> {
                   spacing: 7,
                   runSpacing: 7,
                   children: cities.map((city) {
-                    final on = !isWholeProvince && _isCityActive(province, city);
+                    final on =
+                        !isWholeProvince && _isCityActive(province, city);
                     return GestureDetector(
                       onTap: () => _tapCity(province, city),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 11, vertical: 6),
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: isWholeProvince
                               ? c.primarySoft
@@ -218,8 +238,7 @@ class _RegionSelectorState extends State<RegionSelector> {
                         ),
                         child: Text(
                           city,
-                          style: TextStyle(
-                            fontSize: 12,
+                          style: AppTypography.caption.copyWith(
                             fontWeight: FontWeight.w600,
                             color: (on || isWholeProvince)
                                 ? c.primary
@@ -273,8 +292,7 @@ class _ProvinceChip extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 13,
+            style: AppTypography.label.copyWith(
               fontWeight: FontWeight.w700,
               color: active ? c.primary : c.textMuted,
             ),
@@ -282,9 +300,7 @@ class _ProvinceChip extends StatelessWidget {
           if (hasSub && active) ...[
             const SizedBox(width: 3),
             Icon(
-              partial
-                  ? Icons.tune_rounded
-                  : Icons.check_rounded,
+              partial ? Icons.tune_rounded : Icons.check_rounded,
               size: 13,
               color: c.primary,
             ),

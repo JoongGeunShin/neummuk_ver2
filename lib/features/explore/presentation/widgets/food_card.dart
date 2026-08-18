@@ -6,6 +6,7 @@ import '../../../map/presentation/providers/map_mode_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
 import '../../domain/entities/food_catalog_entity.dart';
 import 'food_detail_bottom_sheet.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class FoodCard extends ConsumerWidget {
   const FoodCard({super.key, required this.food, this.showRank = false});
@@ -47,8 +48,10 @@ class FoodCard extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Center(
-                    child: Text(food.emoji,
-                        style: TextStyle(fontSize: context.wp(7))),
+                    child: Text(
+                      food.emoji,
+                      style: TextStyle(fontSize: context.wp(7)),
+                    ),
                   ),
                 ),
                 if (showRank)
@@ -62,8 +65,13 @@ class FoodCard extends ConsumerWidget {
                         color: c.accent,
                         shape: BoxShape.circle,
                       ),
-                      child: const Center(
-                        child: Text('🔥', style: TextStyle(fontSize: 10)),
+                      child: Center(
+                        child: Text(
+                          '🔥',
+                          style: AppTypography.micro.copyWith(
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -72,20 +80,17 @@ class FoodCard extends ConsumerWidget {
             const SizedBox(height: 10),
             Text(
               food.displayName,
-              style: TextStyle(
-                  color: c.text,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                  letterSpacing: -0.1),
+              style: AppTypography.bodyMute.copyWith(
+                color: c.text,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.1,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
             Text(
               food.category,
-              style: TextStyle(
-                  color: c.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600),
+              style: AppTypography.tiny.copyWith(color: c.textMuted),
             ),
             const Spacer(),
             Row(
@@ -93,19 +98,21 @@ class FoodCard extends ConsumerWidget {
               children: [
                 RichText(
                   text: TextSpan(
-                    style: TextStyle(
-                        color: c.primary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15),
+                    style: AppTypography.body.copyWith(
+                      color: c.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
                     children: [
                       TextSpan(
-                          text: food.nutrition.caloriesKcal.toStringAsFixed(0)),
+                        text: food.nutrition.caloriesKcal.toStringAsFixed(0),
+                      ),
                       TextSpan(
-                          text: ' kcal',
-                          style: TextStyle(
-                              fontSize: 10,
-                              color: c.textMuted,
-                              fontWeight: FontWeight.w700)),
+                        text: ' kcal',
+                        style: AppTypography.micro.copyWith(
+                          color: c.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -117,10 +124,10 @@ class FoodCard extends ConsumerWidget {
                       const SizedBox(width: 2),
                       Text(
                         '${food.searchCount}',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: c.textFaint),
+                        style: AppTypography.micro.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: c.textFaint,
+                        ),
                       ),
                     ],
                   ),

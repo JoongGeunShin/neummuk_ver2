@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../domain/entities/event_entity.dart';
+import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
 class EventCard extends StatelessWidget {
   const EventCard({super.key, required this.event, this.onTap});
@@ -51,10 +52,9 @@ class EventCard extends StatelessWidget {
                   children: [
                     Text(
                       event.name,
-                      style: TextStyle(
+                      style: AppTypography.label.copyWith(
                         color: c.text,
                         fontWeight: FontWeight.w800,
-                        fontSize: 13,
                         letterSpacing: -0.2,
                         height: 1.3,
                       ),
@@ -65,15 +65,16 @@ class EventCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.calendar_today_rounded,
-                              size: 10, color: c.textMuted),
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 10,
+                            color: c.textMuted,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             event.dateRangeLabel,
-                            style: TextStyle(
+                            style: AppTypography.tiny.copyWith(
                               color: c.textMuted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -83,16 +84,17 @@ class EventCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          Icon(Icons.place_rounded,
-                              size: 10, color: c.textMuted),
+                          Icon(
+                            Icons.place_rounded,
+                            size: 10,
+                            color: c.textMuted,
+                          ),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(
                               _shortAddr(event.addr!),
-                              style: TextStyle(
+                              style: AppTypography.tiny.copyWith(
                                 color: c.textMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -104,14 +106,16 @@ class EventCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          Icon(Icons.near_me_rounded,
-                              size: 10, color: c.primary),
+                          Icon(
+                            Icons.near_me_rounded,
+                            size: 10,
+                            color: c.primary,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             _distLabel(event.distanceFromUserM!),
-                            style: TextStyle(
+                            style: AppTypography.tiny.copyWith(
                               color: c.primary,
-                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -213,9 +217,8 @@ class _DaysBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: AppTypography.micro.copyWith(
           color: Colors.white,
-          fontSize: 10,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.2,
         ),

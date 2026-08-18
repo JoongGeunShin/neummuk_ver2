@@ -9,9 +9,9 @@ class _TurnDirectionMarker extends StatelessWidget {
   final TurnType type;
 
   IconData get _icon => switch (type) {
-    TurnType.right   => Icons.turn_right_rounded,
-    TurnType.left    => Icons.turn_left_rounded,
-    TurnType.uTurn   => Icons.u_turn_right_rounded,
+    TurnType.right => Icons.turn_right_rounded,
+    TurnType.left => Icons.turn_left_rounded,
+    TurnType.uTurn => Icons.u_turn_right_rounded,
     TurnType.arrival => Icons.flag_rounded,
     TurnType.straight => Icons.straight_rounded,
   };
@@ -38,12 +38,10 @@ class _TurnDirectionMarker extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _ModeBNavTopCard extends StatelessWidget {
-  const _ModeBNavTopCard({
-    required this.navState,
-    this.onStepMode,
-  });
+  const _ModeBNavTopCard({required this.navState, this.onStepMode});
 
   final ModeBNavState navState;
+
   /// null이면 단계별 전환 버튼 숨김 (생성 코스에서는 사용 안 함)
   final VoidCallback? onStepMode;
 
@@ -69,7 +67,11 @@ class _ModeBNavTopCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
         boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -98,8 +100,7 @@ class _ModeBNavTopCard extends StatelessWidget {
                         navState.nextInstruction.isEmpty
                             ? '경로를 따라 이동하세요'
                             : navState.nextInstruction,
-                        style: const TextStyle(
-                          fontSize: 15,
+                        style: AppTypography.body.copyWith(
                           fontWeight: FontWeight.w800,
                           color: kMapWhite87,
                           letterSpacing: -0.3,
@@ -109,26 +110,26 @@ class _ModeBNavTopCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Row(children: [
-                        Text(
-                          navState.remainingLabel,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: accent,
-                            letterSpacing: -1,
-                            height: 1,
+                      Row(
+                        children: [
+                          Text(
+                            navState.remainingLabel,
+                            style: AppTypography.titleSm.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: accent,
+                              letterSpacing: -1,
+                              height: 1,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '약 ${navState.remainingMinutes}분',
-                          style: const TextStyle(
-                              fontSize: 11,
+                          const SizedBox(width: 8),
+                          Text(
+                            '약 ${navState.remainingMinutes}분',
+                            style: AppTypography.tiny.copyWith(
                               color: kMapWhite45,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ]),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -137,20 +138,26 @@ class _ModeBNavTopCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onStepMode,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.route_rounded, size: 16, color: kMapWhite45),
+                          Icon(
+                            Icons.route_rounded,
+                            size: 16,
+                            color: kMapWhite45,
+                          ),
                           SizedBox(height: 2),
                           Text(
                             '단계별',
-                            style: TextStyle(
-                              fontSize: 9,
+                            style: AppTypography.nano.copyWith(
                               color: kMapWhite45,
                               fontWeight: FontWeight.w700,
                             ),
@@ -167,35 +174,39 @@ class _ModeBNavTopCard extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: kMapPanelAlt,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(20),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(
               children: [
-                Row(children: [
-                  const Icon(Icons.local_fire_department_rounded,
-                      size: 13, color: kMapWhite45),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      '${navState.elapsedKcal.round()} / ${navState.foodKcal} kcal  ($kcalPct%)',
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: kMapWhite45,
-                          fontWeight: FontWeight.w600),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department_rounded,
+                      size: 13,
+                      color: kMapWhite45,
                     ),
-                  ),
-                  if (navState.route != null)
-                    Text(
-                      navState.route!.name.length > 12
-                          ? '${navState.route!.name.substring(0, 12)}…'
-                          : navState.route!.name,
-                      style: const TextStyle(
-                          fontSize: 10,
-                          color: kMapWhite45,
-                          fontWeight: FontWeight.w500),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '${navState.elapsedKcal.round()} / ${navState.foodKcal} kcal  ($kcalPct%)',
+                        style: AppTypography.tiny.copyWith(color: kMapWhite45),
+                      ),
                     ),
-                ]),
+                    if (navState.route != null)
+                      Text(
+                        navState.route!.name.length > 12
+                            ? '${navState.route!.name.substring(0, 12)}…'
+                            : navState.route!.name,
+                        style: AppTypography.micro.copyWith(
+                          color: kMapWhite45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
@@ -220,10 +231,7 @@ class _ModeBNavTopCard extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _ModeBNavBottomStrip extends StatelessWidget {
-  const _ModeBNavBottomStrip({
-    required this.navState,
-    required this.onStop,
-  });
+  const _ModeBNavBottomStrip({required this.navState, required this.onStop});
 
   final ModeBNavState navState;
   final VoidCallback onStop;
@@ -259,44 +267,52 @@ class _ModeBNavBottomStrip extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Row(children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${navState.remainingLabel} 남음',
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w800, color: kMapWhite87),
-                ),
-                Text(
-                  '${navState.foodName.isNotEmpty ? navState.foodName : "목표"} 칼로리 ${(navState.kcalProgress * 100).toStringAsFixed(0)}% 달성',
-                  style: const TextStyle(
-                      fontSize: 11, color: kMapWhite45, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-            const Spacer(),
-            GestureDetector(
-              onTap: onStop,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: context.colors.danger.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: context.colors.danger.withValues(alpha: 0.5)),
-                ),
-                child: Text(
-                  '안내 종료',
-                  style: TextStyle(
-                      fontSize: 13,
+          Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${navState.remainingLabel} 남음',
+                    style: AppTypography.bodyMute.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: context.colors.danger),
+                      color: kMapWhite87,
+                    ),
+                  ),
+                  Text(
+                    '${navState.foodName.isNotEmpty ? navState.foodName : "목표"} 칼로리 ${(navState.kcalProgress * 100).toStringAsFixed(0)}% 달성',
+                    style: AppTypography.tiny.copyWith(color: kMapWhite45),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: onStop,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.colors.danger.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: context.colors.danger.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Text(
+                    '안내 종료',
+                    style: AppTypography.label.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: context.colors.danger,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ],
       ),
     );
@@ -323,12 +339,16 @@ class _ModeBNavSpotCarousel extends StatefulWidget {
   final int activeIdx;
   final ModeBNavState navState;
   final ValueChanged<int> onPageChanged;
+
   /// null이면 단계별 버튼 숨김 (교차로 turn 미감지 시)
   final VoidCallback? onStepMode;
+
   /// 전체 경로 표시 여부
   final bool showAllSegments;
+
   /// 전체/현재 구간 토글
   final VoidCallback? onShowAllToggle;
+
   /// 스팟 카드 탭 시 호출
   final ValueChanged<SpotWaypoint>? onSpotTap;
 
@@ -389,12 +409,15 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
             itemBuilder: (ctx, i) {
               final viewedPage = widget.activeIdx.clamp(0, wps.length - 1);
               // GPS 진행 기준 status (text/icon 용)
-              final navCur = widget.navState.currentWaypointIdx.clamp(0, wps.length - 1);
+              final navCur = widget.navState.currentWaypointIdx.clamp(
+                0,
+                wps.length - 1,
+              );
               final navStatus = i < navCur
                   ? _SpotStatus.done
                   : i == navCur
-                      ? _SpotStatus.active
-                      : _SpotStatus.upcoming;
+                  ? _SpotStatus.active
+                  : _SpotStatus.upcoming;
               final segs = widget.navState.segmentDistancesM;
               final segDistM = (segs.length > i) ? segs[i] : null;
               return Padding(
@@ -447,7 +470,10 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                 onTap: widget.onShowAllToggle,
                 child: Container(
                   margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: widget.showAllSegments
                         ? accent.withValues(alpha: 0.2)
@@ -460,13 +486,15 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.map_outlined, size: 13,
-                          color: widget.showAllSegments ? accent : kMapWhite45),
+                      Icon(
+                        Icons.map_outlined,
+                        size: 13,
+                        color: widget.showAllSegments ? accent : kMapWhite45,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '전체 경로',
-                        style: TextStyle(
-                          fontSize: 10,
+                        style: AppTypography.micro.copyWith(
                           color: widget.showAllSegments ? accent : kMapWhite45,
                           fontWeight: FontWeight.w700,
                         ),
@@ -481,20 +509,22 @@ class _ModeBNavSpotCarouselState extends State<_ModeBNavSpotCarousel> {
                 onTap: widget.onStepMode,
                 child: Container(
                   margin: const EdgeInsets.only(right: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.route_rounded, size: 13, color: kMapWhite45),
                       SizedBox(width: 4),
                       Text(
                         '단계별',
-                        style: TextStyle(
-                          fontSize: 10,
+                        style: AppTypography.micro.copyWith(
                           color: kMapWhite45,
                           fontWeight: FontWeight.w700,
                         ),
@@ -534,8 +564,10 @@ class _SpotWaypointCard extends StatelessWidget {
   final int total;
   final _SpotStatus status;
   final String? instruction;
+
   /// 캐러셀에서 현재 보고 있는 카드 여부 — border 하이라이트에만 사용
   final bool isViewedInCarousel;
+
   /// 이 스팟까지의 구간 거리(m) — 예상 시간 표시용
   final double? segmentDistM;
   final VoidCallback? onTap;
@@ -544,7 +576,8 @@ class _SpotWaypointCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = context.colors.secondary;
     // border/강조는 GPS 목표 카드 OR 캐러셀에서 현재 보고 있는 카드
-    final bool isHighlighted = status == _SpotStatus.active || isViewedInCarousel;
+    final bool isHighlighted =
+        status == _SpotStatus.active || isViewedInCarousel;
 
     final Color iconBg;
     final Color iconColor;
@@ -566,14 +599,18 @@ class _SpotWaypointCard extends StatelessWidget {
         iconBg = isViewedInCarousel
             ? accent.withValues(alpha: 0.10)
             : Colors.white.withValues(alpha: 0.05);
-        iconColor = isViewedInCarousel ? accent.withValues(alpha: 0.75) : kMapWhite45;
+        iconColor = isViewedInCarousel
+            ? accent.withValues(alpha: 0.75)
+            : kMapWhite45;
         icon = Icons.radio_button_unchecked_rounded;
         statusLabel = '예정';
     }
 
     String? etaLabel;
     // active 카드는 instruction(남은거리)이 이미 있으므로 eta 숨김
-    if (segmentDistM != null && segmentDistM! > 0 && status == _SpotStatus.upcoming) {
+    if (segmentDistM != null &&
+        segmentDistM! > 0 &&
+        status == _SpotStatus.upcoming) {
       final mins = (segmentDistM! / 83.3).ceil();
       etaLabel = '~$mins분';
     }
@@ -585,11 +622,17 @@ class _SpotWaypointCard extends StatelessWidget {
           color: kMapPanel,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isHighlighted ? accent.withValues(alpha: 0.6) : Colors.white12,
+            color: isHighlighted
+                ? accent.withValues(alpha: 0.6)
+                : Colors.white12,
             width: isHighlighted ? 1.5 : 1.0,
           ),
           boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Padding(
@@ -618,8 +661,7 @@ class _SpotWaypointCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     '${index + 1}/$total',
-                    style: TextStyle(
-                      fontSize: 11,
+                    style: AppTypography.tiny.copyWith(
                       fontWeight: FontWeight.w900,
                       color: isHighlighted ? accent : kMapWhite45,
                       height: 1,
@@ -635,8 +677,7 @@ class _SpotWaypointCard extends StatelessWidget {
                   children: [
                     Text(
                       waypoint.name,
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: AppTypography.subtitle.copyWith(
                         fontWeight: FontWeight.w800,
                         color: kMapWhite87,
                         letterSpacing: -0.4,
@@ -650,8 +691,7 @@ class _SpotWaypointCard extends StatelessWidget {
                       instruction != null && instruction!.isNotEmpty
                           ? instruction!
                           : statusLabel,
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: AppTypography.caption.copyWith(
                         color: status == _SpotStatus.active
                             ? accent.withValues(alpha: 0.85)
                             : kMapWhite45,
@@ -668,19 +708,24 @@ class _SpotWaypointCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   etaLabel,
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: AppTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: isHighlighted ? accent.withValues(alpha: 0.8) : kMapWhite45,
+                    color: isHighlighted
+                        ? accent.withValues(alpha: 0.8)
+                        : kMapWhite45,
                   ),
                 ),
               ],
               if (onTap != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 4),
-                  child: Icon(Icons.chevron_right_rounded,
-                      size: 18,
-                      color: isHighlighted ? accent.withValues(alpha: 0.7) : kMapWhite45),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: isHighlighted
+                        ? accent.withValues(alpha: 0.7)
+                        : kMapWhite45,
+                  ),
                 ),
             ],
           ),
@@ -719,9 +764,13 @@ class _ArrivalStatChip extends StatelessWidget {
           child: Icon(icon, color: color, size: 22),
         ),
         const SizedBox(height: 6),
-        Text(value,
-            style: TextStyle(
-                color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+        Text(
+          value,
+          style: AppTypography.caption.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ],
     );
   }
@@ -750,7 +799,11 @@ class _KcalGaugeBar extends StatelessWidget {
         color: kMapPanel,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black45,
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -760,7 +813,9 @@ class _KcalGaugeBar extends StatelessWidget {
           Row(
             children: [
               Icon(
-                isDone ? Icons.check_circle_rounded : Icons.local_fire_department_rounded,
+                isDone
+                    ? Icons.check_circle_rounded
+                    : Icons.local_fire_department_rounded,
                 size: 15,
                 color: barColor,
               ),
@@ -768,8 +823,7 @@ class _KcalGaugeBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   navState.foodName.isNotEmpty ? navState.foodName : '목표 칼로리',
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: AppTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
                     color: kMapWhite87,
                   ),
@@ -779,8 +833,7 @@ class _KcalGaugeBar extends StatelessWidget {
               ),
               Text(
                 isDone ? '달성! 🎉' : '${(pct * 100).toStringAsFixed(0)}%',
-                style: TextStyle(
-                  fontSize: 12,
+                style: AppTypography.caption.copyWith(
                   fontWeight: FontWeight.w900,
                   color: barColor,
                 ),
@@ -803,19 +856,11 @@ class _KcalGaugeBar extends StatelessWidget {
             children: [
               Text(
                 '소비 $consumed kcal',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: kMapWhite45,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTypography.micro.copyWith(color: kMapWhite45),
               ),
               Text(
                 '목표 $total kcal',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: kMapWhite45,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTypography.micro.copyWith(color: kMapWhite45),
               ),
             ],
           ),
@@ -847,10 +892,10 @@ class _ModeBTurnBar extends StatelessWidget {
   Color _accentColor(BuildContext context) => context.colors.accent;
 
   IconData get _turnIcon => switch (turnType) {
-    TurnType.right    => Icons.turn_right_rounded,
-    TurnType.left     => Icons.turn_left_rounded,
-    TurnType.uTurn    => Icons.u_turn_right_rounded,
-    TurnType.arrival  => Icons.flag_rounded,
+    TurnType.right => Icons.turn_right_rounded,
+    TurnType.left => Icons.turn_left_rounded,
+    TurnType.uTurn => Icons.u_turn_right_rounded,
+    TurnType.arrival => Icons.flag_rounded,
     TurnType.straight => Icons.straight_rounded,
   };
 
@@ -865,7 +910,11 @@ class _ModeBTurnBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
         boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -892,8 +941,7 @@ class _ModeBTurnBar extends StatelessWidget {
                     children: [
                       Text(
                         instruction,
-                        style: const TextStyle(
-                          fontSize: 15,
+                        style: AppTypography.body.copyWith(
                           fontWeight: FontWeight.w800,
                           color: kMapWhite87,
                           letterSpacing: -0.3,
@@ -903,27 +951,26 @@ class _ModeBTurnBar extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Row(children: [
-                        Text(
-                          distanceLabel,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: accent,
-                            letterSpacing: -1,
-                            height: 1,
+                      Row(
+                        children: [
+                          Text(
+                            distanceLabel,
+                            style: AppTypography.titleSm.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: accent,
+                              letterSpacing: -1,
+                              height: 1,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '약 ${navState.remainingMinutes}분',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: kMapWhite45,
-                            fontWeight: FontWeight.w600,
+                          const SizedBox(width: 8),
+                          Text(
+                            '약 ${navState.remainingMinutes}분',
+                            style: AppTypography.tiny.copyWith(
+                              color: kMapWhite45,
+                            ),
                           ),
-                        ),
-                      ]),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -931,7 +978,10 @@ class _ModeBTurnBar extends StatelessWidget {
                 GestureDetector(
                   onTap: onOverview,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
@@ -943,8 +993,7 @@ class _ModeBTurnBar extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           '개요',
-                          style: TextStyle(
-                            fontSize: 9,
+                          style: AppTypography.nano.copyWith(
                             color: accent,
                             fontWeight: FontWeight.w700,
                           ),
@@ -960,26 +1009,29 @@ class _ModeBTurnBar extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: kMapPanelAlt,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(20),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(
               children: [
-                Row(children: [
-                  const Icon(Icons.local_fire_department_rounded,
-                      size: 13, color: kMapWhite45),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      '${navState.elapsedKcal.round()} / ${navState.foodKcal} kcal  ($kcalPct%)',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: kMapWhite45,
-                        fontWeight: FontWeight.w600,
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department_rounded,
+                      size: 13,
+                      color: kMapWhite45,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '${navState.elapsedKcal.round()} / ${navState.foodKcal} kcal  ($kcalPct%)',
+                        style: AppTypography.tiny.copyWith(color: kMapWhite45),
                       ),
                     ),
-                  ),
-                ]),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
