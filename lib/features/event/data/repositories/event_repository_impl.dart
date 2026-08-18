@@ -15,7 +15,7 @@ class EventRepositoryImpl implements EventRepository {
   Future<List<EventEntity>> getNearbyUpcomingEvents({
     required double lat,
     required double lng,
-    int numOfRows = 8,
+    int numOfRows = 30,
   }) =>
       _datasource.fetchNearbyEvents(lat: lat, lng: lng, numOfRows: numOfRows);
 }

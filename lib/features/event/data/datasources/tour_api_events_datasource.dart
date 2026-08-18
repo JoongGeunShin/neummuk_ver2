@@ -3,14 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/env/app_env.dart';
+import '../../../../core/utils/geo_utils.dart';
 import '../../domain/entities/event_entity.dart';
 import 'event_api_shared.dart';
 
 class TourApiEventsDatasource {
-  // 전국 임박 행사 in-memory cache (TTL 1h)
+  // 전국 임박 행사 in-memory cache (TTL 1h) — 항상 최대치로 채워두고
+  // 호출부(전국 탭 / 내 주변 반경 보정)는 여기서 필요한 만큼만 잘라 쓴다.
   List<EventEntity>? _upcomingCache;
   DateTime? _upcomingCachedAt;
   static const _cacheTtl = Duration(hours: 1);
+  static const _upcomingRawRows = 100;
 
   bool get _upcomingCacheValid =>
       _upcomingCache != null &&
@@ -19,6 +22,11 @@ class TourApiEventsDatasource {
 
   /// searchFestival2 — 오늘 이후 행사 목록 (위치 무관, 시작일 기준 정렬)
   Future<List<EventEntity>> fetchUpcomingEvents({int numOfRows = 8}) async {
+    final all = await _fetchUpcomingRaw();
+    return all.take(numOfRows).toList();
+  }
+
+  Future<List<EventEntity>> _fetchUpcomingRaw() async {
     if (_upcomingCacheValid) return _upcomingCache!;
 
     final key = AppEnv.dataGoKey;
@@ -37,7 +45,7 @@ class TourApiEventsDatasource {
         Uri.parse('${AppConstants.tourApiBaseUrl}/searchFestival2').replace(
       queryParameters: {
         'serviceKey': key,
-        'numOfRows': '$numOfRows',
+        'numOfRows': '$_upcomingRawRows',
         'pageNo': '1',
         'MobileOS': 'ETC',
         'MobileApp': 'neummuk',
@@ -73,6 +81,7 @@ class TourApiEventsDatasource {
       final events = list
           .map((item) => _parse(item))
           .whereType<EventEntity>()
+          .where((e) => !e.isEnded)
           .toList()
         ..sort(_sortByUrgency);
 
@@ -90,7 +99,7 @@ class TourApiEventsDatasource {
   Future<List<EventEntity>> fetchNearbyEvents({
     required double lat,
     required double lng,
-    int numOfRows = 8,
+    int numOfRows = 30,
     int radiusM = 20000,
   }) async {
     final key = AppEnv.dataGoKey;
@@ -147,15 +156,38 @@ class TourApiEventsDatasource {
       final events = enriched
           .map((item) => _parse(item))
           .whereType<EventEntity>()
-          .toList()
-        ..sort(_sortByUrgency);
+          .where((e) => !e.isEnded)
+          .toList();
 
-      debugPrint('[TourApiEvents] ${events.length} nearby events');
-      return events;
+      final merged = await _mergeNationwideFallback(events, lat, lng, radiusM);
+      merged.sort(_sortByUrgency);
+
+      debugPrint('[TourApiEvents] ${merged.length} nearby events');
+      return merged;
     } catch (e) {
       debugPrint('[TourApiEvents] fetchNearbyEvents error: $e');
       return [];
     }
+  }
+
+  /// locationBasedList2는 geo-index 누락으로 실제 반경 내에 있는 행사를
+  /// 종종 빠뜨린다(예: 좌표가 정상인데도 위치 검색 결과에 없는 경우).
+  /// 전국 목록(searchFestival2)에서 반경 내 후보를 찾아 빠진 것만 보충한다.
+  Future<List<EventEntity>> _mergeNationwideFallback(
+    List<EventEntity> locationBased,
+    double lat,
+    double lng,
+    int radiusM,
+  ) async {
+    final byId = {for (final e in locationBased) e.id: e};
+    final nationwide = await _fetchUpcomingRaw();
+    for (final e in nationwide) {
+      if (byId.containsKey(e.id)) continue;
+      if (e.lat == null || e.lng == null) continue;
+      if (haversineDistanceM(lat, lng, e.lat!, e.lng!) > radiusM) continue;
+      byId[e.id] = e;
+    }
+    return byId.values.toList();
   }
 
   /// detailIntro2 — locationBasedList2에 없는 행사 기간 보강용.
@@ -230,9 +262,8 @@ class TourApiEventsDatasource {
     return img2.isNotEmpty ? img2 : null;
   }
 
-  // 진행중 → 오늘 시작 → D-N 오름차순 → 종료됨
+  // 진행중 → 오늘 시작 → D-N 오름차순
   int _sortByUrgency(EventEntity a, EventEntity b) {
-    if (a.isEnded != b.isEnded) return a.isEnded ? 1 : -1;
     if (a.isOngoing != b.isOngoing) return a.isOngoing ? -1 : 1;
     final da = a.daysUntilStart ?? 9999;
     final db = b.daysUntilStart ?? 9999;

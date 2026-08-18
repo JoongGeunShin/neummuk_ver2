@@ -38,6 +38,7 @@ class EventEntity {
   DateTime get _today =>
       DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
+  /// datasource가 이 값으로 종료된 행사를 걸러내므로, UI에는 종료된 행사가 노출되지 않는다.
   bool get isEnded {
     final end = endDate;
     if (end == null) return false;
@@ -61,7 +62,6 @@ class EventEntity {
   }
 
   String get daysLabel {
-    if (isEnded) return '종료됨';
     if (isOngoing) return '진행중';
     final d = daysUntilStart;
     if (d == null) return '';

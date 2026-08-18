@@ -17,9 +17,7 @@ class EventCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Opacity(
-        opacity: event.isEnded ? 0.55 : 1.0,
-        child: Container(
+      child: Container(
         width: cardW,
         decoration: BoxDecoration(
           color: c.surface,
@@ -127,7 +125,6 @@ class EventCard extends StatelessWidget {
           ],
         ),
       ),
-      ), // Opacity
     );
   }
 
@@ -200,9 +197,7 @@ class _DaysBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final Color bg;
-    if (event.isEnded) {
-      bg = c.textFaint;
-    } else if (event.isOngoing) {
+    if (event.isOngoing) {
       bg = c.success;
     } else if (event.daysUntilStart == 0) {
       bg = c.secondary;

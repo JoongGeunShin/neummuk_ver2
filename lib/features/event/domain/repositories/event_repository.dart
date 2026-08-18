@@ -6,6 +6,6 @@ abstract class EventRepository {
   Future<List<EventEntity>> getNearbyUpcomingEvents({
     required double lat,
     required double lng,
-    int numOfRows = 8,
+    int numOfRows = 30,
   });
 }

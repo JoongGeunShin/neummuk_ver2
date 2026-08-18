@@ -30,7 +30,9 @@ class AppBottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.surface,
         border: Border(top: BorderSide(color: c.outline)),
+        // border: Border.all(color: c.outline)
       ),
+      // margin: const EdgeInsets.all(2),
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
