@@ -109,14 +109,13 @@ class TourApiDetailDatasource {
   Future<Map<String, dynamic>?> _fetchCommon(
       String key, String contentId, int typeId) async {
     try {
+      // detailCommon2는 v4.3 기준 contentTypeId / defaultYN / firstImageYN /
+      // addrinfoYN / overviewYN 등 옵션 파라미터를 하나라도 넘기면
+      // INVALID_REQUEST_PARAMETER_ERROR로 아이템이 통째로 비어 온다. 필수
+      // 파라미터만 전달할 것 (tour_api_event_detail_datasource.dart와 동일 이슈).
       final uri = Uri.parse('$_base/detailCommon2').replace(queryParameters: {
         'serviceKey': key,
         'contentId': contentId,
-        'contentTypeId': '$typeId',
-        'defaultYN': 'Y',
-        'firstImageYN': 'Y',
-        'addrinfoYN': 'Y',
-        'overviewYN': 'Y',
         'MobileOS': 'ETC',
         'MobileApp': 'neummuk',
         '_type': 'json',

@@ -14,18 +14,17 @@ class TourApiEventDetailDatasource {
     }) async {
     final key = AppEnv.dataGoKey;
 
+    // detailCommon2는 v4.3 기준 contentTypeId / defaultYN / firstImageYN /
+    // mapinfoYN / overviewYN 등 옵션 파라미터를 하나라도 넘기면
+    // INVALID_REQUEST_PARAMETER_ERROR로 아이템이 통째로 비어 온다(mapx/mapy 포함
+    // 전 필드 유실 — 도착지 버튼이 안 보이던 원인). 필수 파라미터만 전달할 것.
     final commonUri =
         Uri.parse('${AppConstants.tourApiBaseUrl}/detailCommon2').replace(
       queryParameters: {
         'serviceKey': key,
         'contentId': contentId,
-        'contentTypeId': '${EventApiConstants.contentTypeId}',
         'MobileOS': 'ETC',
         'MobileApp': 'neummuk',
-        'defaultYN': 'Y',
-        'firstImageYN': 'Y',
-        'mapinfoYN': 'Y',
-        'overviewYN': 'Y',
         '_type': 'json',
       },
     );

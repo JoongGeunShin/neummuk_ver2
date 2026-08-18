@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/context_ext.dart';
+import '../../../map/presentation/providers/map_mode_provider.dart';
+import '../../../mode_a/presentation/providers/mode_a_provider.dart';
 import '../../domain/entities/event_detail_entity.dart';
 import '../providers/event_detail_provider.dart';
 
@@ -83,14 +85,15 @@ class _ErrorView extends StatelessWidget {
 
 // ── 본문 ────────────────────────────────────────────────────
 
-class _DetailBody extends StatelessWidget {
+class _DetailBody extends ConsumerWidget {
   const _DetailBody({required this.detail});
   final EventDetailEntity detail;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final hasLink = detail.effectiveHomepage?.isNotEmpty == true;
+    final hasDest = detail.lat != null && detail.lng != null;
 
     return Stack(
       children: [
@@ -267,7 +270,7 @@ class _DetailBody extends StatelessWidget {
                   ],
 
                   SizedBox(
-                      height: context.hp(hasLink ? 12 : 5) +
+                      height: context.hp((hasDest ? 7 : 0) + (hasLink ? 12 : 5)) +
                           context.bottomPadding),
                 ]),
               ),
@@ -275,14 +278,32 @@ class _DetailBody extends StatelessWidget {
           ],
         ),
 
-        // 하단 홈페이지 CTA
-        if (hasLink)
+        // 하단 CTA — 도착지 설정 + 홈페이지
+        if (hasDest || hasLink)
           Positioned(
             bottom: 0, left: 0, right: 0,
-            child: _HomepageCta(
-              url: detail.effectiveHomepage!,
-              onTap: () =>
-                  _copyToClipboard(context, detail.effectiveHomepage!),
+            child: _BottomCta(
+              children: [
+                if (hasDest)
+                  _SetDestCta(
+                    onTap: () {
+                      final notifier = ref.read(modeAProvider.notifier);
+                      notifier.setDestCoords(
+                          detail.lat!, detail.lng!, detail.title);
+                      ref.read(mapModeProvider.notifier).set(MapMode.modeA);
+                      if (ref.read(modeAProvider).originLat != null) {
+                        notifier.search();
+                      }
+                      context.push('/map');
+                    },
+                  ),
+                if (hasLink)
+                  _HomepageCta(
+                    url: detail.effectiveHomepage!,
+                    onTap: () =>
+                        _copyToClipboard(context, detail.effectiveHomepage!),
+                  ),
+              ],
             ),
           ),
       ],
@@ -551,10 +572,9 @@ class _LinkBlock extends StatelessWidget {
   }
 }
 
-class _HomepageCta extends StatelessWidget {
-  const _HomepageCta({required this.url, required this.onTap});
-  final String url;
-  final VoidCallback onTap;
+class _BottomCta extends StatelessWidget {
+  const _BottomCta({required this.children});
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
@@ -575,32 +595,89 @@ class _HomepageCta extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.fromLTRB(
               context.wp(5), 12, context.wp(5), context.hp(2)),
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: c.primary,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.open_in_browser_rounded,
-                      color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  const Text(
-                    '홈페이지 주소 복사',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                children[i],
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SetDestCta extends StatelessWidget {
+  const _SetDestCta({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: c.primary,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.place_rounded, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text(
+              '모드A 도착지로 설정',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomepageCta extends StatelessWidget {
+  const _HomepageCta({required this.url, required this.onTap});
+  final String url;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: c.surfaceAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: c.outline),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.open_in_browser_rounded, color: c.text, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              '홈페이지 주소 복사',
+              style: TextStyle(
+                color: c.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
     );
