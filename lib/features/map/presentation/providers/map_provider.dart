@@ -46,17 +46,16 @@ class MapSearchState {
     double? centerLng,
     String? error,
     Object? selectedPlace = _keep,
-  }) =>
-      MapSearchState(
-        places: places ?? this.places,
-        isLoading: isLoading ?? this.isLoading,
-        selectedCategory: selectedCategory ?? this.selectedCategory,
-        searchQuery: searchQuery ?? this.searchQuery,
-        centerLat: centerLat ?? this.centerLat,
-        centerLng: centerLng ?? this.centerLng,
-        error: error ?? this.error,
-        selectedPlace: selectedPlace,
-      );
+  }) => MapSearchState(
+    places: places ?? this.places,
+    isLoading: isLoading ?? this.isLoading,
+    selectedCategory: selectedCategory ?? this.selectedCategory,
+    searchQuery: searchQuery ?? this.searchQuery,
+    centerLat: centerLat ?? this.centerLat,
+    centerLng: centerLng ?? this.centerLng,
+    error: error ?? this.error,
+    selectedPlace: selectedPlace,
+  );
 }
 
 // ── Notifier ───────────────────────────────────────────────────
@@ -69,7 +68,11 @@ class MapSearchNotifier extends _$MapSearchNotifier {
   /// 매칭한 맛집을 탐색 모드 지도에 보여줄 때) — 실검색(loadPlaces)과 달리 네트워크
   /// 호출 없이 상태만 갱신하며, 마커/카메라 fit은 map_overlay.dart의 기존
   /// places 리스너가 그대로 처리한다.
-  void setPlaces(List<PlaceEntity> places, {double? centerLat, double? centerLng}) {
+  void setPlaces(
+    List<PlaceEntity> places, {
+    double? centerLat,
+    double? centerLng,
+  }) {
     state = state.copyWith(
       places: places,
       centerLat: centerLat ?? state.centerLat,
@@ -85,7 +88,8 @@ class MapSearchNotifier extends _$MapSearchNotifier {
     int radiusMeters = 3000,
   }) async {
     final effectiveKeyword =
-        keyword ?? (state.selectedCategory == '전체' ? null : state.selectedCategory);
+        keyword ??
+        (state.selectedCategory == '전체' ? null : state.selectedCategory);
     state = state.copyWith(
       centerLat: lat,
       centerLng: lng,
@@ -93,7 +97,9 @@ class MapSearchNotifier extends _$MapSearchNotifier {
       error: null,
     );
     try {
-      final places = await ref.read(placeRepositoryProvider).searchNearby(
+      final places = await ref
+          .read(placeRepositoryProvider)
+          .searchNearby(
             latitude: lat,
             longitude: lng,
             keyword: effectiveKeyword,
@@ -106,23 +112,32 @@ class MapSearchNotifier extends _$MapSearchNotifier {
     }
   }
 
-  Future<void> selectCategory(String category, {int radiusMeters = 3000}) async {
+  Future<void> selectCategory(
+    String category, {
+    int radiusMeters = 3000,
+  }) async {
     state = state.copyWith(selectedCategory: category);
     final lat = state.centerLat ?? 37.5665;
     final lng = state.centerLng ?? 126.9780;
-    await loadPlaces(lat, lng,
-        keyword: category == '전체' ? null : category,
-        isCategory: true,
-        radiusMeters: radiusMeters);
+    await loadPlaces(
+      lat,
+      lng,
+      keyword: category == '전체' ? null : category,
+      isCategory: true,
+      radiusMeters: radiusMeters,
+    );
   }
 
   Future<void> search(String query, {int radiusMeters = 3000}) async {
     state = state.copyWith(searchQuery: query);
     final lat = state.centerLat ?? 37.5665;
     final lng = state.centerLng ?? 126.9780;
-    await loadPlaces(lat, lng,
-        keyword: query.isNotEmpty ? query : null,
-        radiusMeters: radiusMeters);
+    await loadPlaces(
+      lat,
+      lng,
+      keyword: query.isNotEmpty ? query : null,
+      radiusMeters: radiusMeters,
+    );
   }
 
   void selectPlace(PlaceEntity? place) {

@@ -6,7 +6,7 @@ part of 'mode_a_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$modeARepositoryHash() => r'2f8744d9af8f69b50a4170b986ae31d1deb66748';
+String _$modeARepositoryHash() => r'a80e2409a18d8af06a734021577f830a399daf98';
 
 /// See also [modeARepository].
 @ProviderFor(modeARepository)
@@ -23,7 +23,7 @@ final modeARepositoryProvider = Provider<ModeARepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ModeARepositoryRef = ProviderRef<ModeARepository>;
-String _$modeAHash() => r'10f978ec0b9d581a4fc76d273f5db5bdb03c9ed8';
+String _$modeAHash() => r'924d745cefdcddd718023ab9a60a4ca4ca8bc9ae';
 
 /// See also [ModeA].
 @ProviderFor(ModeA)

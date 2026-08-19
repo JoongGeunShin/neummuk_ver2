@@ -34,6 +34,7 @@ import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../mode_b/presentation/providers/cart_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_nav_provider.dart';
 import '../../../mode_b/presentation/providers/mode_b_provider.dart';
+import '../../../mode_match/presentation/providers/mode_match_provider.dart';
 import '../../../record/presentation/providers/record_provider.dart';
 import '../../../user/presentation/providers/user_provider.dart';
 import '../../../walk/presentation/providers/walk_provider.dart';
@@ -67,6 +68,24 @@ const _kWhite87 = kMapWhite87;
 const _kWhite45 = kMapWhite45;
 const _kGreen = kMapPrimary;
 const _kTransit = kMapTransit;
+
+/// 목록/클러스터 행에 쓰는 장소 부제목 — 음식점 매칭 결과(menu/kcalEstimate가 있는
+/// PlaceEntity)면 "메뉴 · kcal · 오늘 대비 ±N kcal"로, 아니면 category를 다듬어 보여준다.
+String? _placeSubtitle(PlaceEntity place) {
+  if (place.menu != null && place.kcalEstimate != null) {
+    final diff = place.kcalDiff;
+    final diffSuffix = diff == null
+        ? ''
+        : diff == 0
+        ? ' · 오늘과 일치'
+        : ' · ${diff > 0 ? '+' : ''}$diff kcal';
+    return '${place.menu} · ${place.kcalEstimate}kcal$diffSuffix';
+  }
+  final cat = place.category;
+  if (cat == null || cat.isEmpty) return null;
+  final parts = cat.split(RegExp(r'[>·,]'));
+  return parts.last.trim().isNotEmpty ? parts.last.trim() : null;
+}
 
 class MapOverlay extends ConsumerStatefulWidget {
   const MapOverlay({super.key, required this.controller, required this.events});
@@ -674,6 +693,19 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
           next.routeResult != null) {
         _updateNearbyMarkers(next);
       }
+      // 경로 탐색 실패(TMAP/Kakao/ODsay 모두 실패 등) → 스낵바로 안내
+      if (prev?.error == null && next.error != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.error!),
+            backgroundColor: kMapPanel,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     });
 
     ref.listen<RouteSearchState>(routeSearchProvider, (prev, next) {
@@ -777,7 +809,10 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
             arrivalKcal > 0) {
           ref
               .read(walkSessionProvider.notifier)
-              .addExternalKcal(kcal: arrivalKcal, distanceM: route.distanceKm * 1000);
+              .addExternalKcal(
+                kcal: arrivalKcal,
+                distanceM: route.distanceKm * 1000,
+              );
         }
         _modeAArrivalDialogPending = true;
         ref.read(modeANavProvider.notifier).stop();

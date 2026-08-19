@@ -6,6 +6,8 @@ import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/region_selector.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../explore/data/seed/food_seed_data.dart';
+import '../../../explore/presentation/providers/food_category_options_provider.dart';
 import '../../../onboarding/domain/entities/user_profile_entity.dart';
 import '../../presentation/providers/user_provider.dart';
 import 'package:neummuk_ver2/core/theme/app_typography.dart';
@@ -26,7 +28,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
   int _age = 30;
   String _sex = 'male';
   String _transport = 'walk';
-  List<String> _categories = ['한식'];
+  List<String> _categories = [];
   List<String> _regions = ['전체'];
 
   static const _transports = [
@@ -37,17 +39,6 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
   static const _sexOptions = [
     ('male', '남성', Icons.male_rounded),
     ('female', '여성', Icons.female_rounded),
-  ];
-  static const _cats = [
-    ('한식', '🍱'),
-    ('분식', '🌶️'),
-    ('중식', '🥟'),
-    ('일식', '🍣'),
-    ('양식', '🍝'),
-    ('카페', '☕'),
-    ('디저트', '🍰'),
-    ('아시안', '🍛'),
-    ('고기', '🥩'),
   ];
 
   void _initFrom(UserProfileEntity? profile) {
@@ -112,6 +103,8 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
   }
 
   Widget _buildForm(BuildContext context, dynamic c) {
+    final categoriesAsync = ref.watch(foodPreferenceCategoriesProvider);
+    final cats = categoriesAsync.valueOrNull ?? kFoodSeedCategories;
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
@@ -324,8 +317,8 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                       mainAxisSpacing: 10,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      children: _cats.map((cat) {
-                        final (id, emoji) = cat;
+                      children: cats.map((id) {
+                        final emoji = foodCategoryEmoji(id);
                         final on = _categories.contains(id);
                         return GestureDetector(
                           onTap: () => setState(() {
@@ -355,6 +348,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
                                 const SizedBox(height: 6),
                                 Text(
                                   id,
+                                  textAlign: TextAlign.center,
                                   style: AppTypography.label.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: on ? c.primary : c.text,

@@ -33,6 +33,7 @@ class _Detail {
     required this.longitude,
     this.source,
     this.kcalEstimate,
+    this.targetKcal,
     this.distanceM,
     this.walkMinutes,
     this.menu,
@@ -51,6 +52,9 @@ class _Detail {
     latitude: p.latitude,
     longitude: p.longitude,
     source: p.source,
+    kcalEstimate: p.kcalEstimate,
+    targetKcal: p.targetKcal,
+    menu: p.menu,
   );
 
   factory _Detail.fromTouristRoute(TouristRouteEntity r) => _Detail(
@@ -94,6 +98,9 @@ class _Detail {
   final double longitude;
   final PlaceSource? source;
   final int? kcalEstimate;
+
+  /// 비교 기준 칼로리(오늘 소모/burn 등) — kcalEstimate와 짝을 이룰 때만 의미 있음
+  final int? targetKcal;
   final int? distanceM;
   final int? walkMinutes;
   final String? menu;
@@ -114,6 +121,10 @@ class _Detail {
 
   bool get showInfoRow =>
       isRestaurant || kcalEstimate != null || distanceM != null;
+
+  int? get kcalDiff => (kcalEstimate != null && targetKcal != null)
+      ? kcalEstimate! - targetKcal!
+      : null;
 
   (String, Color) get badge {
     if (isRestaurant) {
@@ -272,6 +283,10 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                     const SizedBox(height: 16),
                     if (detail.showInfoRow) ...[
                       _RestaurantInfoRow(detail: detail),
+                      const SizedBox(height: 12),
+                    ],
+                    if (detail.kcalDiff != null) ...[
+                      _KcalDiffRow(diff: detail.kcalDiff!),
                       const SizedBox(height: 12),
                     ],
                     if (_overview != null) ...[
@@ -693,6 +708,54 @@ class _InfoPill extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 오늘 소모 칼로리 대비 이 메뉴의 칼로리 차이
+// ════════════════════════════════════════════════════════════════════════════
+
+class _KcalDiffRow extends StatelessWidget {
+  const _KcalDiffRow({required this.diff});
+  final int diff;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = diff == 0
+        ? '오늘 소모한 칼로리와 정확히 일치해요'
+        : diff > 0
+        ? '오늘 소모한 칼로리보다 +$diff kcal 더 많아요'
+        : '오늘 소모한 칼로리보다 ${diff.abs()} kcal 적어요';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF03C75A).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF03C75A).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.compare_arrows_rounded,
+            size: 16,
+            color: Color(0xFF03C75A),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF03C75A),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

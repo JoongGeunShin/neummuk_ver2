@@ -44,9 +44,14 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
   void _cancelModeANav() {
     final route = ref.read(modeAProvider).routeResult;
     final navState = ref.read(modeANavProvider);
-    if (route != null && route.transport == 'bike' && navState.elapsedKcal > 0) {
+    if (route != null &&
+        route.transport == 'bike' &&
+        navState.elapsedKcal > 0) {
       final totalM = route.distanceKm * 1000;
-      final traveledM = (totalM - navState.remainingDistanceM).clamp(0.0, totalM);
+      final traveledM = (totalM - navState.remainingDistanceM).clamp(
+        0.0,
+        totalM,
+      );
       ref
           .read(walkSessionProvider.notifier)
           .addExternalKcal(kcal: navState.elapsedKcal, distanceM: traveledM);
@@ -763,7 +768,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               longitude: r.longitude,
               address: r.address,
               phone: r.tel,
-              category: '${r.menu} · ${r.kcal}kcal',
+              category: r.category,
+              menu: r.menu,
+              kcalEstimate: r.kcal,
+              targetKcal: arrivalKcal,
               source: PlaceSource.kakaoLocal,
             ),
         ];

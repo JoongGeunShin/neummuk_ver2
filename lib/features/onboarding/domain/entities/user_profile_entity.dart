@@ -7,7 +7,7 @@ class UserProfileEntity {
     this.age = 30,
     this.sex = 'male',
     this.preferredTransport = 'walk',
-    this.preferredCategories = const ['한식'],
+    this.preferredCategories = const [],
     this.preferredRegions = const ['전체'],
   });
 
@@ -30,7 +30,7 @@ class UserProfileEntity {
             (json['preferredCategories'] as List<dynamic>?)
                 ?.map((e) => e as String)
                 .toList() ??
-            const ['한식'],
+            const [],
         preferredRegions:
             (json['preferredRegions'] as List<dynamic>?)
                 ?.map((e) => e as String)

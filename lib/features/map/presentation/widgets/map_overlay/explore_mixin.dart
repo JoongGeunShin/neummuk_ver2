@@ -94,6 +94,76 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
         .loadPlaces(lat, lng, radiusMeters: radius);
   }
 
+  /// 오늘의 맞춤 맛집: 홈 화면 "오늘 소모 칼로리" ±20% + 선호 음식 카테고리(없으면
+  /// 카테고리 무관)로 food_catalog을 매칭해 Kakao Local로 실제 매장을 찾고, 탐색 모드
+  /// 기존 마커/목록시트 파이프라인(mapSearchNotifierProvider)에 그대로 얹는다.
+  Future<void> _onFindTodayMatch() async {
+    final targetKcal = ref.read(walkSessionProvider).caloriesKcal.round();
+    if (targetKcal <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('오늘 소모한 칼로리가 아직 없어요. 조금 걸어본 뒤 다시 시도해주세요!'),
+        ),
+      );
+      return;
+    }
+
+    final cam = await _ctrl?.getCameraPosition();
+    if (cam == null || !mounted) return;
+    final lat = cam.target.latitude;
+    final lng = cam.target.longitude;
+    final radiusM = await _getVisibleRadiusMeters();
+    if (!mounted) return;
+    final preferredCategories =
+        ref.read(userProfileProvider).valueOrNull?.preferredCategories ??
+        const <String>[];
+
+    _resetExploreMapFocus();
+    setState(() => _showExploreList = false);
+
+    final restaurants = await ref
+        .read(modeMatchProvider.notifier)
+        .findMatchedRestaurants(
+          latitude: lat,
+          longitude: lng,
+          radiusKm: radiusM / 1000,
+          targetKcal: targetKcal,
+          preferredCategories: preferredCategories,
+        );
+    if (!mounted) return;
+
+    if (restaurants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('조건에 맞는 맛집을 찾지 못했어요. 지도를 이동한 뒤 다시 시도해보세요.'),
+        ),
+      );
+      return;
+    }
+
+    final places = [
+      for (final r in restaurants)
+        PlaceEntity(
+          id: r.id,
+          name: r.name,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          address: r.address,
+          phone: r.tel,
+          category: r.category,
+          menu: r.menu,
+          kcalEstimate: r.kcal,
+          targetKcal: targetKcal,
+          source: PlaceSource.kakaoLocal,
+        ),
+    ];
+    _fitCameraOnNextResult = true;
+    ref
+        .read(mapSearchNotifierProvider.notifier)
+        .setPlaces(places, centerLat: lat, centerLng: lng);
+  }
+
   Future<Map<PlaceSource, NOverlayImage>> _getMarkerIcons() async {
     if (_markerIcons != null) return _markerIcons!;
     final c = context.colors;
@@ -228,6 +298,10 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
   ) {
     if (mode != MapMode.explore) return const [];
 
+    final matchLoading = ref.watch(
+      modeMatchProvider.select((s) => s.isLoading),
+    );
+
     final children = <Widget>[
       Positioned(
         top: 0,
@@ -250,6 +324,55 @@ mixin _ExploreOverlayMixin on ConsumerState<MapOverlay> {
                 .read(mapSearchNotifierProvider.notifier)
                 .selectCategory(cat, radiusMeters: radius);
           },
+        ),
+      ),
+      Positioned(
+        top: _topPanelHeight(context) + 12,
+        left: 12,
+        child: GestureDetector(
+          onTap: matchLoading ? null : _onFindTodayMatch,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: _kGreen.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (matchLoading)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.local_fire_department_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                const SizedBox(width: 6),
+                Text(
+                  '오늘의 맞춤 맛집',
+                  style: AppTypography.label.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
       if (exploreState.isLoading)

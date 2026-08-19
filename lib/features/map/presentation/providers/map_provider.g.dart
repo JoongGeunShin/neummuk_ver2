@@ -23,7 +23,7 @@ final placeRepositoryProvider = AutoDisposeProvider<PlaceRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef PlaceRepositoryRef = AutoDisposeProviderRef<PlaceRepository>;
-String _$mapSearchNotifierHash() => r'43e16c7a0b2add2c10170166606afbf933f6814f';
+String _$mapSearchNotifierHash() => r'7e37656412ae2d828a829709110b1f0e17580767';
 
 /// See also [MapSearchNotifier].
 @ProviderFor(MapSearchNotifier)

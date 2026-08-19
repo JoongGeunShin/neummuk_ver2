@@ -29,8 +29,9 @@ enum ModeANearbyTab {
 const _kRemove = Object();
 
 @Riverpod(keepAlive: true)
-ModeARepository modeARepository(ModeARepositoryRef ref) =>
-    ModeARepositoryImpl(foodCatalogRepo: ref.watch(foodCatalogRepositoryProvider));
+ModeARepository modeARepository(ModeARepositoryRef ref) => ModeARepositoryImpl(
+  foodCatalogRepo: ref.watch(foodCatalogRepositoryProvider),
+);
 
 class ModeAState {
   const ModeAState({
@@ -89,6 +90,7 @@ class ModeAState {
   final List<PlaceEntity> nearbyPlaces;
   final List<TouristRouteEntity> nearbyDurunubi;
   final bool nearbyLoading;
+
   /// 도착 후 실측 소모 kcal이 확정되면 true — 결과 시트가 "예상"에서 "실제" 표시로
   /// 전환되고, 음식점 탭이 노출된다.
   final bool hasArrived;
@@ -122,11 +124,16 @@ class ModeAState {
     return ModeAState(
       from: from ?? this.from,
       to: to ?? this.to,
-      originLat: identical(originLat, _kRemove) ? this.originLat : originLat as double?,
-      originLng: identical(originLng, _kRemove) ? this.originLng : originLng as double?,
+      originLat: identical(originLat, _kRemove)
+          ? this.originLat
+          : originLat as double?,
+      originLng: identical(originLng, _kRemove)
+          ? this.originLng
+          : originLng as double?,
       destLat: identical(destLat, _kRemove) ? this.destLat : destLat as double?,
       destLng: identical(destLng, _kRemove) ? this.destLng : destLng as double?,
-      originIsCurrentLocation: originIsCurrentLocation ?? this.originIsCurrentLocation,
+      originIsCurrentLocation:
+          originIsCurrentLocation ?? this.originIsCurrentLocation,
       transport: transport ?? this.transport,
       waypoints: waypoints ?? this.waypoints,
       routeResult: identical(routeResult, _kRemove)
@@ -144,8 +151,9 @@ class ModeAState {
       nearbyDurunubi: nearbyDurunubi ?? this.nearbyDurunubi,
       nearbyLoading: nearbyLoading ?? this.nearbyLoading,
       hasArrived: hasArrived ?? this.hasArrived,
-      arrivalKcal:
-          identical(arrivalKcal, _kRemove) ? this.arrivalKcal : arrivalKcal as double?,
+      arrivalKcal: identical(arrivalKcal, _kRemove)
+          ? this.arrivalKcal
+          : arrivalKcal as double?,
     );
   }
 }
@@ -197,11 +205,15 @@ class ModeA extends _$ModeA {
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mode_a_from', state.from);
-    if (state.originLat != null) await prefs.setDouble('mode_a_origin_lat', state.originLat!);
-    if (state.originLng != null) await prefs.setDouble('mode_a_origin_lng', state.originLng!);
+    if (state.originLat != null)
+      await prefs.setDouble('mode_a_origin_lat', state.originLat!);
+    if (state.originLng != null)
+      await prefs.setDouble('mode_a_origin_lng', state.originLng!);
     await prefs.setString('mode_a_to', state.to);
-    if (state.destLat != null) await prefs.setDouble('mode_a_dest_lat', state.destLat!);
-    if (state.destLng != null) await prefs.setDouble('mode_a_dest_lng', state.destLng!);
+    if (state.destLat != null)
+      await prefs.setDouble('mode_a_dest_lat', state.destLat!);
+    if (state.destLng != null)
+      await prefs.setDouble('mode_a_dest_lng', state.destLng!);
     await prefs.setInt('mode_a_wp_count', state.waypoints.length);
     for (var i = 0; i < state.waypoints.length; i++) {
       final wp = state.waypoints[i];
@@ -247,10 +259,7 @@ class ModeA extends _$ModeA {
 
   /// Phase 3: 도착지가 음식점/카페일 때 kcal 설정
   void setDestRestaurant({required bool isRestaurant, required int kcal}) {
-    state = state.copyWith(
-      destIsRestaurant: isRestaurant,
-      destKcal: kcal,
-    );
+    state = state.copyWith(destIsRestaurant: isRestaurant, destKcal: kcal);
   }
 
   void addWaypoint(RouteWaypoint wp) {
@@ -305,11 +314,15 @@ class ModeA extends _$ModeA {
       // gpx export 테스트(test/mode_a_gpx_export/export_route_gpx_test.dart)용 좌표 로그 —
       // 실제 앱에서 코스를 생성하면 여기 찍힌 origin/waypoints/dest/transport를 그대로
       // 테스트 상수에 복사해 동일한 경로를 재현할 수 있다.
-      debugPrint('[ModeA][gpx-test-input] transport=${state.transport} '
-          'origin=(${state.originLat}, ${state.originLng}) '
-          'waypoints=${state.waypoints.map((w) => '(${w.latitude}, ${w.longitude})').toList()} '
-          'dest=(${state.destLat}, ${state.destLng})');
-      final result = await ref.read(modeARepositoryProvider).getRoute(
+      debugPrint(
+        '[ModeA][gpx-test-input] transport=${state.transport} '
+        'origin=(${state.originLat}, ${state.originLng}) '
+        'waypoints=${state.waypoints.map((w) => '(${w.latitude}, ${w.longitude})').toList()} '
+        'dest=(${state.destLat}, ${state.destLng})',
+      );
+      final result = await ref
+          .read(modeARepositoryProvider)
+          .getRoute(
             from: state.from,
             to: state.to,
             originLat: state.originLat,
@@ -320,9 +333,11 @@ class ModeA extends _$ModeA {
             metrics: metrics,
             waypoints: state.waypoints,
           );
-      debugPrint('[ModeA][gpx-test-input] result: source=${result.routeSource} '
-          'distanceKm=${result.distanceKm} durationSec=${result.durationSeconds} '
-          'kcalBurn=${result.kcalBurn} points=${result.routePoints.length}');
+      debugPrint(
+        '[ModeA][gpx-test-input] result: source=${result.routeSource} '
+        'distanceKm=${result.distanceKm} durationSec=${result.durationSeconds} '
+        'kcalBurn=${result.kcalBurn} points=${result.routePoints.length}',
+      );
       state = state.copyWith(
         routeResult: result,
         isLoading: false,
@@ -338,20 +353,29 @@ class ModeA extends _$ModeA {
       // 관광지가 처음엔 빈 목록으로 보인다.
       await _fetchNearbyTabData(state.nearbyTab);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      debugPrint('[ModeA] search error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: '경로를 찾을 수 없어요. 잠시 후 다시 시도해주세요.',
+      );
     }
   }
 
-  Future<void> _loadRestaurants(int targetKcal, {double? lat, double? lng}) async {
+  Future<void> _loadRestaurants(
+    int targetKcal, {
+    double? lat,
+    double? lng,
+  }) async {
     final rLat = lat ?? state.destLat ?? 37.5635;
     final rLng = lng ?? state.destLng ?? 126.9869;
-    final restaurants =
-        await ref.read(modeARepositoryProvider).getNearbyRestaurants(
-              latitude: rLat,
-              longitude: rLng,
-              radiusKm: 2.0,
-              targetKcal: targetKcal,
-            );
+    final restaurants = await ref
+        .read(modeARepositoryProvider)
+        .getNearbyRestaurants(
+          latitude: rLat,
+          longitude: rLng,
+          radiusKm: 2.0,
+          targetKcal: targetKcal,
+        );
     state = state.copyWith(restaurants: restaurants);
   }
 
@@ -382,8 +406,10 @@ class ModeA extends _$ModeA {
   Future<void> loadWaypointCandidates(int extraKcalNeeded) async {
     final origin = (state.originLat, state.originLng);
     final dest = (state.destLat, state.destLng);
-    if (origin.$1 == null || origin.$2 == null ||
-        dest.$1 == null || dest.$2 == null) {
+    if (origin.$1 == null ||
+        origin.$2 == null ||
+        dest.$1 == null ||
+        dest.$2 == null) {
       return;
     }
 
@@ -391,10 +417,15 @@ class ModeA extends _$ModeA {
     final midLat = (origin.$1! + dest.$1!) / 2;
     final midLng = (origin.$2! + dest.$2!) / 2;
 
-    state = state.copyWith(loadingCandidates: true, waypointCandidates: const []);
+    state = state.copyWith(
+      loadingCandidates: true,
+      waypointCandidates: const [],
+    );
     try {
       final metrics = ref.read(userProfileProvider).toBodyMetrics();
-      final candidates = await ref.read(modeARepositoryProvider).getWaypointCandidates(
+      final candidates = await ref
+          .read(modeARepositoryProvider)
+          .getWaypointCandidates(
             midLat: midLat,
             midLng: midLng,
             originLat: origin.$1!,
@@ -434,11 +465,17 @@ class ModeA extends _$ModeA {
         final metrics = ref.read(userProfileProvider).toBodyMetrics();
         final courses = await ref
             .read(modeARepositoryProvider)
-            .getNearbyDurunubiCourses(latitude: lat, longitude: lng, metrics: metrics);
+            .getNearbyDurunubiCourses(
+              latitude: lat,
+              longitude: lng,
+              metrics: metrics,
+            );
         state = state.copyWith(nearbyDurunubi: courses, nearbyLoading: false);
         return;
       }
-      final places = await ref.read(modeARepositoryProvider).getNearbyPlaces(
+      final places = await ref
+          .read(modeARepositoryProvider)
+          .getNearbyPlaces(
             latitude: lat,
             longitude: lng,
             radiusKm: 2.0,
@@ -483,5 +520,4 @@ class ModeA extends _$ModeA {
     await prefs.remove('mode_a_wp_count');
     state = const ModeAState();
   }
-
 }

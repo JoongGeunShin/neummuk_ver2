@@ -5,11 +5,12 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/map_widgets.dart';
 
-typedef MapOverlayBuilder = Widget Function(
-  BuildContext context,
-  NaverMapController? controller,
-  MapEventSink events,
-);
+typedef MapOverlayBuilder =
+    Widget Function(
+      BuildContext context,
+      NaverMapController? controller,
+      MapEventSink events,
+    );
 
 // 모든 지도 화면의 기반. NaverMap 래핑 + AnnotatedRegion + 이벤트 라우팅만 담당.
 // GPS / 마커 / UI 로직은 각 오버레이 위젯이 처리.

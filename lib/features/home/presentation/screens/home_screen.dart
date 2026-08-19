@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,6 +34,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _openMap() {
     ref.read(mapModeProvider.notifier).set(MapMode.explore);
     context.push('/map');
+  }
+
+  /// 디버그 전용: "오늘 소모" 카드를 길게 누르면 칼로리를 즉시 더할 수 있다.
+  /// SharedPreferences(walk_today_calories)에 실제로 반영되는 정식 경로
+  /// (WalkSession.addExternalKcal)를 그대로 재사용 — 실기기 없이도 오늘의
+  /// 맞춤 맛집 등 kcal 의존 기능을 테스트하기 위함. 릴리즈 빌드에서는 노출 안 됨.
+  void _showKcalCheatDialog() {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('오늘 소모 칼로리 추가 (DEBUG)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              children: [100, 300, 500, 1000].map((v) {
+                return ActionChip(
+                  label: Text('+$v'),
+                  onPressed: () {
+                    ref
+                        .read(walkSessionProvider.notifier)
+                        .addExternalKcal(kcal: v.toDouble(), distanceM: 0);
+                    Navigator.of(ctx).pop();
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '직접 입력 (kcal)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              final v = double.tryParse(controller.text);
+              if (v != null && v > 0) {
+                ref
+                    .read(walkSessionProvider.notifier)
+                    .addExternalKcal(kcal: v, distanceM: 0);
+              }
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('추가'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -336,6 +395,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 value: walk.caloriesKcal.round().toString(),
                                 unit: 'kcal',
                                 color: c.primary,
+                                onLongPress: kDebugMode
+                                    ? _showKcalCheatDialog
+                                    : null,
                               ),
                               SizedBox(width: context.wp(2.5)),
                               _QuickStat(
@@ -672,6 +734,7 @@ class _QuickStat extends StatelessWidget {
     required this.value,
     required this.unit,
     required this.color,
+    this.onLongPress,
   });
 
   final IconData icon;
@@ -679,57 +742,61 @@ class _QuickStat extends StatelessWidget {
   final String value;
   final String unit;
   final Color color;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: c.outline),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: AppTypography.micro.copyWith(
-                color: c.textMuted,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: c.outline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: AppTypography.micro.copyWith(
+                  color: c.textMuted,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Flexible(
-                  child: Text(
-                    value,
-                    style: AppTypography.subtitle.copyWith(
-                      color: c.text,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Flexible(
+                    child: Text(
+                      value,
+                      style: AppTypography.subtitle.copyWith(
+                        color: c.text,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  unit,
-                  style: AppTypography.micro.copyWith(
-                    color: c.textMuted,
-                    fontWeight: FontWeight.w700,
+                  Text(
+                    unit,
+                    style: AppTypography.micro.copyWith(
+                      color: c.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

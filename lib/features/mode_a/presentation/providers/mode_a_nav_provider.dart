@@ -33,15 +33,19 @@ class ModeANavState {
   });
 
   final bool isNavigating;
+
   /// 도보/자전거 구간(segmentPolylines) 인덱스. 대중교통은 currentTransitStepIdx를 쓴다.
   final int currentLegIdx;
+
   /// 현재 구간 폴리라인 내에서의 최근접점 인덱스.
   final int nearestPtIdx;
   final int remainingDistanceM;
   final int remainingSec;
   final bool isOffRoute;
+
   /// 대중교통 안내: 현재 진행 중인 subPath 단계 인덱스
   final int currentTransitStepIdx;
+
   /// 실측 GPS 속도 기반 실시간 누적 칼로리(도보/자전거 전용 — LiveKcalTracker).
   /// 대중교통 안내 중에는 갱신되지 않는다(구간 자체가 도보/차량이 섞여 있어 실측
   /// 페이스 트래킹이 무의미).
@@ -70,7 +74,8 @@ class ModeANavState {
       remainingDistanceM: remainingDistanceM ?? this.remainingDistanceM,
       remainingSec: remainingSec ?? this.remainingSec,
       isOffRoute: isOffRoute ?? this.isOffRoute,
-      currentTransitStepIdx: currentTransitStepIdx ?? this.currentTransitStepIdx,
+      currentTransitStepIdx:
+          currentTransitStepIdx ?? this.currentTransitStepIdx,
       elapsedKcal: elapsedKcal ?? this.elapsedKcal,
     );
   }
@@ -88,8 +93,8 @@ class ModeANav extends _$ModeANav {
 
   /// 실측 GPS 속도 기반 실시간 칼로리 트래커 — foreground 걸음 추적·Mode B 내비게이션과
   /// 동일한 공식(WalkCalculator.met() + kcalPerHourFromMet)을 쓴다.
-  LiveKcalTracker _kcalTrackerFor(BodyMetrics metrics) =>
-      _kcalTracker ??= LiveKcalTracker(metrics: metrics, initialKcal: state.elapsedKcal);
+  LiveKcalTracker _kcalTrackerFor(BodyMetrics metrics) => _kcalTracker ??=
+      LiveKcalTracker(metrics: metrics, initialKcal: state.elapsedKcal);
 
   @override
   ModeANavState build() => const ModeANavState();
@@ -204,9 +209,16 @@ class ModeANav extends _$ModeANav {
     final steps = route.transitSteps;
     if (steps.isEmpty) return;
 
-    final idx = _advanceTransitStep(lat, lng, steps, state.currentTransitStepIdx);
+    final idx = _advanceTransitStep(
+      lat,
+      lng,
+      steps,
+      state.currentTransitStepIdx,
+    );
     final step = steps[idx];
-    final isOffRoute = step.isWalk && distToRoadM != null &&
+    final isOffRoute =
+        step.isWalk &&
+        distToRoadM != null &&
         distToRoadM > AppConstants.offRouteThresholdM;
 
     int remMin = 0;
@@ -224,7 +236,11 @@ class ModeANav extends _$ModeANav {
 
   /// 현재 단계의 끝 지점 80m 이내 진입 시 다음 단계로 전진 (전진만, 후퇴 없음)
   int _advanceTransitStep(
-      double lat, double lng, List<TransitStep> steps, int currentIdx) {
+    double lat,
+    double lng,
+    List<TransitStep> steps,
+    int currentIdx,
+  ) {
     if (currentIdx >= steps.length - 1) return currentIdx;
     final step = steps[currentIdx];
     if (step.endLat == null || step.endLng == null) return currentIdx;
@@ -267,7 +283,9 @@ class ModeANav extends _$ModeANav {
     try {
       final prefs = await _getPrefs();
       for (final key in [
-        kModeANavActive, kModeANavLegIdx, kModeANavTransitStepIdx,
+        kModeANavActive,
+        kModeANavLegIdx,
+        kModeANavTransitStepIdx,
         kModeANavElapsedKcal,
       ]) {
         await prefs.remove(key);

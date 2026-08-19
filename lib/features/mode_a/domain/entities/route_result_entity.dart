@@ -3,7 +3,7 @@ class RouteWaypoint {
   const RouteWaypoint({
     required this.name,
     required this.longitude, // Kakao API: x
-    required this.latitude,  // Kakao API: y
+    required this.latitude, // Kakao API: y
   });
 
   final String name;
@@ -41,21 +41,26 @@ class TransitStep {
   final String endName;
   final int distanceM;
   final int sectionTimeMin;
-  final String? lineInfo;  // 버스번호 or 지하철 호선명
+  final String? lineInfo; // 버스번호 or 지하철 호선명
   final double? startLat;
   final double? startLng;
   final double? endLat;
   final double? endLng;
   final int stationCount;
+
   /// 이 구간의 상세 폴리라인 좌표 (도보=초록, 차량=파랑 별색 표시용)
   final List<LatLng> stepPoints;
 
-  bool get isWalk    => trafficType == 3;
-  bool get isBus     => trafficType == 2;
-  bool get isSubway  => trafficType == 1;
+  bool get isWalk => trafficType == 3;
+  bool get isBus => trafficType == 2;
+  bool get isSubway => trafficType == 1;
   bool get isVehicle => isBus || isSubway;
 
-  String get typeLabel => isWalk ? '도보' : isBus ? '버스' : '지하철';
+  String get typeLabel => isWalk
+      ? '도보'
+      : isBus
+      ? '버스'
+      : '지하철';
 
   String get distanceLabel => distanceM < 1000
       ? '${distanceM}m'
@@ -83,21 +88,21 @@ class RouteGuide {
 
   final double latitude;
   final double longitude;
-  final String guidance;   // e.g. "500m 직진 후 우회전"
-  final int type;          // 0=출발, 11=직진, 12=우회전, 13=좌회전, 14=U턴, 100=도착
-  final int distanceM;     // to next guide
+  final String guidance; // e.g. "500m 직진 후 우회전"
+  final int type; // 0=출발, 11=직진, 12=우회전, 13=좌회전, 14=U턴, 100=도착
+  final int distanceM; // to next guide
 
   bool get isArrival => type == 100;
   bool get isDeparture => type == 0;
 
   String get turnLabel => switch (type) {
-    0   => '출발',
-    11  => '직진',
-    12  => '우회전',
-    13  => '좌회전',
-    14  => 'U턴',
+    0 => '출발',
+    11 => '직진',
+    12 => '우회전',
+    13 => '좌회전',
+    14 => 'U턴',
     100 => '도착',
-    _   => '직진',
+    _ => '직진',
   };
 }
 
@@ -124,20 +129,27 @@ class RouteResultEntity {
   final int durationSeconds;
   final String transport; // 'walk' | 'bike' | 'transit' | 'car'
   final int kcalBurn;
+
   /// 중간 경유 관광지 목록 (Kakao Mobility waypoints 파라미터로 전달)
   final List<RouteWaypoint> waypoints;
+
   /// 전체를 이어붙인 폴리라인 좌표 (프리뷰 표시용) — segmentPolylines를 이어붙인 것과 동일
   final List<LatLng> routePoints;
+
   /// Kakao Mobility 응답에서 추출한 안내 포인트 (Kakao 폴백 경로에서만 채워짐)
   final List<RouteGuide> guides;
+
   /// ODsay 응답에서 추출한 대중교통 단계 목록 (대중교통 안내용 — 이 자체가 구간 배열 역할)
   final List<TransitStep> transitSteps;
+
   /// 도보/자전거 구간별 폴리라인 (구간 i = 출발지/이전 경유지 → i번째 경유지 또는 목적지).
   /// 내비게이션 중 턴마커·회색처리·이탈판정·재경로가 구간 단위로 이뤄진다. 대중교통은
   /// transitSteps[i].stepPoints가 이 역할을 대신하므로 비워둔다.
   final List<List<LatLng>> segmentPolylines;
+
   /// 구간별 실제 도로 거리(m). segmentPolylines와 1:1 대응.
   final List<double> segmentDistancesM;
+
   /// 도보/자전거 경로 소스 — 'tmap' | 'kakao'. 재경로 시 소스를 고정해 코스 안에서
   /// 도로 스냅 스타일이 섞이지 않도록 한다. 대중교통은 'odsay' | 'kakao_fallback'.
   final String? routeSource;

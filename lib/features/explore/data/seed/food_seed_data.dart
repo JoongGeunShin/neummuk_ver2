@@ -29,6 +29,27 @@ const List<String> kFoodSeedCategories = [
   '패스트푸드',
 ];
 
+/// kFoodSeedCategories 카테고리별 대표 이모지 — 선호 음식 선택 UI(온보딩/프로필 편집)에서
+/// food_categories(Firestore) 값과 함께 쓴다.
+const Map<String, String> kFoodCategoryEmoji = {
+  '치킨': '🍗',
+  '족발·보쌈': '🍖',
+  '돈까스·회·일식': '🍣',
+  '피자': '🍕',
+  '구이·고기': '🥩',
+  '야식': '🌙',
+  '양식': '🍝',
+  '중식': '🥟',
+  '아시안': '🍛',
+  '백반·죽·국수': '🍚',
+  '도시락': '🍱',
+  '분식': '🌶️',
+  '카페·디저트': '☕',
+  '패스트푸드': '🍔',
+};
+
+String foodCategoryEmoji(String category) => kFoodCategoryEmoji[category] ?? '🍽️';
+
 /// 컬럼 순서: 이름, 카테고리, 이모지, 1인분(g), kcal, 탄수화물(g), 당류(g),
 /// 단백질(g), 지방(g), 나트륨(mg), [포화지방(g)], [콜레스테롤(mg)]
 class FoodSeedItem {

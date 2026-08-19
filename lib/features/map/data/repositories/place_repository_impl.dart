@@ -38,8 +38,9 @@ class PlaceRepositoryImpl implements PlaceRepository {
     if (keyword != null && keyword.isNotEmpty && !isCategory) {
       final parsed = _parseQuery(keyword);
       if (parsed.location != null) {
-        final coords = await _geocodeLocation(parsed.location!)
-            .catchError((_) => null);
+        final coords = await _geocodeLocation(
+          parsed.location!,
+        ).catchError((_) => null);
         if (coords != null) {
           searchLat = coords.$1;
           searchLng = coords.$2;
@@ -50,14 +51,28 @@ class PlaceRepositoryImpl implements PlaceRepository {
     }
 
     final results = await Future.wait([
-      _fetchTourApi(searchLat, searchLng, radiusMeters, effectiveKeyword,
-              isCategory, restrictRadius)
-          .catchError((_) => <PlaceEntity>[]),
+      _fetchTourApi(
+        searchLat,
+        searchLng,
+        radiusMeters,
+        effectiveKeyword,
+        isCategory,
+        restrictRadius,
+      ).catchError((_) => <PlaceEntity>[]),
       _fetchKakaoLocal(
-              searchLat, searchLng, radiusMeters, effectiveKeyword, restrictRadius)
-          .catchError((_) => <PlaceEntity>[]),
+        searchLat,
+        searchLng,
+        radiusMeters,
+        effectiveKeyword,
+        restrictRadius,
+      ).catchError((_) => <PlaceEntity>[]),
     ]);
-    return _merge(results[0], results[1], effectiveKeyword, isCategory: isCategory);
+    return _merge(
+      results[0],
+      results[1],
+      effectiveKeyword,
+      isCategory: isCategory,
+    );
   }
 
   // 쿼리를 위치 부분과 키워드 부분으로 분리한다.
@@ -76,11 +91,14 @@ class PlaceRepositoryImpl implements PlaceRepository {
 
   // 위치 텍스트를 Kakao 키워드 검색으로 지오코딩 → (lat, lng) 반환
   Future<(double, double)?> _geocodeLocation(String locationText) async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/keyword.json')
-          .replace(queryParameters: {'query': locationText, 'size': '1'}),
-      headers: {'Authorization': 'KakaoAK $_kakaoKey'},
-    ).timeout(const Duration(seconds: 5));
+    final response = await http
+        .get(
+          Uri.parse(
+            '${AppConstants.kakaoLocalBaseUrl}/search/keyword.json',
+          ).replace(queryParameters: {'query': locationText, 'size': '1'}),
+          headers: {'Authorization': 'KakaoAK $_kakaoKey'},
+        )
+        .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) return null;
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final docs = json['documents'] as List? ?? [];
@@ -141,8 +159,10 @@ class PlaceRepositoryImpl implements PlaceRepository {
     }
 
     final queryString = params.entries
-        .map((e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .map(
+          (e) =>
+              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}',
+        )
         .join('&');
     final url =
         '${AppConstants.tourApiBaseUrl}/$path?serviceKey=$_tourKey&$queryString';
@@ -156,8 +176,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
     final body = json['response']?['body'];
     if (body == null) return [];
 
-    final totalCount =
-        int.tryParse(body['totalCount'].toString()) ?? 0;
+    final totalCount = int.tryParse(body['totalCount'].toString()) ?? 0;
     if (totalCount == 0) return [];
 
     final rawItem = body['items']?['item'];
@@ -165,25 +184,29 @@ class PlaceRepositoryImpl implements PlaceRepository {
 
     final itemList = rawItem is List ? rawItem : [rawItem];
 
-    return itemList.map<PlaceEntity?>((item) {
-      final mapx = double.tryParse(item['mapx']?.toString() ?? '');
-      final mapy = double.tryParse(item['mapy']?.toString() ?? '');
-      if (mapx == null || mapy == null || mapx == 0 || mapy == 0) return null;
-      final name = (item['title'] as String? ?? '').trim();
-      if (name.isEmpty) return null;
-      return PlaceEntity(
-        id: 'tour_${item['contentid']}',
-        name: name,
-        latitude: mapy,
-        longitude: mapx,
-        address: item['addr1'] as String?,
-        phone: item['tel'] as String?,
-        imageUrl: item['firstimage'] as String?,
-        category: item['cat3'] as String?,
-        source: PlaceSource.tourApi,
-        contentTypeId: (item['contenttypeid'] as num?)?.toInt(),
-      );
-    }).whereType<PlaceEntity>().toList();
+    return itemList
+        .map<PlaceEntity?>((item) {
+          final mapx = double.tryParse(item['mapx']?.toString() ?? '');
+          final mapy = double.tryParse(item['mapy']?.toString() ?? '');
+          if (mapx == null || mapy == null || mapx == 0 || mapy == 0)
+            return null;
+          final name = (item['title'] as String? ?? '').trim();
+          if (name.isEmpty) return null;
+          return PlaceEntity(
+            id: 'tour_${item['contentid']}',
+            name: name,
+            latitude: mapy,
+            longitude: mapx,
+            address: item['addr1'] as String?,
+            phone: item['tel'] as String?,
+            imageUrl: item['firstimage'] as String?,
+            category: item['cat3'] as String?,
+            source: PlaceSource.tourApi,
+            contentTypeId: (item['contenttypeid'] as num?)?.toInt(),
+          );
+        })
+        .whereType<PlaceEntity>()
+        .toList();
   }
 
   // 카카오 로컬 —————————————————————————————
@@ -198,20 +221,20 @@ class PlaceRepositoryImpl implements PlaceRepository {
       // 자유 텍스트 검색: category_group_code 제거 → 모든 장소 유형 포함
       // 위치 힌트가 없는 순수 장소명 검색은 x/y/radius를 넣지 않는다 —
       // 넣으면 Kakao가 그 반경 밖의 결과를 모두 제외해버린다 (전국 검색이 되어야 함).
-      final queryParams = <String, String>{
-        'query': keyword,
-        'size': '15',
-      };
+      final queryParams = <String, String>{'query': keyword, 'size': '15'};
       if (restrictRadius) {
         queryParams['x'] = lng.toString();
         queryParams['y'] = lat.toString();
         queryParams['radius'] = radius.toString();
       }
-      final response = await http.get(
-        Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/keyword.json')
-            .replace(queryParameters: queryParams),
-        headers: {'Authorization': 'KakaoAK $_kakaoKey'},
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse(
+              '${AppConstants.kakaoLocalBaseUrl}/search/keyword.json',
+            ).replace(queryParameters: queryParams),
+            headers: {'Authorization': 'KakaoAK $_kakaoKey'},
+          )
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) return [];
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return _parseKakaoDocs(json['documents'] as List<dynamic>? ?? []);
@@ -219,9 +242,24 @@ class PlaceRepositoryImpl implements PlaceRepository {
       // 초기 브라우징: 음식점(FD6) + 관광명소(AT4) + 숙박(AD5) 병렬 요청
       // → 세인트존스호텔 같은 숙박·관광지도 탐색에 표시됨
       final results = await Future.wait([
-        _fetchKakaoCategory(lat, lng, radius, 'FD6').catchError((_) => <PlaceEntity>[]),
-        _fetchKakaoCategory(lat, lng, radius, 'AT4').catchError((_) => <PlaceEntity>[]),
-        _fetchKakaoCategory(lat, lng, radius, 'AD5').catchError((_) => <PlaceEntity>[]),
+        _fetchKakaoCategory(
+          lat,
+          lng,
+          radius,
+          'FD6',
+        ).catchError((_) => <PlaceEntity>[]),
+        _fetchKakaoCategory(
+          lat,
+          lng,
+          radius,
+          'AT4',
+        ).catchError((_) => <PlaceEntity>[]),
+        _fetchKakaoCategory(
+          lat,
+          lng,
+          radius,
+          'AD5',
+        ).catchError((_) => <PlaceEntity>[]),
       ]);
       return [...results[0], ...results[1], ...results[2]];
     }
@@ -233,41 +271,51 @@ class PlaceRepositoryImpl implements PlaceRepository {
     int radius,
     String categoryCode,
   ) async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.kakaoLocalBaseUrl}/search/category.json')
-          .replace(queryParameters: {
-        'category_group_code': categoryCode,
-        'x': lng.toString(),
-        'y': lat.toString(),
-        'radius': radius.toString(),
-        'size': '10',
-      }),
-      headers: {'Authorization': 'KakaoAK $_kakaoKey'},
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .get(
+          Uri.parse(
+            '${AppConstants.kakaoLocalBaseUrl}/search/category.json',
+          ).replace(
+            queryParameters: {
+              'category_group_code': categoryCode,
+              'x': lng.toString(),
+              'y': lat.toString(),
+              'radius': radius.toString(),
+              'size': '10',
+            },
+          ),
+          headers: {'Authorization': 'KakaoAK $_kakaoKey'},
+        )
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return _parseKakaoDocs(json['documents'] as List<dynamic>? ?? []);
   }
 
   List<PlaceEntity> _parseKakaoDocs(List<dynamic> documents) {
-    return documents.map<PlaceEntity?>((doc) {
-      final x = double.tryParse(doc['x']?.toString() ?? '');
-      final y = double.tryParse(doc['y']?.toString() ?? '');
-      if (x == null || y == null || x == 0 || y == 0) return null;
-      final name = (doc['place_name'] as String? ?? '').trim();
-      if (name.isEmpty) return null;
-      final roadAddr = doc['road_address_name'] as String? ?? '';
-      return PlaceEntity(
-        id: 'kakao_${doc['id']}',
-        name: name,
-        latitude: y,
-        longitude: x,
-        address: roadAddr.isNotEmpty ? roadAddr : doc['address_name'] as String?,
-        phone: doc['phone'] as String?,
-        category: doc['category_name'] as String?,
-        source: PlaceSource.kakaoLocal,
-      );
-    }).whereType<PlaceEntity>().toList();
+    return documents
+        .map<PlaceEntity?>((doc) {
+          final x = double.tryParse(doc['x']?.toString() ?? '');
+          final y = double.tryParse(doc['y']?.toString() ?? '');
+          if (x == null || y == null || x == 0 || y == 0) return null;
+          final name = (doc['place_name'] as String? ?? '').trim();
+          if (name.isEmpty) return null;
+          final roadAddr = doc['road_address_name'] as String? ?? '';
+          return PlaceEntity(
+            id: 'kakao_${doc['id']}',
+            name: name,
+            latitude: y,
+            longitude: x,
+            address: roadAddr.isNotEmpty
+                ? roadAddr
+                : doc['address_name'] as String?,
+            phone: doc['phone'] as String?,
+            category: doc['category_name'] as String?,
+            source: PlaceSource.kakaoLocal,
+          );
+        })
+        .whereType<PlaceEntity>()
+        .toList();
   }
 
   List<PlaceEntity> _merge(
@@ -279,10 +327,12 @@ class PlaceRepositoryImpl implements PlaceRepository {
     final result = List<PlaceEntity>.from(tour);
 
     for (final kPlace in kakao) {
-      final matchIdx = result.indexWhere((t) =>
-          _distM(t.latitude, t.longitude, kPlace.latitude, kPlace.longitude) <
-              150 &&
-          _similarName(t.name, kPlace.name));
+      final matchIdx = result.indexWhere(
+        (t) =>
+            _distM(t.latitude, t.longitude, kPlace.latitude, kPlace.longitude) <
+                150 &&
+            _similarName(t.name, kPlace.name),
+      );
 
       if (matchIdx >= 0) {
         final t = result[matchIdx];
@@ -310,8 +360,7 @@ class PlaceRepositoryImpl implements PlaceRepository {
       return result.where((p) {
         if (p.source != PlaceSource.kakaoLocal) return true;
         final text = '${p.name} ${p.category ?? ''}'.toLowerCase();
-        return text.contains(kw) ||
-            extraKeywords.any((k) => text.contains(k));
+        return text.contains(kw) || extraKeywords.any((k) => text.contains(k));
       }).toList();
     }
     return result;
@@ -328,7 +377,8 @@ class PlaceRepositoryImpl implements PlaceRepository {
     const r = 6371000.0;
     final dLat = _rad(lat2 - lat1);
     final dLng = _rad(lng2 - lng1);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
         cos(_rad(lat1)) * cos(_rad(lat2)) * sin(dLng / 2) * sin(dLng / 2);
     return r * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
@@ -337,14 +387,19 @@ class PlaceRepositoryImpl implements PlaceRepository {
 
   @override
   Future<String?> reverseGeocode(double latitude, double longitude) async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.kakaoLocalBaseUrl}/geo/coord2address.json')
-          .replace(queryParameters: {
-        'x': longitude.toString(),
-        'y': latitude.toString(),
-      }),
-      headers: {'Authorization': 'KakaoAK $_kakaoKey'},
-    ).timeout(const Duration(seconds: 5));
+    final response = await http
+        .get(
+          Uri.parse(
+            '${AppConstants.kakaoLocalBaseUrl}/geo/coord2address.json',
+          ).replace(
+            queryParameters: {
+              'x': longitude.toString(),
+              'y': latitude.toString(),
+            },
+          ),
+          headers: {'Authorization': 'KakaoAK $_kakaoKey'},
+        )
+        .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) return null;
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final docs = json['documents'] as List? ?? [];
@@ -354,7 +409,9 @@ class PlaceRepositoryImpl implements PlaceRepository {
       final addr = road['address_name'] as String? ?? '';
       if (addr.isNotEmpty) return addr;
     }
-    final addr = (docs[0]['address'] as Map<String, dynamic>?)?['address_name'] as String?;
+    final addr =
+        (docs[0]['address'] as Map<String, dynamic>?)?['address_name']
+            as String?;
     return addr?.isNotEmpty == true ? addr : null;
   }
 

@@ -115,7 +115,33 @@ class _ExplorePlaceSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (place.category != null &&
+                    if (place.menu != null && place.kcalEstimate != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.restaurant_rounded,
+                            size: 13,
+                            color: _kWhite45,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              '${place.menu} · ${place.kcalEstimate}kcal',
+                              style: AppTypography.caption.copyWith(
+                                color: Colors.white54,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (place.kcalDiff != null) ...[
+                        const SizedBox(height: 6),
+                        _KcalDiffBadge(diff: place.kcalDiff!),
+                      ],
+                    ] else if (place.category != null &&
                         place.category!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -237,6 +263,41 @@ class _ExplorePlaceSheet extends StatelessWidget {
   }
 }
 
+/// 매칭된 음식 kcal과 비교 기준(오늘 소모/필요 칼로리) 간 차이를 보여주는 배지.
+/// diff==0: "오늘 소모량과 일치" / diff>0: "오늘보다 +Nkcal" / diff<0: "오늘보다 -Nkcal".
+class _KcalDiffBadge extends StatelessWidget {
+  const _KcalDiffBadge({required this.diff});
+  final int diff;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = diff == 0
+        ? '오늘 소모량과 일치'
+        : '오늘보다 ${diff > 0 ? '+' : ''}$diff kcal';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _kGreen.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.compare_arrows_rounded, size: 13, color: _kGreen),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.tiny.copyWith(
+              fontWeight: FontWeight.w700,
+              color: _kGreen,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PlaceRouteBtn extends StatelessWidget {
   const _PlaceRouteBtn({
     required this.label,
@@ -287,12 +348,6 @@ class _ClusterPanel extends StatelessWidget {
   final List<PlaceEntity> places;
   final VoidCallback onClose;
   final ValueChanged<PlaceEntity> onTapPlace;
-
-  String? _trimCategory(String? cat) {
-    if (cat == null || cat.isEmpty) return null;
-    final parts = cat.split(RegExp(r'[>·,]'));
-    return parts.last.trim().isNotEmpty ? parts.last.trim() : null;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -394,7 +449,7 @@ class _ClusterPanel extends StatelessWidget {
                     final dotColor = isBoth
                         ? context.colors.accent
                         : context.colors.success;
-                    final trimmedCat = _trimCategory(place.category);
+                    final subtitle = _placeSubtitle(place);
                     return InkWell(
                       onTap: () => onTapPlace(place),
                       child: Padding(
@@ -428,10 +483,10 @@ class _ClusterPanel extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  if (trimmedCat != null) ...[
+                                  if (subtitle != null) ...[
                                     const SizedBox(height: 2),
                                     Text(
-                                      trimmedCat,
+                                      subtitle,
                                       style: AppTypography.caption.copyWith(
                                         fontWeight: FontWeight.w400,
                                         color: _kWhite45,
@@ -584,17 +639,11 @@ class _ExploreListItem extends StatelessWidget {
   final PlaceEntity place;
   final VoidCallback onTap;
 
-  String? _trimCategory(String? cat) {
-    if (cat == null || cat.isEmpty) return null;
-    final parts = cat.split(RegExp(r'[>·,]'));
-    return parts.last.trim().isNotEmpty ? parts.last.trim() : null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final isBoth = place.source == PlaceSource.both;
     final dotColor = isBoth ? context.colors.accent : context.colors.success;
-    final trimmedCat = _trimCategory(place.category);
+    final subtitle = _placeSubtitle(place);
 
     return InkWell(
       onTap: onTap,
@@ -656,10 +705,10 @@ class _ExploreListItem extends StatelessWidget {
                       ],
                     ],
                   ),
-                  if (trimmedCat != null) ...[
+                  if (subtitle != null) ...[
                     const SizedBox(height: 3),
                     Text(
-                      trimmedCat,
+                      subtitle,
                       style: AppTypography.caption.copyWith(color: _kWhite45),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

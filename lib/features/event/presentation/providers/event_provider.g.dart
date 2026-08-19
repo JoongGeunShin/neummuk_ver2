@@ -23,7 +23,7 @@ final eventRepositoryProvider = Provider<EventRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef EventRepositoryRef = ProviderRef<EventRepository>;
-String _$homeEventsHash() => r'7615307b19a543c7b339ee583e29057d286ccd2b';
+String _$homeEventsHash() => r'a0c3d25e3e4ec835e8e0833e13f931d2263e2144';
 
 /// See also [HomeEvents].
 @ProviderFor(HomeEvents)

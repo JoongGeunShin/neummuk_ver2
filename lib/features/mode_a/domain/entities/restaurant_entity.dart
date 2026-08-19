@@ -39,7 +39,8 @@ class RestaurantEntity {
   final String? contentId;
   final String? kakaoPlaceId;
 
-  String get distanceLabel =>
-      distanceM < 1000 ? '${distanceM}m' : '${(distanceM / 1000).toStringAsFixed(1)}km';
+  String get distanceLabel => distanceM < 1000
+      ? '${distanceM}m'
+      : '${(distanceM / 1000).toStringAsFixed(1)}km';
   String get walkLabel => '도보 $walkMinutes분';
 }

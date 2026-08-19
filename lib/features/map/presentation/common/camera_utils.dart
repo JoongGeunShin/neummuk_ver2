@@ -110,12 +110,7 @@ abstract final class MapCameraUtils {
   // ── 거리 계산 ────────────────────────────────────────────────────────────
 
   /// 두 위경도 사이의 평면 근사 거리 (미터). 수십 km 이하 적합.
-  static double distanceM(
-    double lat1,
-    double lng1,
-    double lat2,
-    double lng2,
-  ) {
+  static double distanceM(double lat1, double lng1, double lat2, double lng2) {
     const r = 6_371_000.0;
     const toRad = math.pi / 180.0;
     final dLat = (lat2 - lat1) * toRad;

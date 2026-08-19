@@ -40,22 +40,38 @@ class RoadRouteDatasource {
   /// 여러 구간(출발지→경유지1→...→목적지)의 도로 경로를 한 번에 가져온다.
   /// TMAP으로 전 구간을 먼저 시도하고, 단 한 구간이라도 실패하면 전체를 버리고
   /// Kakao Mobility로 코스 전체를 다시 시도한다.
-  Future<({List<List<GeoPoint>> segments, List<RouteGuidePoint> guides, String? source})>
-      fetchRouteWithFallback({
+  Future<
+    ({
+      List<List<GeoPoint>> segments,
+      List<RouteGuidePoint> guides,
+      String? source,
+    })
+  >
+  fetchRouteWithFallback({
     required double startLat,
     required double startLng,
     required List<GeoPoint> waypoints,
   }) async {
     final tmapPass = await _fetchLegsBySource(
-      startLat: startLat, startLng: startLng, waypoints: waypoints, source: 'tmap',
+      startLat: startLat,
+      startLng: startLng,
+      waypoints: waypoints,
+      source: 'tmap',
     );
     if (tmapPass.allSucceeded) {
-      return (segments: tmapPass.segments, guides: const <RouteGuidePoint>[], source: 'tmap');
+      return (
+        segments: tmapPass.segments,
+        guides: const <RouteGuidePoint>[],
+        source: 'tmap',
+      );
     }
 
     debugPrint('[RoadRoute] TMAP으로 전체 구간을 채우지 못해 Kakao로 전체 재시도');
     final kakaoPass = await _fetchLegsBySource(
-      startLat: startLat, startLng: startLng, waypoints: waypoints, source: 'kakao',
+      startLat: startLat,
+      startLng: startLng,
+      waypoints: waypoints,
+      source: 'kakao',
     );
     return (
       segments: kakaoPass.segments,
@@ -66,8 +82,14 @@ class RoadRouteDatasource {
 
   /// [source]("tmap" | "kakao") 하나만으로 전 구간을 시도한다. 실패한 구간은
   /// 직선으로 채우되 [allSucceeded]로 실제 전체 성공 여부를 함께 반환한다.
-  Future<({List<List<GeoPoint>> segments, List<RouteGuidePoint> guides, bool allSucceeded})>
-      _fetchLegsBySource({
+  Future<
+    ({
+      List<List<GeoPoint>> segments,
+      List<RouteGuidePoint> guides,
+      bool allSucceeded,
+    })
+  >
+  _fetchLegsBySource({
     required double startLat,
     required double startLng,
     required List<GeoPoint> waypoints,
@@ -82,11 +104,17 @@ class RoadRouteDatasource {
       List<GeoPoint> pts;
       if (source == 'tmap') {
         pts = await fetchTmapLeg(
-          fromLat: prevLat, fromLng: prevLng, toLat: wp.lat, toLng: wp.lng,
+          fromLat: prevLat,
+          fromLng: prevLng,
+          toLat: wp.lat,
+          toLng: wp.lng,
         );
       } else {
         final kakao = await fetchKakaoMobilityLeg(
-          fromLat: prevLat, fromLng: prevLng, toLat: wp.lat, toLng: wp.lng,
+          fromLat: prevLat,
+          fromLng: prevLng,
+          toLat: wp.lat,
+          toLng: wp.lng,
         );
         pts = kakao.points;
         guides.addAll(kakao.guides);
@@ -95,7 +123,10 @@ class RoadRouteDatasource {
       if (pts.isNotEmpty) {
         segments.add(withSnapPrefix(prevLat, prevLng, pts));
       } else {
-        segments.add([(lat: prevLat, lng: prevLng), (lat: wp.lat, lng: wp.lng)]);
+        segments.add([
+          (lat: prevLat, lng: prevLng),
+          (lat: wp.lat, lng: wp.lng),
+        ]);
         allSucceeded = false;
       }
       prevLat = wp.lat;
@@ -115,12 +146,18 @@ class RoadRouteDatasource {
   }) async {
     if (preferredSource != 'kakao') {
       final pts = await fetchTmapLeg(
-        fromLat: fromLat, fromLng: fromLng, toLat: toLat, toLng: toLng,
+        fromLat: fromLat,
+        fromLng: fromLng,
+        toLat: toLat,
+        toLng: toLng,
       );
       if (pts.isNotEmpty) return withSnapPrefix(fromLat, fromLng, pts);
     }
     final kakao = await fetchKakaoMobilityLeg(
-      fromLat: fromLat, fromLng: fromLng, toLat: toLat, toLng: toLng,
+      fromLat: fromLat,
+      fromLng: fromLng,
+      toLat: toLat,
+      toLng: toLng,
     );
     return kakao.points.isNotEmpty
         ? withSnapPrefix(fromLat, fromLng, kakao.points)
@@ -129,9 +166,18 @@ class RoadRouteDatasource {
 
   /// 요청 출발점과 API가 반환한 첫 포인트가 10m 이상 떨어져 있으면 출발점을
   /// 맨 앞에 이어붙인다 (도로 스냅 지점과 실제 출발 위치 사이 끊김 방지).
-  List<GeoPoint> withSnapPrefix(double fromLat, double fromLng, List<GeoPoint> pts) {
+  List<GeoPoint> withSnapPrefix(
+    double fromLat,
+    double fromLng,
+    List<GeoPoint> pts,
+  ) {
     if (pts.isEmpty) return pts;
-    final snapDist = haversineDistanceM(fromLat, fromLng, pts.first.lat, pts.first.lng);
+    final snapDist = haversineDistanceM(
+      fromLat,
+      fromLng,
+      pts.first.lat,
+      pts.first.lng,
+    );
     return snapDist > 10 ? [(lat: fromLat, lng: fromLng), ...pts] : pts;
   }
 
@@ -161,7 +207,9 @@ class RoadRouteDatasource {
 
       final res = await http
           .post(
-            Uri.parse('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1'),
+            Uri.parse(
+              'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1',
+            ),
             headers: {
               'appKey': key,
               'Content-Type': 'application/x-www-form-urlencoded',
@@ -185,7 +233,10 @@ class RoadRouteDatasource {
         final coords = geometry['coordinates'] as List?;
         if (coords == null) continue;
         for (final c in coords) {
-          points.add((lat: (c[1] as num).toDouble(), lng: (c[0] as num).toDouble()));
+          points.add((
+            lat: (c[1] as num).toDouble(),
+            lng: (c[0] as num).toDouble(),
+          ));
         }
       }
       return points;
@@ -197,11 +248,22 @@ class RoadRouteDatasource {
 
   // ── Kakao Mobility API (폴백) ──────────────────────────────────
 
-  static const _emptyKakaoLeg =
-      (points: <GeoPoint>[], guides: <RouteGuidePoint>[], distanceM: 0, durationSec: 0);
+  static const _emptyKakaoLeg = (
+    points: <GeoPoint>[],
+    guides: <RouteGuidePoint>[],
+    distanceM: 0,
+    durationSec: 0,
+  );
 
-  Future<({List<GeoPoint> points, List<RouteGuidePoint> guides, int distanceM, int durationSec})>
-      fetchKakaoMobilityLeg({
+  Future<
+    ({
+      List<GeoPoint> points,
+      List<RouteGuidePoint> guides,
+      int distanceM,
+      int durationSec,
+    })
+  >
+  fetchKakaoMobilityLeg({
     required double fromLat,
     required double fromLng,
     required double toLat,
@@ -211,7 +273,9 @@ class RoadRouteDatasource {
       final key = AppEnv.kakaoRestApiKey;
       if (key.isEmpty) return _emptyKakaoLeg;
 
-      final uri = Uri.parse('${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions');
+      final uri = Uri.parse(
+        '${AppConstants.kakaoMobilityBaseUrl}/waypoints/directions',
+      );
       final res = await http
           .post(
             uri,
@@ -247,25 +311,38 @@ class RoadRouteDatasource {
         for (final road in (s['roads'] as List? ?? [])) {
           final vx = (road as Map)['vertexes'] as List? ?? [];
           for (var i = 0; i < vx.length - 1; i += 2) {
-            points.add((lat: (vx[i + 1] as num).toDouble(), lng: (vx[i] as num).toDouble()));
+            points.add((
+              lat: (vx[i + 1] as num).toDouble(),
+              lng: (vx[i] as num).toDouble(),
+            ));
           }
         }
         for (final guide in (s['guides'] as List? ?? [])) {
           final g = guide as Map;
           final loc = g['x'] != null && g['y'] != null
-              ? (lat: (g['y'] as num).toDouble(), lng: (g['x'] as num).toDouble())
+              ? (
+                  lat: (g['y'] as num).toDouble(),
+                  lng: (g['x'] as num).toDouble(),
+                )
               : null;
           if (loc == null) continue;
-          guides.add(RouteGuidePoint(
-            lat: loc.lat,
-            lng: loc.lng,
-            guidance: g['guidance']?.toString() ?? '',
-            type: (g['type'] as num?)?.toInt() ?? 11,
-            distanceM: (g['distance'] as num?)?.toInt() ?? 0,
-          ));
+          guides.add(
+            RouteGuidePoint(
+              lat: loc.lat,
+              lng: loc.lng,
+              guidance: g['guidance']?.toString() ?? '',
+              type: (g['type'] as num?)?.toInt() ?? 11,
+              distanceM: (g['distance'] as num?)?.toInt() ?? 0,
+            ),
+          );
         }
       }
-      return (points: points, guides: guides, distanceM: distanceM, durationSec: durationSec);
+      return (
+        points: points,
+        guides: guides,
+        distanceM: distanceM,
+        durationSec: durationSec,
+      );
     } catch (e) {
       debugPrint('[KakaoMobility] error=$e');
       return _emptyKakaoLeg;

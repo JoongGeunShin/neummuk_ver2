@@ -6,6 +6,8 @@ import '../../../../core/utils/context_ext.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/region_selector.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../explore/data/seed/food_seed_data.dart';
+import '../../../explore/presentation/providers/food_category_options_provider.dart';
 import '../providers/onboarding_provider.dart';
 import 'package:neummuk_ver2/core/theme/app_typography.dart';
 
@@ -522,23 +524,13 @@ class _RegionStep extends ConsumerWidget {
 class _PrefsStep extends ConsumerWidget {
   const _PrefsStep({super.key});
 
-  static const _cats = [
-    ('한식', '🍱'),
-    ('분식', '🌶️'),
-    ('중식', '🥟'),
-    ('일식', '🍣'),
-    ('양식', '🍝'),
-    ('카페', '☕'),
-    ('디저트', '🍰'),
-    ('아시안', '🍛'),
-    ('고기', '🥩'),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final profile = ref.watch(userProfileProvider);
     final notifier = ref.read(userProfileProvider.notifier);
+    final categoriesAsync = ref.watch(foodPreferenceCategoriesProvider);
+    final cats = categoriesAsync.valueOrNull ?? kFoodSeedCategories;
 
     return SingleChildScrollView(
       child: Column(
@@ -564,46 +556,55 @@ class _PrefsStep extends ConsumerWidget {
             ),
           ),
           SizedBox(height: context.hp(4)),
-          GridView.count(
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: _cats.map((cat) {
-              final (id, emoji) = cat;
-              final on = profile.preferredCategories.contains(id);
-              return GestureDetector(
-                onTap: () => notifier.toggleCategory(id),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  decoration: BoxDecoration(
-                    color: on ? c.primarySoft : c.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: on ? c.primary : c.outline,
-                      width: on ? 2 : 1,
+          if (categoriesAsync.isLoading && cats.isEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: context.hp(6)),
+              child: Center(
+                child: CircularProgressIndicator(color: c.primary),
+              ),
+            )
+          else
+            GridView.count(
+              crossAxisCount: 3,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: cats.map((id) {
+                final emoji = foodCategoryEmoji(id);
+                final on = profile.preferredCategories.contains(id);
+                return GestureDetector(
+                  onTap: () => notifier.toggleCategory(id),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      color: on ? c.primarySoft : c.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: on ? c.primary : c.outline,
+                        width: on ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(emoji, style: TextStyle(fontSize: context.wp(8))),
+                        const SizedBox(height: 8),
+                        Text(
+                          id,
+                          textAlign: TextAlign.center,
+                          style: AppTypography.bodyMute.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: on ? c.primary : c.text,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(emoji, style: TextStyle(fontSize: context.wp(8))),
-                      const SizedBox(height: 8),
-                      Text(
-                        id,
-                        style: AppTypography.bodyMute.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: on ? c.primary : c.text,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+                );
+              }).toList(),
+            ),
           SizedBox(height: context.hp(2)),
         ],
       ),

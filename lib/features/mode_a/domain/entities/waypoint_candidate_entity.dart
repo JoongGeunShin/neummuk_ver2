@@ -20,10 +20,13 @@ class WaypointCandidateEntity {
   final String? address;
   final String? imageUrl;
   final String category;
+
   /// 경유로 인한 추가 소요 시간 (초)
   final int detourSec;
+
   /// 경유로 인한 추가 거리 (km)
   final double detourKm;
+
   /// 경유로 인한 추가 소모 칼로리
   final int extraKcal;
 
