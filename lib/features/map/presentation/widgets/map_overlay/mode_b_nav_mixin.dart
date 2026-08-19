@@ -179,6 +179,17 @@ mixin _ModeBNavOverlayMixin on ConsumerState<MapOverlay> {
     if (!alreadySaved && navState.isNavigating && navState.elapsedKcal >= 1.0) {
       await _saveModeBRecord(navState);
     }
+    // 자전거 코스만 홈 화면 "오늘" 총합에 병합한다 — 도보는 페도미터가 이미 실제
+    // 걸음을 세고 있어 중복 계산을 막기 위해 제외한다. 도착/도중 종료 모두 이
+    // 함수 하나로 처리되므로(위 주석 참고) 여기 한 곳만 고치면 된다.
+    if (navState.isNavigating &&
+        navState.route?.type == '자전거' &&
+        navState.elapsedKcal >= 1.0) {
+      final distM = (navState.route!.distanceKm * 1000) * navState.kcalProgress;
+      ref
+          .read(walkSessionProvider.notifier)
+          .addExternalKcal(kcal: navState.elapsedKcal, distanceM: distM);
+    }
     await ref.read(modeBNavProvider.notifier).stop();
 
     if (!mounted) return;

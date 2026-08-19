@@ -26,6 +26,32 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
     _sheetACtrl.dispose();
     _nearbyIconCache.clear();
     _clearTransitNavPolylines();
+    // 안내가 시작되지 않은 상태(출발/도착/경유지를 고르는 계획 단계)에서 지도
+    // 화면을 나가면 그 선택은 휘발성 데이터로 취급해 초기화한다 — 다음 진입 시
+    // 처음부터 다시 고르게 한다. 안내가 이미 시작된 경우는 splash_screen의
+    // 강제종료 복원 대상이므로 건드리지 않는다.
+    if (!ref.read(modeANavProvider).isNavigating) {
+      ref.read(modeAProvider.notifier).clearAll();
+    }
+  }
+
+  /// "종료" 버튼/뒤로가기로 안내를 도중에 중단할 때 호출 — 도착이 아니라 사용자가
+  /// 직접 끝낸 경우다. stop()이 elapsedKcal을 0으로 리셋하기 전에 값을 캡처해,
+  /// 자전거 구간만 홈 화면 "오늘" 총합에 병합한다(도보는 페도미터가 이미 세고
+  /// 있어 중복 방지 차원에서 제외). 대중교통은 도보+차량이 섞여 실측 kcal
+  /// 트래킹이 없으므로(updateKcal 미호출) 도중 종료 시 병합할 신뢰할 값이 없어
+  /// 건너뛴다 — 정상 도착 시에만(map_overlay.dart의 도착 리스너) 사전 추정치를 반영한다.
+  void _cancelModeANav() {
+    final route = ref.read(modeAProvider).routeResult;
+    final navState = ref.read(modeANavProvider);
+    if (route != null && route.transport == 'bike' && navState.elapsedKcal > 0) {
+      final totalM = route.distanceKm * 1000;
+      final traveledM = (totalM - navState.remainingDistanceM).clamp(0.0, totalM);
+      ref
+          .read(walkSessionProvider.notifier)
+          .addExternalKcal(kcal: navState.elapsedKcal, distanceM: traveledM);
+    }
+    ref.read(modeANavProvider.notifier).stop();
   }
 
   void _clearTransitNavPolylines() {
@@ -1135,7 +1161,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               transport: 'transit',
               totalDistanceM: modeAState.routeResult!.distanceKm * 1000,
               onStop: () {
-                ref.read(modeANavProvider.notifier).stop();
+                _cancelModeANav();
                 _resetNavCamera();
               },
             ),
@@ -1173,7 +1199,7 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               transport: modeAState.routeResult!.transport,
               totalDistanceM: modeAState.routeResult!.distanceKm * 1000,
               onStop: () {
-                ref.read(modeANavProvider.notifier).stop();
+                _cancelModeANav();
                 _resetNavCamera();
               },
             ),

@@ -19,8 +19,9 @@ class WalkSessionEntity {
   /// activityRecognition 권한이 없거나 센서 미지원 기기면 false.
   final bool isTracking;
   final String activityType;
-  /// 사용자가 개인 설정에서 백그라운드 추적(Foreground Service)을 켜 두었는지 여부.
-  /// false면 서비스가 아예 시작되지 않아 배터리를 소모하지 않는다.
+  /// 사용자가 개인 설정에서 "백그라운드 추적"을 켜 두었는지 여부.
+  /// 앱이 포그라운드인 동안은 이 값과 무관하게 항상 추적된다 — false는 앱이
+  /// 백그라운드로 전환됐을 때 추적을 멈춘다는 뜻일 뿐이다(배터리 절약).
   final bool trackingEnabled;
   WalkSessionEntity copyWith({
     int? steps,

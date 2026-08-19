@@ -49,6 +49,14 @@ class WalkTaskHandler extends TaskHandler {
   // 체감 차이는 없다.
   String? _lastNotifText;
 
+  // startForeground()가 알림을 NO_CLEAR로 "승격"시키기 전까지 약 1~2초의 틈이
+  // 있는데, 그 틈에 사용자가 스와이프하면 지워진다(실기기 로그로 확인됨). 텍스트가
+  // 그대로면 updateService()를 안 부르니 한 번 지워지면 다음 걸음이 늘 때까지
+  // 영영 안 돌아올 수 있었다 — 텍스트 변화 여부와 무관하게 주기적으로 강제
+  // 재게시해 짧은 시간 안에 스스로 복구되게 한다.
+  int _ticksSinceNotifRefresh = 0;
+  static const _forceNotifRefreshEverySec = 5;
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     _prefs = await SharedPreferences.getInstance();
@@ -88,8 +96,11 @@ class WalkTaskHandler extends TaskHandler {
         ? '🗺️ $navInstruction'
         : '$_trueSteps걸음 · ${_caloriesKcal.round()} kcal';
 
-    if (notifText != _lastNotifText) {
+    _ticksSinceNotifRefresh++;
+    final forceRefresh = _ticksSinceNotifRefresh >= _forceNotifRefreshEverySec;
+    if (notifText != _lastNotifText || forceRefresh) {
       _lastNotifText = notifText;
+      _ticksSinceNotifRefresh = 0;
       FlutterForegroundTask.updateService(notificationText: notifText);
     }
   }

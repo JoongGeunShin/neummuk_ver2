@@ -37,8 +37,12 @@ class AuthRepositoryImpl implements AuthRepository {
       } on FirebaseAuthException catch (e) {
         if (e.code == 'user-not-found' || e.code == 'user-disabled') {
           await _auth.signOut();
+          return null;
         }
-        return null;
+        // 네트워크 오류 등 일시적 실패(network-request-failed 등)는 로그아웃이
+        // 아니다 — 강제종료 직후 콜드부팅처럼 네트워크가 아직 안 올라온 상태에서
+        // reload()가 실패해도 로컬 세션은 여전히 유효하므로 캐시된 사용자를 신뢰한다.
+        return _fromFirebase(firebaseUser);
       } catch (_) {
         return _fromFirebase(firebaseUser);
       }

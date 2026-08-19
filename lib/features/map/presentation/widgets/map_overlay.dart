@@ -769,6 +769,16 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         final arrivalKcal = route?.transport == 'transit'
             ? (route?.kcalBurn.toDouble() ?? next.elapsedKcal)
             : next.elapsedKcal;
+        // 자전거/대중교통 안내 완료분만 홈 화면 "오늘" 총합에 병합한다 — 도보는
+        // 페도미터(WalkTaskHandler)가 이미 실제 걸음으로 세고 있어 중복 방지 차원에서
+        // 제외한다.
+        if (route != null &&
+            (route.transport == 'bike' || route.transport == 'transit') &&
+            arrivalKcal > 0) {
+          ref
+              .read(walkSessionProvider.notifier)
+              .addExternalKcal(kcal: arrivalKcal, distanceM: route.distanceKm * 1000);
+        }
         _modeAArrivalDialogPending = true;
         ref.read(modeANavProvider.notifier).stop();
         unawaited(ref.read(modeAProvider.notifier).markArrived(arrivalKcal));
@@ -885,7 +895,7 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         if (navState.isNavigating) {
           final confirmed = await _showModeAExitNavConfirmDialog();
           if (!confirmed || !mounted) return;
-          ref.read(modeANavProvider.notifier).stop();
+          _cancelModeANav();
           await _resetNavCamera();
           if (mounted) _modeASafeBack();
           return;

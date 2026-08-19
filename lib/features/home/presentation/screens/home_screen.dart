@@ -74,6 +74,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           steps: s.steps,
           caloriesKcal: s.caloriesKcal,
           distanceM: s.distanceM,
+          trackingEnabled: s.trackingEnabled,
         ),
       ),
     );
@@ -358,6 +359,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
+                      if (!walk.trackingEnabled)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              context.wp(5),
+                              context.hp(1),
+                              context.wp(5),
+                              0,
+                            ),
+                            child: Text(
+                              '오늘의 정확한 수치를 위해서는 MY 페이지에서 백그라운드 활동 추적을 켜주세요',
+                              style: AppTypography.tiny.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: c.textFaint,
+                              ),
+                            ),
+                          ),
+                        ),
                       _EventsSection(),
                     ],
                   ),

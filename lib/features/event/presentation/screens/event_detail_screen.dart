@@ -326,16 +326,14 @@ class _DetailBody extends ConsumerWidget {
                 if (hasDest)
                   _SetDestCta(
                     onTap: () {
-                      final notifier = ref.read(modeAProvider.notifier);
-                      notifier.setDestCoords(
-                        detail.lat!,
-                        detail.lng!,
-                        detail.title,
-                      );
+                      // 이동수단(도보/자전거/대중교통)은 Mode A 입력 패널에서
+                      // 사용자가 직접 고른 뒤 검색해야 하므로 여기서 search()를
+                      // 미리 호출하지 않는다 — 그러면 항상 기본값(walk)으로
+                      // 강제 검색돼버린다.
+                      ref
+                          .read(modeAProvider.notifier)
+                          .setDestCoords(detail.lat!, detail.lng!, detail.title);
                       ref.read(mapModeProvider.notifier).set(MapMode.modeA);
-                      if (ref.read(modeAProvider).originLat != null) {
-                        notifier.search();
-                      }
                       context.push('/map');
                     },
                   ),
