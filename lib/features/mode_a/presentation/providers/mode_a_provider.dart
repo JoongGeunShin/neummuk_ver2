@@ -6,6 +6,8 @@ import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
 import '../../domain/entities/waypoint_candidate_entity.dart';
 import '../../domain/repositories/mode_a_repository.dart';
+import '../../../event/domain/entities/event_entity.dart';
+import '../../../event/presentation/providers/event_provider.dart';
 import '../../../explore/presentation/providers/explore_provider.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
@@ -58,6 +60,7 @@ class ModeAState {
     this.nearbyTab = ModeANearbyTab.sight,
     this.nearbyPlaces = const [],
     this.nearbyDurunubi = const [],
+    this.nearbyFestivals = const [],
     this.nearbyLoading = false,
     this.hasArrived = false,
     this.arrivalKcal,
@@ -89,6 +92,8 @@ class ModeAState {
   final ModeANearbyTab nearbyTab;
   final List<PlaceEntity> nearbyPlaces;
   final List<TouristRouteEntity> nearbyDurunubi;
+  /// 축제·행사 탭 — home_screen과 동일하게 EventRepository(종료 필터링 완료)를 사용
+  final List<EventEntity> nearbyFestivals;
   final bool nearbyLoading;
 
   /// 도착 후 실측 소모 kcal이 확정되면 true — 결과 시트가 "예상"에서 "실제" 표시로
@@ -117,6 +122,7 @@ class ModeAState {
     ModeANearbyTab? nearbyTab,
     List<PlaceEntity>? nearbyPlaces,
     List<TouristRouteEntity>? nearbyDurunubi,
+    List<EventEntity>? nearbyFestivals,
     bool? nearbyLoading,
     bool? hasArrived,
     Object? arrivalKcal = _kRemove,
@@ -149,6 +155,7 @@ class ModeAState {
       nearbyTab: nearbyTab ?? this.nearbyTab,
       nearbyPlaces: nearbyPlaces ?? this.nearbyPlaces,
       nearbyDurunubi: nearbyDurunubi ?? this.nearbyDurunubi,
+      nearbyFestivals: nearbyFestivals ?? this.nearbyFestivals,
       nearbyLoading: nearbyLoading ?? this.nearbyLoading,
       hasArrived: hasArrived ?? this.hasArrived,
       arrivalKcal: identical(arrivalKcal, _kRemove)
@@ -251,6 +258,7 @@ class ModeA extends _$ModeA {
       nearbyTab: ModeANearbyTab.sight,
       nearbyPlaces: const [],
       nearbyDurunubi: const [],
+      nearbyFestivals: const [],
       hasArrived: false,
       arrivalKcal: null,
     );
@@ -471,6 +479,16 @@ class ModeA extends _$ModeA {
               metrics: metrics,
             );
         state = state.copyWith(nearbyDurunubi: courses, nearbyLoading: false);
+        return;
+      }
+      if (tab == ModeANearbyTab.festival) {
+        // home_screen과 동일한 EventRepository를 재사용 — 종료된 행사 필터링(isEnded) +
+        // 날짜 보강(detailIntro2)이 이미 적용된 목록을 그대로 받는다. mode_a가 자체
+        // locationBasedList2 호출로 따로 구현하면 종료 행사까지 노출되는 문제가 있었다.
+        final events = await ref
+            .read(eventRepositoryProvider)
+            .getNearbyUpcomingEvents(lat: lat, lng: lng);
+        state = state.copyWith(nearbyFestivals: events, nearbyLoading: false);
         return;
       }
       final places = await ref

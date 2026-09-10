@@ -7,10 +7,12 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/env/app_env.dart';
 import '../../../../core/models/body_metrics.dart';
+import '../../../../core/utils/gpx_utils.dart';
 import '../../../explore/domain/entities/food_catalog_entity.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
 import '../../../map/data/datasources/road_route_datasource.dart';
 import '../../../map/domain/entities/place_entity.dart';
+import '../../../mode_b/data/datasources/durunubi_datasource.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../domain/entities/restaurant_entity.dart';
 import '../../domain/entities/route_result_entity.dart';
@@ -24,6 +26,7 @@ class ModeARepositoryImpl implements ModeARepository {
 
   final FoodCatalogRepository _foodCatalogRepo;
   final _roadRoute = const RoadRouteDatasource();
+  final _durunubiDatasource = DurunubiDatasource();
 
   String get _kakaoKey => AppEnv.kakaoRestApiKey;
   String get _odsayKey => AppEnv.odsayApiKey;
@@ -1141,41 +1144,47 @@ class ModeARepositoryImpl implements ModeARepository {
     required BodyMetrics metrics,
   }) async {
     try {
-      final uri = Uri.parse('${AppConstants.durunubiBaseUrl}/courseList')
-          .replace(
-            queryParameters: {
-              'ServiceKey': _tourApiKey,
-              'MobileOS': 'ETC',
-              'MobileApp': 'neummuk',
-              'numOfRows': '100',
-              'pageNo': '1',
-              '_type': 'json',
-            },
-          );
-      final res = await http.get(uri).timeout(const Duration(seconds: 12));
-      if (res.statusCode != 200) return [];
-      final json = jsonDecode(res.body) as Map<String, dynamic>;
-      final rawItems = json['response']?['body']?['items']?['item'];
-      final items = rawItems is List
-          ? rawItems.cast<Map<String, dynamic>>()
-          : rawItems is Map<String, dynamic>
-          ? [rawItems]
-          : <Map<String, dynamic>>[];
+      // 두루누비 courseList 응답에는 좌표 필드가 없어 거리 계산이 불가능하므로
+      // 역지오코딩 → sigun(시군구) 텍스트 매칭으로 로컬 코스를 우선 노출한다
+      // (mode_b와 동일한 방식, DurunubiDatasource에 공유 구현). 전체 목록은
+      // mode_b와 동일한 캐시(24h, 인메모리+디스크) datasource를 공유해
+      // 페이지네이션 누락 없이 확보한다.
+      final items = await _durunubiDatasource.fetchAllCoursesCached();
+      final region = await _durunubiDatasource.reverseGeocode(latitude, longitude);
 
-      final withDist = <({TouristRouteEntity route, double distM})>[];
+      final all = <TouristRouteEntity>[];
       for (final item in items) {
-        final lat = _parseDouble(item['mapy']);
-        final lng = _parseDouble(item['mapx']);
-        if (lat == null || lng == null) continue;
-        final route = _parseDurunubiItem(item, lat, lng, metrics);
+        final route = _parseDurunubiItem(item, metrics);
         if (route == null) continue;
-        withDist.add((
-          route: route,
-          distM: _haversine(latitude, longitude, lat, lng),
-        ));
+        all.add(route);
       }
-      withDist.sort((a, b) => a.distM.compareTo(b.distM));
-      return withDist.take(10).map((e) => e.route).toList();
+
+      List<TouristRouteEntity> ranked;
+      if (region == null) {
+        ranked = all.take(10).toList();
+      } else {
+        final local = all
+            .where((r) => DurunubiDatasource.matchesRegion(
+                  r.region,
+                  sido: region.sido,
+                  sigungu: region.sigungu,
+                ))
+            .toList();
+        final localMarked = local.map((r) => r.copyWith(isLocal: true)).toList();
+        final others = all.where((r) => !local.contains(r)).toList();
+        ranked = [...localMarked, ...others].take(10).toList();
+      }
+
+      // 지도 마커 표시를 위해 좌표가 없는 코스만 GPX 첫 좌표로 보강한다
+      // (courseList API 자체엔 좌표가 없음 — 상위 10건만 보강해 비용을 제한).
+      return Future.wait(ranked.map((r) async {
+        if (r.hasCoordinate) return r;
+        final gpx = r.gpxpath;
+        if (gpx == null || gpx.isEmpty) return r;
+        final pt = await GpxUtils.fetchFirstPoint(gpx);
+        if (pt == null) return r;
+        return r.copyWith(startLat: pt.lat, startLng: pt.lng);
+      }));
     } catch (e) {
       debugPrint('[ModeA] getNearbyDurunubiCourses error: $e');
       return [];
@@ -1184,18 +1193,18 @@ class ModeARepositoryImpl implements ModeARepository {
 
   TouristRouteEntity? _parseDurunubiItem(
     Map<String, dynamic> item,
-    double lat,
-    double lng,
     BodyMetrics metrics,
   ) {
     final name = (item['crsKorNm'] as String? ?? '').trim();
     if (name.isEmpty) return null;
     final distKm = _parseDouble(item['crsDstnc']) ?? 0.0;
-    final durationHrs = _parseDouble(item['crsTotlRqrmHour']) ?? 1.0;
+    // crsTotlRqrmHour는 필드명과 달리 실제로는 "분" 단위로 내려온다
+    // (예: 14km 코스에 330 → 5.5시간, 시간 단위였다면 비현실적으로 김).
+    final durationMin = _parseDouble(item['crsTotlRqrmHour']) ?? 60.0;
     final kcal = AppConstants.calculateKcal(
       transport: 'walk',
       metrics: metrics,
-      durationSeconds: (durationHrs * 3600).round(),
+      durationSeconds: (durationMin * 60).round(),
     ).round();
     final levelRaw = item['crsLevel']?.toString() ?? '';
     final levelTag = switch (levelRaw) {
@@ -1212,11 +1221,19 @@ class ModeARepositoryImpl implements ModeARepository {
       item['crsImgFileNm'],
       item['repFileNm'],
     ].whereType<String>().where((s) => s.isNotEmpty).toList();
+    // 두루누비 API 좌표 필드: lat/lng(공식), mapY/mapX(일부 응답), mapy/mapx도 관측되나
+    // 대부분 응답에 존재하지 않음 — 있으면 마커 표시에 쓰고, 없어도 카드/지역매칭은 정상 동작.
+    final lat = _parseDouble(item['lat']) ??
+        _parseDouble(item['mapY']) ??
+        _parseDouble(item['mapy']);
+    final lng = _parseDouble(item['lng']) ??
+        _parseDouble(item['mapX']) ??
+        _parseDouble(item['mapx']);
     return TouristRouteEntity(
       id: 'dur_${item['crsIdx'] ?? name}',
       name: name,
       distanceKm: distKm,
-      durationMinutes: (durationHrs * 60).round(),
+      durationMinutes: durationMin.round(),
       kcal: kcal,
       type: '도보',
       tags: [levelTag],

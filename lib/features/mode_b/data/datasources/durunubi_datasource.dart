@@ -90,6 +90,51 @@ class DurunubiDatasource {
     return items;
   }
 
+  /// 좌표(lat/lng) → (시도, 시군구). 두루누비 courseList 응답에는 좌표 필드가 없어
+  /// 지역 매칭(sigun 텍스트)으로 로컬 코스를 가려내는 데 쓴다.
+  Future<({String sido, String sigungu})?> reverseGeocode(
+    double lat,
+    double lng,
+  ) async {
+    try {
+      final key = AppEnv.kakaoRestApiKey;
+      if (key.isEmpty) return null;
+      final uri = Uri.parse('https://dapi.kakao.com/v2/local/geo/coord2regioncode.json')
+          .replace(queryParameters: {'x': '$lng', 'y': '$lat'});
+      final res = await http
+          .get(uri, headers: {'Authorization': 'KakaoAK $key'})
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final docs = data['documents'] as List<dynamic>?;
+      if (docs == null || docs.isEmpty) return null;
+      final doc = (docs.firstWhere(
+            (d) => d['region_type'] == 'H',
+            orElse: () => docs.first,
+          ) as Map<String, dynamic>);
+      return (
+        sido: doc['region_1depth_name']?.toString() ?? '',
+        sigungu: doc['region_2depth_name']?.toString() ?? '',
+      );
+    } catch (e) {
+      debugPrint('[Durunubi] reverseGeocode error: $e');
+      return null;
+    }
+  }
+
+  /// 코스의 `sigun` 필드가 주어진 지역(시도/시군구)에 속하는지 부분 문자열로 판단.
+  static bool matchesRegion(
+    String? routeSigun, {
+    required String sido,
+    String sigungu = '',
+  }) {
+    if (routeSigun == null || routeSigun.isEmpty) return false;
+    final sidoShort = sido.replaceAll(RegExp(r'(특별시|광역시|특별자치시|도|특별자치도)'), '');
+    return routeSigun.contains(sido) ||
+        routeSigun.contains(sidoShort) ||
+        (sigungu.isNotEmpty && routeSigun.contains(sigungu));
+  }
+
   Future<(int total, List<Map<String, dynamic>> items)> _fetchPage(
     int pageSize,
     int pageNo,

@@ -891,6 +891,22 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
                 item: s.nearbyDurunubi[i] as Object,
               ),
         ];
+      case ModeANearbyTab.festival:
+        markerColor = c.pinSight;
+        pins = [
+          for (var i = 0; i < s.nearbyFestivals.length; i++)
+            if (s.nearbyFestivals[i].lat != null &&
+                s.nearbyFestivals[i].lng != null)
+              (
+                id: 'nearby_$i',
+                pos: NLatLng(
+                  s.nearbyFestivals[i].lat!,
+                  s.nearbyFestivals[i].lng!,
+                ),
+                name: s.nearbyFestivals[i].name,
+                item: s.nearbyFestivals[i] as Object,
+              ),
+        ];
       default:
         markerColor = c.pinSight;
         pins = [
@@ -929,7 +945,11 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
       final captured = pin.item;
       m.setOnTapListener((_) {
         if (!mounted) return;
-        context.push('/place-detail', extra: captured);
+        if (captured is EventEntity) {
+          context.push('/event/${captured.contentId}', extra: captured.imageUrl);
+        } else {
+          context.push('/place-detail', extra: captured);
+        }
       });
       markers.add(m);
     }
@@ -1135,6 +1155,10 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
             onPlaceTap: (place) => context.push('/place-detail', extra: place),
             onDurunubiTap: (course) =>
                 context.push('/place-detail', extra: course),
+            onFestivalTap: (event) => context.push(
+              '/event/${event.contentId}',
+              extra: event.imageUrl,
+            ),
           ),
         ),
 

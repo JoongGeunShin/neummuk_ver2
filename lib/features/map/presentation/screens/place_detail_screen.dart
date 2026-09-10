@@ -41,6 +41,7 @@ class _Detail {
     this.imageType = 'generic',
     this.rating = 0.0,
     this.isRestaurant = false,
+    this.hasCoordinate = true,
   });
 
   factory _Detail.fromPlace(PlaceEntity p) => _Detail(
@@ -70,6 +71,7 @@ class _Detail {
     walkMinutes: r.durationMinutes > 0 ? r.durationMinutes : null,
     menu: r.type,
     tags: r.tags,
+    hasCoordinate: r.hasCoordinate,
   );
 
   factory _Detail.fromRestaurant(RestaurantEntity r) => _Detail(
@@ -108,6 +110,7 @@ class _Detail {
   final String imageType;
   final double rating;
   final bool isRestaurant;
+  final bool hasCoordinate;
 
   static String? _trimCategory(String? cat) {
     if (cat == null || cat.isEmpty) return null;
@@ -260,6 +263,11 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
     final modeAState = ref.watch(modeAProvider);
     final canAddWaypoint = modeAState.waypoints.length < 3;
     final tel = _enrichedTel ?? detail.phone;
+    // 두루누비 코스는 mode_a(경로 설정용)·mode_b(코스 시작용) 양쪽에서 같은
+    // TouristRouteEntity + /place-detail을 공유한다 — 진입한 모드로 버튼을 가른다.
+    final routeExtra = extra is TouristRouteEntity ? extra : null;
+    final isModeBRoute =
+        routeExtra != null && ref.watch(mapModeProvider) == MapMode.modeB;
 
     return Scaffold(
       backgroundColor: kMapPanel,
@@ -356,8 +364,10 @@ class _PlaceDetailScreenState extends ConsumerState<PlaceDetailScreen> {
                 color: kMapPanel,
                 border: Border(top: BorderSide(color: Colors.white12)),
               ),
-              child: extra is TouristRouteEntity
-                  ? _ModeBCourseButtons(route: extra)
+              child: isModeBRoute
+                  ? _ModeBCourseButtons(route: routeExtra)
+                  : !detail.hasCoordinate
+                  ? const _NoCoordinateHint()
                   : Row(
                       children: [
                         _RouteBtn(
@@ -1113,6 +1123,26 @@ class _ModeBCourseButtons extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NoCoordinateHint extends StatelessWidget {
+  const _NoCoordinateHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '이 코스는 위치 정보가 없어 경로에 추가할 수 없습니다',
+        style: AppTypography.label.copyWith(color: Colors.white38),
+      ),
     );
   }
 }

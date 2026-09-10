@@ -1320,40 +1320,8 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
   // ── GPX 파싱 ──────────────────────────────────────────────────
 
   Future<List<NLatLng>> _fetchGpxPoints(String gpxUrl) async {
-    try {
-      final res = await http
-          .get(Uri.parse(gpxUrl))
-          .timeout(const Duration(seconds: 15));
-      if (res.statusCode != 200) return [];
-      final body = res.body;
-      final pattern = RegExp(
-        r'<(?:trkpt|rtept)\s[^>]*lat="([^"]+)"[^>]*lon="([^"]+)"',
-      );
-      final patternAlt = RegExp(
-        r'<(?:trkpt|rtept)\s[^>]*lon="([^"]+)"[^>]*lat="([^"]+)"',
-      );
-      final points = <NLatLng>[];
-      for (final m in pattern.allMatches(body)) {
-        final lat = double.tryParse(m.group(1) ?? '');
-        final lng = double.tryParse(m.group(2) ?? '');
-        if (lat != null && lng != null) points.add(NLatLng(lat, lng));
-      }
-      if (points.isEmpty) {
-        for (final m in patternAlt.allMatches(body)) {
-          final lng = double.tryParse(m.group(1) ?? '');
-          final lat = double.tryParse(m.group(2) ?? '');
-          if (lat != null && lng != null) points.add(NLatLng(lat, lng));
-        }
-      }
-      if (points.length > 500) {
-        final step = points.length ~/ 500;
-        return [for (int i = 0; i < points.length; i += step) points[i]];
-      }
-      return points;
-    } catch (e) {
-      debugPrint('[GPX] $e url=$gpxUrl');
-      return [];
-    }
+    final points = await GpxUtils.fetchPoints(gpxUrl, sampleLimit: 500);
+    return [for (final p in points) NLatLng(p.lat, p.lng)];
   }
 
   // ── 경로 방향 화살표 ───────────────────────────────────────────

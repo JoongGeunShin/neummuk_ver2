@@ -1,10 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/env/app_env.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../../core/utils/geo_utils.dart';
 import '../../../explore/domain/repositories/food_catalog_repository.dart';
@@ -64,7 +60,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
         metrics: _metrics,
         radiusM: radiusM,
       ),
-      _fetchDurunubiRoutes(latitude, longitude, transport, radiusM),
+      _fetchDurunubiRoutes(latitude, longitude, transport),
     ]);
 
     final tourApiRoutes = results[0];
@@ -99,9 +95,8 @@ class ModeBRepositoryImpl implements ModeBRepository {
     double lat,
     double lng,
     String transport,
-    int radiusM,
   ) async {
-    final region = await _reverseGeocode(lat, lng);
+    final region = await _durunubi.reverseGeocode(lat, lng);
     final items = await _durunubi.fetchAllCoursesCached();
     if (items.isEmpty) return [];
 
@@ -112,22 +107,19 @@ class ModeBRepositoryImpl implements ModeBRepository {
 
     debugPrint('[Durunubi] parsed ${all.length}/${items.length}');
 
-    // 좌표 없는 코스 제외 + 반경 필터
-    // 두루누비 코스에 좌표가 없으면 반경 기준을 알 수 없으므로 제외한다
-    final radiusKm = radiusM / 1000.0;
-    final inRadius = all.where((r) {
-      if (!r.hasCoordinate) return false;
-      return haversineDistanceKm(lat, lng, r.startLat!, r.startLng!) <= radiusKm;
-    }).toList();
+    // 두루누비 courseList 응답에는 좌표 필드가 없어 반경 필터가 불가능 —
+    // sigun(시군구) 텍스트 매칭으로 로컬 코스를 상단에 노출한다.
+    if (region == null) return all;
 
-    debugPrint('[Durunubi] inRadius (${radiusKm.toStringAsFixed(1)}km): ${inRadius.length}/${all.length}');
-
-    if (region == null) return inRadius;
-
-    // 반경 내 코스 중 현재 지역은 "내 지역" 태그 표시
-    final local = inRadius.where((r) => _matchesRegion(r.region, region)).toList();
+    final local = all
+        .where((r) => DurunubiDatasource.matchesRegion(
+              r.region,
+              sido: region.sido,
+              sigungu: region.sigungu,
+            ))
+        .toList();
     final localMarked = local.map((r) => r.copyWith(isLocal: true)).toList();
-    final others = inRadius.where((r) => !local.contains(r)).toList();
+    final others = all.where((r) => !local.contains(r)).toList();
     return [...localMarked, ...others];
   }
 
@@ -279,44 +271,7 @@ class ModeBRepositoryImpl implements ModeBRepository {
     return Future.wait(futures);
   }
 
-  // ── 역지오코딩 ────────────────────────────────────────────────────
-
-  Future<({String sido, String sigungu})?> _reverseGeocode(double lat, double lng) async {
-    try {
-      final key = AppEnv.kakaoRestApiKey;
-      if (key.isEmpty) return null;
-      final uri = Uri.parse('https://dapi.kakao.com/v2/local/geo/coord2regioncode.json')
-          .replace(queryParameters: {'x': '$lng', 'y': '$lat'});
-      final res = await http
-          .get(uri, headers: {'Authorization': 'KakaoAK $key'})
-          .timeout(const Duration(seconds: 5));
-      if (res.statusCode != 200) return null;
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final docs = data['documents'] as List<dynamic>?;
-      if (docs == null || docs.isEmpty) return null;
-      final doc = (docs.firstWhere(
-            (d) => d['region_type'] == 'H',
-            orElse: () => docs.first,
-          ) as Map<String, dynamic>);
-      return (
-        sido: doc['region_1depth_name']?.toString() ?? '',
-        sigungu: doc['region_2depth_name']?.toString() ?? '',
-      );
-    } catch (e) {
-      debugPrint('[ModeBRepo] reverseGeocode error: $e');
-      return null;
-    }
-  }
-
   // ── Helpers ───────────────────────────────────────────────────────
-
-  bool _matchesRegion(String? routeSigun, ({String sido, String sigungu}) region) {
-    if (routeSigun == null || routeSigun.isEmpty) return false;
-    final sidoShort = region.sido.replaceAll(RegExp(r'(특별시|광역시|특별자치시|도|특별자치도)'), '');
-    return routeSigun.contains(region.sido) ||
-        routeSigun.contains(sidoShort) ||
-        (region.sigungu.isNotEmpty && routeSigun.contains(region.sigungu));
-  }
 
   TouristRouteEntity? _parseDurunubi(Map<String, dynamic> item, String transport) {
     try {

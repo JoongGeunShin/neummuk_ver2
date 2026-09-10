@@ -15,6 +15,7 @@ class _ModeAResultSheet extends StatelessWidget {
     required this.onSwitchTab,
     required this.onPlaceTap,
     required this.onDurunubiTap,
+    required this.onFestivalTap,
   });
 
   final ScrollController scrollController;
@@ -26,6 +27,7 @@ class _ModeAResultSheet extends StatelessWidget {
   final ValueChanged<ModeANearbyTab> onSwitchTab;
   final ValueChanged<PlaceEntity> onPlaceTap;
   final ValueChanged<TouristRouteEntity> onDurunubiTap;
+  final ValueChanged<EventEntity> onFestivalTap;
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +242,7 @@ class _ModeAResultSheet extends StatelessWidget {
                         onRestaurantTap: onRestaurantTap,
                         onPlaceTap: onPlaceTap,
                         onDurunubiTap: onDurunubiTap,
+                        onFestivalTap: onFestivalTap,
                       ),
                     ),
                   ],
@@ -316,12 +319,14 @@ class _NearbyTabContent extends StatelessWidget {
     required this.onRestaurantTap,
     required this.onPlaceTap,
     required this.onDurunubiTap,
+    required this.onFestivalTap,
   });
 
   final ModeAState state;
   final ValueChanged<RestaurantEntity> onRestaurantTap;
   final ValueChanged<PlaceEntity> onPlaceTap;
   final ValueChanged<TouristRouteEntity> onDurunubiTap;
+  final ValueChanged<EventEntity> onFestivalTap;
 
   @override
   Widget build(BuildContext context) {
@@ -385,8 +390,34 @@ class _NearbyTabContent extends StatelessWidget {
           ),
         );
 
+      case ModeANearbyTab.festival:
+        // home_screen과 동일한 EventRepository 기반 — 종료된 행사는 이미 필터링되어 있음
+        if (state.nearbyFestivals.isEmpty) {
+          return _emptyHint('근처 진행중인 축제·행사가 없습니다');
+        }
+        return ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.fromLTRB(
+            MediaQuery.sizeOf(context).width * 0.05,
+            4,
+            MediaQuery.sizeOf(context).width * 0.05,
+            8,
+          ),
+          itemCount: state.nearbyFestivals.length,
+          itemBuilder: (ctx, i) => Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: SizedBox(
+              width: MediaQuery.sizeOf(context).width * 0.56,
+              child: _FestivalEventCard(
+                event: state.nearbyFestivals[i],
+                onTap: () => onFestivalTap(state.nearbyFestivals[i]),
+              ),
+            ),
+          ),
+        );
+
       default:
-        // TourAPI 탭 (관광지·문화시설·축제·여행코스)
+        // TourAPI 탭 (관광지·문화시설·여행코스)
         if (state.nearbyPlaces.isEmpty) {
           return _emptyHint('${state.nearbyTab.label} 정보가 없습니다');
         }
@@ -654,6 +685,122 @@ class _DurunubiCourseCard extends StatelessWidget {
     color: kMapPanelAlt,
     child: const Center(
       child: Icon(Icons.hiking_rounded, color: kMapWhite45, size: 28),
+    ),
+  );
+}
+
+// ── 축제·행사 카드 (event 기능 재사용, map_overlay 고정 다크 팔레트로 렌더링) ───────────
+
+class _FestivalEventCard extends StatelessWidget {
+  const _FestivalEventCard({required this.event, required this.onTap});
+  final EventEntity event;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: kMapPanelAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                if (event.imageUrl != null && event.imageUrl!.isNotEmpty)
+                  CachedNetworkImage(
+                    imageUrl: event.imageUrl!,
+                    height: 90,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _imgPlaceholder(90),
+                  )
+                else
+                  _imgPlaceholder(90),
+                if (event.daysLabel.isNotEmpty)
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: event.isOngoing ? kMapPrimary : Colors.black87,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(
+                        event.daysLabel,
+                        style: AppTypography.micro.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.name,
+                      style: AppTypography.label.copyWith(
+                        color: kMapWhite87,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.1,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (event.dateRangeLabel.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        event.dateRangeLabel,
+                        style: AppTypography.tiny.copyWith(
+                          color: kMapWhite45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ] else if (event.addr != null &&
+                        event.addr!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        event.addr!,
+                        style: AppTypography.tiny.copyWith(
+                          color: kMapWhite45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imgPlaceholder(double h) => Container(
+    height: h,
+    color: kMapPanelAlt,
+    child: const Center(
+      child: Icon(Icons.festival_rounded, color: kMapWhite45, size: 28),
     ),
   );
 }
