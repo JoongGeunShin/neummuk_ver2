@@ -806,9 +806,18 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         // 자전거/대중교통 안내 완료분만 홈 화면 "오늘" 총합에 병합한다 — 도보는
         // 페도미터(WalkTaskHandler)가 이미 실제 걸음으로 세고 있어 중복 방지 차원에서
         // 제외한다.
-        if (route != null &&
-            (route.transport == 'bike' || route.transport == 'transit') &&
-            arrivalKcal > 0) {
+        final isNonWalk =
+            route?.transport == 'bike' || route?.transport == 'transit';
+        // "오늘 총 소비 kcal(이 트립 포함)"을 여기서 직접 계산해 markArrived로 넘긴다.
+        // addExternalKcal()은 SharedPreferences I/O 때문에 비동기로 상태를 갱신하는데
+        // 아래에서 await 없이 바로 markArrived를 부르므로, walkSessionProvider를 그때
+        // 다시 읽으면 병합 전 값을 볼 수도 있는 레이스가 생긴다 — 병합 전 today 값을
+        // 미리 읽어 트립 kcal을 직접 더해 그 레이스를 피한다.
+        final todayKcalBeforeMerge = ref.read(walkSessionProvider).caloriesKcal;
+        final todayTotalKcal =
+            (isNonWalk ? todayKcalBeforeMerge + arrivalKcal : todayKcalBeforeMerge)
+                .round();
+        if (route != null && isNonWalk && arrivalKcal > 0) {
           ref
               .read(walkSessionProvider.notifier)
               .addExternalKcal(
@@ -818,7 +827,11 @@ class _MapOverlayState extends ConsumerState<MapOverlay>
         }
         _modeAArrivalDialogPending = true;
         ref.read(modeANavProvider.notifier).stop();
-        unawaited(ref.read(modeAProvider.notifier).markArrived(arrivalKcal));
+        unawaited(
+          ref
+              .read(modeAProvider.notifier)
+              .markArrived(arrivalKcal, todayTotalKcal: todayTotalKcal),
+        );
         unawaited(_drawModeAPolyline(null));
         unawaited(_syncModeAMarkers(ref.read(modeAProvider)));
         _fetchGpsOriginForModeA();

@@ -771,7 +771,9 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               category: r.category,
               menu: r.menu,
               kcalEstimate: r.kcal,
-              targetKcal: arrivalKcal,
+              // 실제 매칭에 쓰인 목표(오늘 총 소비 kcal, 이 트립 포함)를 배지에 그대로
+              // 반영 — 트립 실측치(arrivalKcal)는 위 다이얼로그 문구 전용.
+              targetKcal: s.restaurantTargetKcal ?? arrivalKcal,
               source: PlaceSource.kakaoLocal,
             ),
         ];
@@ -1058,6 +1060,11 @@ mixin _ModeAOverlayMixin on ConsumerState<MapOverlay> {
               _fetchGpsOriginForModeA();
             },
             onBack: _modeASafeBack,
+            todayKcal: ref
+                .watch(walkSessionProvider.select((s) => s.caloriesKcal))
+                .round(),
+            onSetIncludeTodayKcal: (v) =>
+                ref.read(modeAProvider.notifier).setIncludeTodayKcal(v),
           ),
         ),
 

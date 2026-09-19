@@ -18,6 +18,8 @@ class _ModeARoutePanel extends StatelessWidget {
     required this.onSearch,
     required this.onResetAll,
     required this.onBack,
+    required this.todayKcal,
+    required this.onSetIncludeTodayKcal,
   });
 
   final ModeAState state;
@@ -32,6 +34,9 @@ class _ModeARoutePanel extends StatelessWidget {
   final VoidCallback? onSearch;
   final VoidCallback onResetAll;
   final VoidCallback onBack;
+  /// 오늘 이미 소비한 활동 kcal — 토글 행에 표시용.
+  final int todayKcal;
+  final ValueChanged<bool> onSetIncludeTodayKcal;
 
   static const _transports = [
     ('walk', '도보', Icons.directions_walk_rounded),
@@ -245,6 +250,14 @@ class _ModeARoutePanel extends StatelessWidget {
                       },
                     ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: _IncludeTodayKcalToggle(
+                value: state.includeTodayKcal,
+                todayKcal: todayKcal,
+                onChanged: onSetIncludeTodayKcal,
               ),
             ),
             Padding(

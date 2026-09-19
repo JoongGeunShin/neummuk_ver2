@@ -4,6 +4,25 @@ import '../../../../core/utils/geo_utils.dart';
 import '../entities/spot_entity.dart';
 import '../entities/tourist_route_entity.dart';
 
+/// 장바구니(카트)로 반드시 포함해야 하는 스팟들만으로도 왕복 거리가 목표
+/// 칼로리 기준 상한([maxKm])을 넘을 때 던진다 — 자동 보충이 아니라 사용자가
+/// 직접 담은 필수 스팟 자체가 너무 멀리 흩어져 있다는 뜻이라, 조용히 거대한
+/// 코스를 만드는 대신 호출부(UI)가 "스팟을 줄여주세요"로 안내하게 한다.
+class ModeBCartTooLongException implements Exception {
+  const ModeBCartTooLongException({required this.actualKm, required this.maxKm});
+
+  /// 카트 필수 스팟만으로 계산한 왕복 거리(km)
+  final double actualKm;
+
+  /// 목표 칼로리(±tolerance) 기준 허용 상한 거리(km)
+  final double maxKm;
+
+  @override
+  String toString() =>
+      'ModeBCartTooLongException(actualKm: ${actualKm.toStringAsFixed(1)}, '
+      'maxKm: ${maxKm.toStringAsFixed(1)})';
+}
+
 /// 스팟 목록 → 칼로리 목표에 맞는 원점 회귀 코스 생성
 class ModeBCourseGenerator {
   const ModeBCourseGenerator();
@@ -88,6 +107,10 @@ class ModeBCourseGenerator {
       // spots 전체 포함 + TSP 순서 (카트 전체를 spots로 전달하는 단순 케이스)
       selected = _tspOrder(spots, userLat, userLng);
       mandatoryCount = selected.length;
+      final roundTripKm = _roundTripKm(selected, userLat, userLng);
+      if (roundTripKm > maxKm) {
+        throw ModeBCartTooLongException(actualKm: roundTripKm, maxKm: maxKm);
+      }
     } else if (mandatorySpots.isNotEmpty) {
       // 필수 스팟 먼저 (TSP), 그 다음 spots 풀에서 자동 보충
       selected = _selectWithMandatory(
@@ -193,6 +216,19 @@ class ModeBCourseGenerator {
           List<SpotEntity> spots, double startLat, double startLng) =>
       _tspOrder(spots, startLat, startLng);
 
+  /// 출발지 → [ordered] 순서대로 방문 → 출발지 복귀까지의 총 직선거리(km).
+  double _roundTripKm(List<SpotEntity> ordered, double userLat, double userLng) {
+    double total = 0.0;
+    double curLat = userLat, curLng = userLng;
+    for (final s in ordered) {
+      total += haversineDistanceKm(curLat, curLng, s.lat, s.lng);
+      curLat = s.lat;
+      curLng = s.lng;
+    }
+    total += haversineDistanceKm(curLat, curLng, userLat, userLng);
+    return total;
+  }
+
   // ── 필수 스팟 우선 + 자동 보충 ───────────────────────────────────
 
   List<SpotEntity> _selectWithMandatory({
@@ -217,6 +253,12 @@ class ModeBCourseGenerator {
       curLng = s.lng;
     }
     final returnDist = haversineDistanceKm(curLat, curLng, userLat, userLng);
+
+    // 필수 스팟만으로 벌써 상한을 넘으면 자동 보충 여지 없이 바로 막는다 —
+    // 사용자가 서로 먼 스팟을 여러 개 담아 코스가 터무니없이 길어지는 경우.
+    if (accumulated + returnDist > maxKm) {
+      throw ModeBCartTooLongException(actualKm: accumulated + returnDist, maxKm: maxKm);
+    }
 
     // 3) 필수만으로 목표 이미 달성 or 추가 슬롯 없으면 종료
     final slotsLeft = maxWaypoints - ordered.length;

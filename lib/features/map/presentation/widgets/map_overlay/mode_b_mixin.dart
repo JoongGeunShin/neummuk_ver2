@@ -818,6 +818,20 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
           lng: lng,
           cartItems: cartItems,
         );
+
+    // 하드 캡(ModeBCartTooLongException)에 걸렸으면 사유를 스낵바로 안내.
+    final courseError = ref.read(routeSearchProvider).courseError;
+    if (courseError != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(courseError),
+          backgroundColor: kMapPanel,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Future<void> _drawGeneratedCourseOnMap(TouristRouteEntity course) async {
@@ -1683,6 +1697,16 @@ mixin _ModeBOverlayMixin on ConsumerState<MapOverlay> {
             children: [
               _ModeBTopBar(food: food, onBack: _modeBSafeBack),
               _ModeBKcalMiniBar(todayKcal: walkKcal, targetKcal: food.kcal),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                child: _IncludeTodayKcalToggle(
+                  value: modeBState.includeTodayKcal,
+                  todayKcal: walkKcal.round(),
+                  onChanged: (v) => ref
+                      .read(routeSearchProvider.notifier)
+                      .setIncludeTodayKcal(v),
+                ),
+              ),
             ],
           ),
         )

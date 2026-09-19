@@ -12,6 +12,7 @@ import '../../../explore/presentation/providers/explore_provider.dart';
 import '../../../map/domain/entities/place_entity.dart';
 import '../../../mode_b/domain/entities/tourist_route_entity.dart';
 import '../../../onboarding/presentation/providers/onboarding_provider.dart';
+import '../../../walk/presentation/providers/walk_provider.dart';
 
 part 'mode_a_provider.g.dart';
 
@@ -64,6 +65,8 @@ class ModeAState {
     this.nearbyLoading = false,
     this.hasArrived = false,
     this.arrivalKcal,
+    this.restaurantTargetKcal,
+    this.includeTodayKcal = true,
   });
 
   final String from;
@@ -101,6 +104,18 @@ class ModeAState {
   final bool hasArrived;
   final double? arrivalKcal;
 
+  /// 음식점 매칭에 실제로 쓰인 목표 kcal — [includeTodayKcal]가 true일 때만 "오늘
+  /// 이미 소비한 kcal"을 반영한 값. 출발 전: (반영 시) 오늘 소비 kcal + 이 코스의
+  /// 예상 kcal, (미반영 시) 이 코스의 예상 kcal만. 도착 후: (반영 시) 오늘 소비 kcal
+  /// 총합(이 트립 몫 포함, walkSessionProvider 기준), (미반영 시) 이 트립 kcal만.
+  /// [arrivalKcal](이 트립에서 실제로 태운 kcal, "수고하셨어요" 문구용)과는 목적이
+  /// 다르다 — 혼용 금지.
+  final int? restaurantTargetKcal;
+
+  /// 코스 생성 시 오늘 이미 소비한 활동 kcal을 restaurantTargetKcal에 반영할지 —
+  /// 사용자가 경로 패널에서 직접 토글. 기본 ON(기존 동작 유지).
+  final bool includeTodayKcal;
+
   ModeAState copyWith({
     String? from,
     String? to,
@@ -126,6 +141,8 @@ class ModeAState {
     bool? nearbyLoading,
     bool? hasArrived,
     Object? arrivalKcal = _kRemove,
+    Object? restaurantTargetKcal = _kRemove,
+    bool? includeTodayKcal,
   }) {
     return ModeAState(
       from: from ?? this.from,
@@ -161,6 +178,10 @@ class ModeAState {
       arrivalKcal: identical(arrivalKcal, _kRemove)
           ? this.arrivalKcal
           : arrivalKcal as double?,
+      restaurantTargetKcal: identical(restaurantTargetKcal, _kRemove)
+          ? this.restaurantTargetKcal
+          : restaurantTargetKcal as int?,
+      includeTodayKcal: includeTodayKcal ?? this.includeTodayKcal,
     );
   }
 }
@@ -308,8 +329,12 @@ class ModeA extends _$ModeA {
       waypoints: state.waypoints,
       destIsRestaurant: state.destIsRestaurant,
       destKcal: state.destKcal,
+      includeTodayKcal: state.includeTodayKcal,
     );
   }
+
+  void setIncludeTodayKcal(bool v) =>
+      state = state.copyWith(includeTodayKcal: v);
 
   Future<void> search() async {
     if (state.from.isEmpty || state.to.isEmpty) return;
@@ -346,15 +371,23 @@ class ModeA extends _$ModeA {
         'distanceKm=${result.distanceKm} durationSec=${result.durationSeconds} '
         'kcalBurn=${result.kcalBurn} points=${result.routePoints.length}',
       );
+      // 출발 전 미리보기는 (반영 토글 ON 시) "오늘 이미 소비한 kcal + 이 코스의
+      // 예상 kcal"을 목표로 삼는다 — 아직 안 걸었으니 이중계산 걱정 없이 그대로
+      // 더한다. 사용자가 오늘 이미 활동을 좀 했다면 코스 kcal만으로 맛집을 찾는
+      // 것보다 실제 필요량에 가까워진다. 토글 OFF면 코스 kcal만 사용.
+      final restaurantTarget = state.includeTodayKcal
+          ? ref.read(walkSessionProvider).caloriesKcal.round() + result.kcalBurn
+          : result.kcalBurn;
       state = state.copyWith(
         routeResult: result,
         isLoading: false,
         hasArrived: false,
         arrivalKcal: null,
+        restaurantTargetKcal: restaurantTarget,
       );
       // 도착지가 음식점/카페가 아닌 경우에만 주변 식당 로드
       if (!state.destIsRestaurant) {
-        await _loadRestaurants(result.kcalBurn);
+        await _loadRestaurants(restaurantTarget);
       }
       // 기본 탭(음식점 제외)은 사용자가 탭을 직접 누르기 전까지 아무도 안 채워주므로
       // 여기서 현재 선택된 탭 데이터를 미리 로드해둔다 — 안 그러면 도착 전 기본 탭인
@@ -390,12 +423,23 @@ class ModeA extends _$ModeA {
   /// 목적지 도착 시 호출 — 실측 소모 kcal을 확정하고, 검색 상태(출발/경유/도착지)를
   /// 초기화한다. routeResult는 유지해 결과 시트가 도착 요약(거리/시간/실제 kcal)을
   /// 계속 보여줄 수 있게 한다. 좌표는 초기화 전에 캡처해 도착지 기준 맛집 재조회에 쓴다.
-  Future<void> markArrived(double kcal) async {
+  ///
+  /// [todayTotalKcal]: "오늘 총 소비 kcal"(이 트립 몫 포함) — 호출부(map_overlay.dart)가
+  /// walkSessionProvider 기준으로 미리 계산해 넘긴다. 자전거/대중교통은 addExternalKcal()
+  /// 병합이 비동기라 여기서 다시 읽으면 반영 전 값을 볼 수 있어(레이스), 호출부에서 병합
+  /// 전 today 값 + [kcal]을 직접 더해 넘기는 방식으로 레이스를 피한다. 도보는 페도미터가
+  /// 실시간 반영하므로 그대로 읽은 값을 넘긴다. 생략 시 이 트립 kcal만으로 대체한다.
+  /// [includeTodayKcal] 토글이 OFF면 오늘 총합과 무관하게 이 트립 kcal만 사용한다.
+  Future<void> markArrived(double kcal, {int? todayTotalKcal}) async {
     final lat = state.destLat;
     final lng = state.destLng;
+    final restaurantTarget = state.includeTodayKcal
+        ? (todayTotalKcal ?? kcal.round())
+        : kcal.round();
     state = state.copyWith(
       hasArrived: true,
       arrivalKcal: kcal,
+      restaurantTargetKcal: restaurantTarget,
       from: '현재 위치',
       to: '',
       originLat: null,
@@ -406,7 +450,7 @@ class ModeA extends _$ModeA {
       nearbyTab: ModeANearbyTab.restaurant,
     );
     if (!state.destIsRestaurant && lat != null && lng != null) {
-      await _loadRestaurants(kcal.round(), lat: lat, lng: lng);
+      await _loadRestaurants(restaurantTarget, lat: lat, lng: lng);
     }
   }
 
@@ -518,6 +562,7 @@ class ModeA extends _$ModeA {
       waypoints: state.waypoints,
       destIsRestaurant: state.destIsRestaurant,
       destKcal: state.destKcal,
+      includeTodayKcal: state.includeTodayKcal,
     );
   }
 

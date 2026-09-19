@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -5,11 +7,13 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/body_metrics.dart';
 import '../../../explore/presentation/providers/explore_provider.dart';
 import '../../../user/presentation/providers/user_provider.dart';
+import '../../../walk/presentation/providers/walk_provider.dart';
 import '../../data/repositories/mode_b_repository_impl.dart';
 import '../../domain/entities/food_entity.dart';
 import '../../domain/entities/spot_entity.dart';
 import '../../domain/entities/tourist_route_entity.dart';
 import '../../domain/repositories/mode_b_repository.dart';
+import '../../domain/services/mode_b_course_generator.dart' show ModeBCartTooLongException;
 import 'cart_provider.dart';
 
 part 'mode_b_provider.g.dart';
@@ -112,6 +116,8 @@ class RouteSearchState {
     this.isLoadingMore = false,
     this.isFetchingSpots = false,
     this.navPending = false,
+    this.courseError,
+    this.includeTodayKcal = true,
   });
 
   final String transport;
@@ -145,6 +151,15 @@ class RouteSearchState {
   /// place_detail_screen에서 "안내 시작"을 눌렀을 때 true → map_overlay에서 nav 시작
   final bool navPending;
 
+  /// 장바구니 코스 생성 실패 사유(사용자에게 그대로 보여줄 문구) — 예: 카트가 목표
+  /// 칼로리 대비 너무 길 때(ModeBCartTooLongException). null이면 에러 없음.
+  final String? courseError;
+
+  /// 코스 생성 목표 kcal 계산에 오늘 이미 소비한 활동 kcal을 반영할지 — 사용자가
+  /// 상단 토글에서 직접 켜고 끈다. ON이면 "음식 kcal − 오늘 소비 kcal"만큼만 걸으면
+  /// 되도록 목표를 줄인다([RouteSearch._effectiveTargetKcal] 참고). 기본 ON.
+  final bool includeTodayKcal;
+
   bool get hasMore => displayedRoutes.length < allRoutes.length;
   List<TouristRouteEntity> get routes => displayedRoutes;
 
@@ -174,6 +189,8 @@ class RouteSearchState {
     bool? isLoadingMore,
     bool? isFetchingSpots,
     bool? navPending,
+    Object? courseError = _kKeep,
+    bool? includeTodayKcal,
   }) =>
       RouteSearchState(
         transport: transport ?? this.transport,
@@ -194,15 +211,41 @@ class RouteSearchState {
         isLoadingMore: isLoadingMore ?? this.isLoadingMore,
         isFetchingSpots: isFetchingSpots ?? this.isFetchingSpots,
         navPending: navPending ?? this.navPending,
+        courseError: identical(courseError, _kKeep)
+            ? this.courseError
+            : courseError as String?,
+        includeTodayKcal: includeTodayKcal ?? this.includeTodayKcal,
       );
 }
 
 const _kKeep = Object();
 
+/// 코스 생성 목표 kcal의 하한선 — 오늘 소비 kcal을 뺀 나머지가 이보다 작아지면
+/// (또는 음수가 되면) 목표가 0에 가까워져 코스 생성기가 왕복 거리 0짜리 "코스"를
+/// 만들려 드는 것을 막는다. 아주 짧은 산책이라도 생성되도록 하는 최소값.
+const _kMinCourseTargetKcal = 50;
+
 @riverpod
 class RouteSearch extends _$RouteSearch {
   @override
   RouteSearchState build() => const RouteSearchState();
+
+  void setIncludeTodayKcal(bool v) =>
+      state = state.copyWith(includeTodayKcal: v);
+
+  /// 코스 생성에 실제로 쓸 목표 kcal. [RouteSearchState.includeTodayKcal]가 ON이면
+  /// "음식 kcal − 오늘 이미 소비한 kcal"로 줄여서, 오늘 이미 어느 정도 움직인
+  /// 사용자에게는 그만큼 짧은 코스를 제안한다. 음식 kcal을 이미 다 채웠거나
+  /// 초과했다면 0이 아니라 [_kMinCourseTargetKcal](또는 음식 kcal 자체가 더 작으면
+  /// 그쪽)로 바닥을 깔아 최소한의 짧은 코스는 나오게 한다. OFF면 기존처럼 음식
+  /// kcal 그대로 사용.
+  int _effectiveTargetKcal(FoodEntity food) {
+    if (!state.includeTodayKcal) return food.kcal;
+    final todayKcalSoFar = ref.read(walkSessionProvider).caloriesKcal.round();
+    final remaining = food.kcal - todayKcalSoFar;
+    if (remaining >= _kMinCourseTargetKcal) return remaining;
+    return min(_kMinCourseTargetKcal, food.kcal);
+  }
 
   // ── 기성 코스 로드 (두루누비 + TourAPI 여행코스) ─────────────────────
 
@@ -227,7 +270,7 @@ class RouteSearch extends _$RouteSearch {
     final all = await ref.read(modeBRepositoryProvider).getTouristRoutes(
           latitude: lat,
           longitude: lng,
-          targetKcal: food.kcal,
+          targetKcal: _effectiveTargetKcal(food),
           transport: state.transport,
           radiusM: state.radiusM,
         );
@@ -329,7 +372,11 @@ class RouteSearch extends _$RouteSearch {
     double lng = 126.9869,
     List<SpotEntity> cartItems = const [],
   }) async {
-    state = state.copyWith(isFetchingSpots: true, generatedCourse: null);
+    state = state.copyWith(
+      isFetchingSpots: true,
+      generatedCourse: null,
+      courseError: null,
+    );
 
     try {
       List<SpotEntity> baseSpots;
@@ -349,21 +396,23 @@ class RouteSearch extends _$RouteSearch {
         return;
       }
 
+      final targetKcal = _effectiveTargetKcal(food);
+
       // 카트 기반: 선택 스팟 전부 포함(TSP) / 앱 자동: 반경 내 자동 선택(최대 5개)
       var course = await ref.read(modeBRepositoryProvider).generateCourse(
             spots: cartItems.isNotEmpty ? const [] : baseSpots,
             userLat: lat,
             userLng: lng,
-            targetKcal: food.kcal,
+            targetKcal: targetKcal,
             transport: state.transport,
             mandatorySpots: cartItems.isNotEmpty ? baseSpots : const [],
           );
 
-      // 카트 기반 코스가 칼로리 80% 미달 시 → 동일 태그 스팟을 optional 풀로 보충
-      // 카트 스팟은 mandatorySpots로 전달해 항상 포함 보장
+      // 카트 기반 코스가 (오늘 kcal 반영 후) 목표 대비 80% 미달 시 → 동일 태그
+      // 스팟을 optional 풀로 보충. 카트 스팟은 mandatorySpots로 전달해 항상 포함 보장
       List<SpotEntity> optionalPool = [];
       if (cartItems.isNotEmpty &&
-          (course == null || course.kcal < food.kcal * 0.8)) {
+          (course == null || course.kcal < targetKcal * 0.8)) {
         final extraTags = cartItems
             .map((s) => _spotTypeToTag(s.type))
             .whereType<SpotTag>()
@@ -384,7 +433,7 @@ class RouteSearch extends _$RouteSearch {
                 spots: optionalPool,
                 userLat: lat,
                 userLng: lng,
-                targetKcal: food.kcal,
+                targetKcal: targetKcal,
                 transport: state.transport,
                 mandatorySpots: baseSpots,
               );
@@ -418,6 +467,15 @@ class RouteSearch extends _$RouteSearch {
       state = state.copyWith(
         generatedCourse: course,
         isFetchingSpots: false,
+      );
+    } on ModeBCartTooLongException catch (e) {
+      // 하드 캡: 카트 필수 스팟만으로 벌써 목표 대비 너무 멀다 — 조용히 거대한
+      // 코스를 만드는 대신 생성 자체를 막고 사용자에게 원인을 알려준다.
+      state = state.copyWith(
+        isFetchingSpots: false,
+        courseError:
+            '장바구니 코스가 너무 깁니다 (예상 왕복 ${e.actualKm.toStringAsFixed(1)}km, '
+            '이 음식 기준 최대 ${e.maxKm.toStringAsFixed(1)}km) — 스팟을 몇 개 빼고 다시 시도해주세요.',
       );
     } catch (_) {
       state = state.copyWith(isFetchingSpots: false);

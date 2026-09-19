@@ -97,6 +97,67 @@ class _ToggleTab extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ── 오늘 활동 칼로리 반영 토글 (Mode A / Mode B 공용)
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 코스/경로 생성 시 오늘 이미 소비한 활동 kcal을 목표 kcal 계산에 반영할지 묻는
+/// 토글. Mode A는 반영 시 "오늘 소비 kcal + 코스 kcal"을 맛집 매칭 목표로 더하고,
+/// Mode B는 반영 시 "음식 kcal − 오늘 소비 kcal"만큼만 걸으면 되도록 코스 생성
+/// 목표를 줄인다 — 두 모드 다 같은 토글 UI를 쓰되 provider 쪽 계산식만 다르다.
+class _IncludeTodayKcalToggle extends StatelessWidget {
+  const _IncludeTodayKcalToggle({
+    required this.value,
+    required this.todayKcal,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final int todayKcal;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: kMapPanelAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.local_fire_department_rounded,
+              size: 15,
+              color: value ? kMapPrimary : kMapWhite45,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                '오늘 활동 칼로리 반영 (${todayKcal}kcal)',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: kMapWhite87,
+                ),
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: kMapPrimary,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ── Cluster helpers ───────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
